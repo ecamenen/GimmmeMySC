@@ -5,6 +5,7 @@
 
 <!-- badges: start -->
 
+[![R-CMD-check](https://github.com/ecamenen/GimmmeMySC/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ecamenen/GimmmeMySC/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 #### Version: 1.0.0
