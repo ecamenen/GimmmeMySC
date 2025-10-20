@@ -1,0 +1,17 @@
+.Rproj.user
+.Rhistory
+.idea/
+inst/extdata/
+Meta/
+.local/
+.config/
+doc/
+.cache/
+dev/
+*.~lock.*
+*.tar.gz
+*.Rproj
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
