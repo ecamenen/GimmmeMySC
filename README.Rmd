@@ -1,0 +1,47 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# GimmmeMySC
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+#### Version: 1.0.0
+
+#### Author:
+Etienne CAMENEN (etienne.camenen@inserm.fr)
+
+#### Abstract:
+End-to-end workflow for the analysis of single-cell and single-nucleus omics data, including scRNA-seq and scATAC-seq. Features include rigorous quality control, ambient RNA correction, and advanced detection of doublets and duplicated cells. Offers tools for normalization, feature selection, dimensionality reduction, clustering, and robust batch effect correction. Supports cell-type annotation using reference atlases and marker-based methods, sex-specific marker analysis, and cell cycle scoring. Enables multi-omic integration, pseudo-bulk analysis, differential expression and accessibility testing, peak calling, motif enrichment, and gene regulatory network reconstruction. Includes extensive visualization capabilities such as UMAP/t-SNE embeddings, violin and dot plots, coverage maps, co-accessibility networks, and interactive heatmaps.
+
+#### Key-words:
+scRNA-seq; scATAC-seq; Multi-omics; Cell annotation; Quality control; Cell trajectory; Clustering analysis; Epigenetic; Chromatin accessibility
+
+
+## Installation
+
+You can install the development version of GimmmeMySC from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("pak")
+pak::pak("ecamenen/GimmmeMySC")
+```
+
+## Example
+
+```{r example}
+library(GimmmeMySC)
+```
+

@@ -22,3 +22,4 @@ app_config.R
 ^\.cache$
 ^app_config\.R$
 ^\.RData$
+^.*\.log$
