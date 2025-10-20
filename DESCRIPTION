@@ -11,13 +11,33 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 URL: https://github.com/ecamenen/GimmmeMySC
 BugReports: https://github.com/ecamenen/GimmmeMySC/issues
-Suggests: 
+Suggests:
+    AnnotationHub,
+    BPCells,
+    GenomicRanges,
+    GimmeMyCluster,
+    glmGamPoi,
+    igraph,
+    irlba,
     knitr,
+    monocle3,
+    presto,
     rmarkdown,
+    scCustomize,
+    SeuratWrappers,
+    slingshot,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-Imports: 
-    magrittr
+Imports:
+    clustree,
+    scDblFinder,
+    GimmeMyOmics,
+    GimmeMyPlot,
+    magrittr,
+    patchwork,
+    Seurat,
+    Signac,
+    SingleR
 Depends: 
     tidyverse

@@ -1,0 +1,231 @@
+#' @export
+plot_sc_violin <- function(
+        x,
+        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
+        normalize = NULL,
+        nrow = 3,
+        ncol = 3,
+        cols = brewer.pal(9, "Set1"),
+        width = 15,
+        breaks = NULL,
+        metadata = TRUE,
+        ...
+) {
+    if(is.null(normalize)) {
+        normalize <- rep(TRUE, length(features))
+    }
+    list.map(
+        features,
+        f(i, j) ~{
+            p <- VlnPlot(
+                x,
+                features = i,
+                pt.size = 0,
+                # group.by = "Patient",
+                cols = cols,
+                # cols = cols[j],
+                ncol = ncol,
+                ...
+            ) +
+                theme_custom() +
+                theme(
+                    axis.title.x = element_blank(),
+                    axis.line = element_line(linewidth = 1),
+                    panel.grid.major.y = element_line(colour = "grey", linetype = 2)
+                )
+
+            if (normalize[j] > 0) {
+                if (!metadata) {x
+                    df <- t(x[[x@active.assay]]@data[i, ])
+                } else {
+                    df <- x@meta.data[, i]
+                }
+                p <- p + GimmeMyPlot:::axis_log(df, "y", normalize[j], breaks[[j]])
+            } else {
+                if (!is.null(breaks[[j]]))
+                    p <- p + scale_y_continuous(labels = label_number_auto(), breaks = breaks[[j]])
+                else
+                    p <- p + scale_y_continuous(labels = label_number_auto())
+            }
+            p +
+                NoLegend()  +
+                ggtitle(
+                    str_clean(i) %>%
+                        str_wrap(width = width)
+                )  +
+                ylab(NULL) +
+                # theme(axis.text.x = element_blank()) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        }
+    ) %>% wrap_plots(nrow = nrow)
+}
+
+#' @export
+print_sc_stats <- function(
+        x,
+        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
+        probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1)
+) {
+    sapply(
+        features,
+        function(i) quantile(
+            x[[i]],
+            probs = probs,
+            na.rm = TRUE)
+    )
+}
+
+#' @export
+plot_sc_cor <- function(
+        x,
+        col = palette_discrete()[seq_along(Idents(x))],
+        features = c("percent_mitochondrial", paste0("nFeature", "_", assay))
+) {
+    lapply(
+        features,
+        function(i) {
+            FeatureScatter(
+                x,
+                feature1 = paste0("nCount", "_", assay),
+                feature2 = i,
+                cols = col
+            ) +
+                geom_smooth(method  = "lm", se= TRUE, colour = "gray30") +
+                NoLegend() +
+                GimmeMyPlot:::theme_custom(cex = 1.5) +
+                theme(
+                    axis.line = element_line(linewidth = 1),
+                    panel.grid.major = element_line(colour = "grey", linetype = 2),
+                    axis.text = element_text(size = 13, color = "gray50")
+                ) +
+                labs(x = "# Count", y = str_clean(i))
+        }
+    ) %>%
+        plot_grid(plotlist = ., ncol = 2)
+}
+
+#' @export
+plot_eig <- function(x) {
+    x %>%
+        data.frame(
+            dim = seq_along(.),
+            var = .
+        ) %>%
+        ggplot(aes(x = dim)) +
+        geom_line(aes(y = var), color = "red", lwd = 1) +
+        geom_point(aes(y = var), color = "red", size = 2, pch = 3) +
+        labs(
+            title = NULL,
+            x = "Dimension",
+            y = "Standard deviation"
+        ) +
+        xlim(1, NA) +
+        theme_custom()
+}
+
+#' @export
+density_scatter <- function(object, x, y, ...) {
+    DensityScatter(
+        object,
+        x,
+        y,
+        quantiles = TRUE,
+        ...
+    ) +
+        theme_custom() +
+        xlab(str_clean(x)) +
+        ylab(str_clean(y))
+}
+
+#' @export
+variable_plot <- function(x) {
+    VariableFeaturePlot(x) %>%
+        LabelPoints(
+            points = head(VariableFeatures(x), 10),
+            repel = TRUE
+        ) +
+        scale_x_continuous(
+            trans = log10_trans(),
+            breaks = trans_breaks("log10", function(x) 10^x),
+            labels = trans_format("log10", math_format(10^.x))
+        ) +
+        scale_y_continuous(
+            trans = log2_trans(),
+            breaks = trans_breaks("log2", function(x) 2^x),
+            labels = label_number_auto()
+        ) +
+        theme_custom() +
+        ylab("Variance") +
+        NoLegend()
+}
+
+#' @export
+cluster_size <- function(x, order = TRUE) {
+    res <- fct_count(x) %>%
+        filter(!is.na(f)) %>%
+        column_to_rownames("f") %>%
+        mutate(freq = round(n/sum(n) * 100, 1))
+
+    if(order)
+        arrange(res, desc(n))
+    else
+        res
+}
+
+#' @export
+density_plot <- function(x, feature = nFeature_RNA) {
+    as.data.frame(x[[]]) %>%
+        ggplot(aes(color=orig.ident, x=feature, fill= orig.ident)) +
+        geom_density(alpha = 0.2) +
+        scale_x_log10() +
+        theme_custom() +
+        # geom_vline(xintercept = 300) +
+        ylab(str_clean(i))
+}
+
+#' @export
+print_filtered_cells <- function(before, after) {
+    before <- ncol(before)
+    after <- ncol(after)
+    pct <- ((after / before) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste0("%")
+    paste0("Before: ", before, " cells / After: ", after, " cells (", pct, " removed).")
+}
+
+#' @export
+integrate_multisamples <- function(
+        x,
+        labels = paste0(
+            types,
+            "_",
+            # str_remove_all(l_samples, types) %>% str_remove_all("_")
+            l_samples
+        )
+) {
+    seurat <- merge(
+        x = x[[1]],
+        y = x[-1],
+        add.cell.ids =labels
+    )
+
+    seurat$sample <- rownames(seurat[[]])
+    seurat[[]] <- separate(
+        seurat[[]],
+        col = "sample",
+        into = c("Type", "Patient", "Barcode"),
+        sep = "_"
+    )
+    return(seurat)
+}
+
+#' @export
+calc_other_cluster_avg <- function(avg_matrix) {
+    all_clusters <- colnames(select(avg_matrix, -c("gene", starts_with("except"))))
+
+    for (target_cluster in all_clusters) {
+        other_clusters <- setdiff(all_clusters, target_cluster)
+        col_name <- paste0("except_", target_cluster)
+        avg_matrix[[col_name]] <- rowMeans(avg_matrix[, other_clusters, drop = FALSE], na.rm = TRUE)
+    }
+
+    return(avg_matrix)
+}

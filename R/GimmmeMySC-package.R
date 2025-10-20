@@ -1,4 +1,5 @@
-#' @import tidyverse
+#' @import clustree scDblFinder GimmeMyOmics GimmeMyPlot magrittr
+#' @import patchwork Seurat Signac SingleR tidyverse
 #' @importFrom magrittr %>%
 #' @keywords internal
 "_PACKAGE"

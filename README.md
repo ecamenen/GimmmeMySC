@@ -61,4 +61,9 @@ library(GimmmeMySC)
 #> ✖ dplyr::filter() masks stats::filter()
 #> ✖ dplyr::lag()    masks stats::lag()
 #> ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+#> 
+#> 
+#> Registered S3 method overwritten by 'spatstat.explore':
+#>   method   from
+#>   plot.roc fmsb
 ```

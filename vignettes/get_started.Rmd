@@ -14,8 +14,1803 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+# Setup
+```{r init, message = FALSE}
+set.seed(1234)
 library(GimmmeMySC)
+options(future.globals.maxSize = 2000 * 1024^2)
+options(ggrepel.max.overlaps = 1000)
+
+cwd <- file.path(
+  "/shared",
+  "projects",
+  "immunaid",
+  "data"
+)
+
+project <- "deep-seq"
+path <- file.path(
+  cwd,
+  "dobino_1124",
+  project
+)
+
+SCT <- TRUE
+max_dim <- 100
+n_dim <- 30
+assay <- "RNA"
+
+source("utils_theme.R")
+source("utils_sc.R")
+l_samples <- list.files(path) %>%  
+  .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
+  .[str_detect(., "KO")]
+col_inds0 <- GimmeMyPlot:::palette_discrete()[seq_along(l_samples)]
+
+col_pal <- c(
+  rev(brewer.pal(9, "Blues")[-c(1, 3, 5, 7, 9)]),
+  "white",
+  # "grey90",
+  brewer.pal(9, "Reds")[-c(1, 3, 5, 7, 9)]
+)
+```
+
+```{r, eval = FALSE}
+seurat <- readRDS(file.path(path, "seurat2.rds"))
+```
+
+# Load data
+```{r data}
+# library(hdf5r)
+
+list_seurat <-  list.map(
+    l_samples,
+    f(x) ~{
+      count_matrix <- file.path(path, x) %>%
+        list.files(full.names =TRUE) %>% 
+        .[str_detect(., "filtered_feature_bc_matrix.h5")]
+      tmp <- Read10X_h5(count_matrix) %>%
+      CreateSeuratObject()
+    tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
+    tmp
+    }
+)
+```
+
+```{r data}
+types  <- str_remove_all(l_samples, "_?\\d+")
+
+col_inds <- list(
+  c("#FB9A99", "#E31A1C"),
+  c("#B2DF8A", "#33A02C")
+)
+color_types <- sapply(col_inds, last)
+
+col_inds <- list.mapv(unique(types), f(i, j) ~colorRampPalette(col_inds[[j]])(length(types[types == i]))) %>% as.character()
+
+seurat <- merge(
+  x = list_seurat[[1]],
+  y = list_seurat[-1],
+  add.cell.ids = paste0(
+      types,
+      "_",
+      # str_remove_all(l_samples, types) %>% str_remove_all("_")
+      l_samples
+    )
+)
+
+seurat$sample <- rownames(seurat[[]])
+seurat[[]] <- separate(
+  seurat[[]], 
+  col = "sample", 
+  into = c("Type", "Patient", "Barcode"),
+  sep = "_"
+)
+```
+
+# QC
+## Filter cells with low or too high genes
+```{r qc_plot}
+print_sc_stats(seurat, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
+  kable0(digits = 3)
+# plot_sc_cor(seurat)
+
+list.map(
+  c(paste0("nFeature", "_", assay), "percent_mitochondrial"),
+  f(i, j) ~ {
+    density_scatter(
+      seurat,
+      x = i,
+      y = paste0("nCount", "_", assay),
+      log_x = TRUE,
+      log_y = TRUE
+  )
+  }
+    
+)%>% plot_grid(plotlist = ., align = "hv")
+
+Idents(seurat) <- "Patient"
+plot_sc_violin(
+    seurat,
+    # features = c(features_atac[-6], "passed_filters"),
+    cols = col_inds,
+    nrow = 1,
+    normalize = c(10, 10, 10)
+)
+
+# GimmeMyPlot:::plot_cor(
+#     seurat@meta.data[, "nCount_RNA"],
+#     seurat@meta.data[, "mitochondrial"]
+# )
+```
+
+```{r}
+seurat_old <- seurat
+list_seurat0 <- list_seurat
+features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial")
+list_seurat <- list.map(
+    list_seurat,
+    f(i) ~{
+      stats_qc <- sapply(
+        features,
+        function(x) quantile(
+            i[[x]], 
+            probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1), 
+            na.rm = TRUE)
+    )
+    subset(
+      i, 
+      subset = 
+        nFeature_RNA > stats_qc["10%", "nFeature_RNA"] &
+        nFeature_RNA < stats_qc["90%", "nFeature_RNA"] & 
+        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"] & 
+        nCount_RNA < stats_qc["90%", "nCount_RNA"]
+  )
+  }
+)
+
+list.mapv(
+  seq_along(list_seurat0),
+  f(i) ~ print_filtered_cells(list_seurat0[[i]], list_seurat[[i]])
+)
+
+seurat <- integrate_multisamples(list_seurat, paste0(types, "_", l_samples))
+```
+
+## Doublets
+```{r}
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+sce <- scDblFinder(
+  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  samples = seurat@active.ident,
+  aggregateFeatures = FALSE,
+  k = NULL,
+  processing = "normFeatures",
+  dims = 20
+)
+table(sce$scDblFinder.class)
+
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+
+df_doublets <- list.map(
+    unique(seurat$Patient),
+    f(x) ~ filter(seurat[[]], Patient == x) %>% pull(doublets) %>% table()
+) %>% 
+    list.rbind() %>%
+    as.data.frame() %>%
+    rbind(".Total" = colSums(.))
+
+t(df_doublets) %>% 
+  plot_bar_2cat(
+    count = TRUE,
+    stats = FALSE,
+    colour = brewer.pal(3, "Set1")[c(1, 3)],
+    colour_text = "black"
+  )
+```
+
+```{r}
+# visualize doublets
+# DimPlot(
+#   seurat, 
+#   reduction = 'umap.unintegrated', 
+#   group.by = "doubletFinder",
+#   label = TRUE,
+#   repel = TRUE
+# )
+
+# number of singlets and doublets
+
+VlnPlot(
+  seurat,
+  features = c("nFeature_RNA", "nCount_RNA", "mitochondrial"),
+  pt.size = 0,
+  group.by = "doublets",
+  ncol = 3
+)
+
+seurat <- subset(seurat, subset = doublets == "singlet")
+```
+
+## QC after
+```{r qc_sub}
+(ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
+
+list.map(
+    l_samples,
+    f(x) ~ list.map(
+      c(seurat_old, seurat),
+      f(i) ~ filter(i[[]], Patient == x) %>% nrow()
+      ) %>% 
+    list.rbind()
+) %>% 
+    list.cbind() %>%
+    as.data.frame() %>% 
+    set_colnames(l_samples) %>%
+    t() %>%
+    as.data.frame() %>%
+    rbind(`.Total` = colSums(.)) %>%
+    mutate(V3 = V1 - V2) %>%
+    select(-V1) %>%
+    t() %>%
+    as.data.frame() %>%
+    set_rownames(c("Kept", "Removed"))  %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE
+    )
+```
+
+## Biotype
+```{r, eval = FALSE}
+# genome_species <- "Hsapiens"
+genome_species <- "Mmusculus"
+ref_path <- "/shared/projects/immunaid/data/ref"
+annotation_file <- file.path(ref_path, paste(tolower(genome_species), 113, "annotation.tsv", sep = "_"))
+annotation <- read_tsv(annotation_file) %>% as.data.frame()
+
+gene_query <- mutate(annotation, biotype = gene_biotype %>% 
+  str_replace_all(".*(pseudogene)", "Pseudogene") %>%
+  str_replace_all("(IG)_.*", "\\1") %>%
+  str_replace_all("(TR)_.*", "\\1") %>%
+  str_replace_all(".*(decay)", "Decayed") %>%
+  str_replace_all("(misc_RNA)|(snRNA)|(miRNA)|(snoRNA)|(scaRNA)|(sRNA)|(scRNA)|(vault_RNA)|(Mt_ncRNA)|(Mt_tRNA)", "sncRNA") %>%
+  str_replace_all("Mt_rRNA", "rRNA") %>% 
+  # str_replace_all("retained_intron", "lncRNA") %>% 
+  str_replace_all("(IG)|(TR)", "somatic recombination") %>% 
+  # str_replace_all("(somatic recombination)|(TEC)|(rRNA)|(ribozyme)", "Others") %>% 
+  str_replace_all("^protein_coding$", "CDS") %>%
+  str_replace_all("processed_transcript", "ncRNA")
+)
+
+
+cts <- GetAssayData(seurat, layer = 'counts')
+common_genes <- intersect(pull(gene_query, external_gene_name), rownames(cts))
+biotype <- list.map(
+  c("CDS", "Pseudogene", "rRNA", "lncRNA", "sncRNA"),
+    f(i) ~{
+      n <- filter(gene_query, external_gene_name %in% common_genes) %>%
+        filter(biotype == y) %>% 
+        filter(!duplicated(external_gene_name)) %>%
+        nrow()
+      list.map(
+        rownames(cts),
+        f(x) ~{
+          tmp <- gene_query %>% filter(external_gene_name == x & biotype == i)
+          if (nrow(tmp) > 0) {
+            cts0 <- cts %>%
+              filter(rownames(.) == x) %>% 
+              as.numeric() %>%
+              `>`(1) %>% 
+              as.numeric()
+          } else {
+            rep(0, ncol(cts))
+          }
+        }
+      ) %>% list.cbind() %>%
+      apply(1, sum) %>% `/`(n) %>% `*`(100)
+  }
+)
+```
+
+## Negative / positive control genes
+```{r, eval = FALSE}
+g_neg <- c("DRD1", "ALB", "MYL1", "NPPA") %>% sort()
+g_pos <- c("GAPDH", "ACTB", "TMSB4X", "B2M") %>% sort()
+g_ctr <- c(g_neg, g_pos)
+g_sex <- c("XIST", "DDX3Y")
+DotPlot(
+    seurat, 
+    features = str_to_sentence(g_sex), 
+    scale = FALSE,
+    dot.scale = 8
+) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = NULL, y = NULL)
+
+list.map(
+    list(g_neg, g_pos),
+    ~DotPlot(
+    seurat, 
+    features = str_to_sentence(.) %>% sort(), 
+    dot.scale = 8
+) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = NULL, y = NULL)
+)%>%
+    plot_grid(plotlist = ., ncol = 2, align = "hv")
+```
+
+## Scater
+
+# Gene filtering
+```{r filter}
+seurat[["RNA"]] <- split(seurat[["RNA"]], f = seurat$Patient)
+if (!SCT) {
+  seurat <- NormalizeData(seurat) %>%
+      FindVariableFeatures()
+}
+```
+
+```{r eval = FALSE}
+# cts0 <- GetAssayData(seurat, layer = 'data')
+cts <- as.matrix(seurat[["RNA"]]$counts) %>% as.data.frame()
+cts0 <- as.matrix(seurat[["RNA"]]$data) %>% as.data.frame()
+
+n_cell <- 1e3
+plot_density_genes(select(cts0, seq(n_cell)), density = TRUE, norm = TRUE)
+plot_density_genes(select(cts, seq(n_cell)), density = TRUE)
+```
+
+```{r filter, eval = FALSE}
+vst <- seurat[["RNA"]]@meta.data[, seq(2)]
+vst0 <- seurat[["RNA"]]@meta.data[, 3:4]
+# vst0 <- sapply(
+#   c(mean, var),
+#   function(i) apply(cts, 1, i)
+#   ) %>% as.data.frame()
+
+vst %>% 
+  # select(vf_vst_counts_mean, vf_vst_counts_variance.standardized) %>%
+  set_colnames(c("Average expression", "Variance")) %>%
+  ggplot(mapping = aes(x = `Average expression`, y = Variance)) + 
+    geom_point() +
+    scale_x_continuous(trans = log10_trans(),
+      breaks = trans_breaks("log10", function(x) 10^x),
+      labels = trans_format("log10", math_format(10^.x))) +
+    scale_y_continuous(trans = log2_trans(),
+      breaks = trans_breaks("log2", function(x) 2^x),
+      labels = trans_format("log2", math_format(2^.x))) +
+    theme_custom()
+```
+
+```{r filter_mark}
+if (!SCT)
+VariableFeaturePlot(seurat) %>%
+    LabelPoints(
+        points = head(VariableFeatures(seurat), 10), 
+        repel = TRUE
+    ) +
+    scale_x_continuous(trans = log10_trans(),
+                       breaks = trans_breaks("log10", function(x) 10^x),
+                       labels = trans_format("log10", math_format(10^.x))) +
+    scale_y_continuous(trans = log2_trans(),
+                       breaks = trans_breaks("log2", function(x) 2^x),
+                       labels = label_number_auto()) +
+    theme_custom() +
+    ylab("Variance") +
+    NoLegend()
+```
+
+# PCA
+```{r pca}
+s.genes <- cc.genes$s.genes %>% str_to_sentence()
+g2m.genes <- cc.genes$g2m.genes %>% str_to_sentence()
+
+if (!SCT) {
+  if (assay == "sketch") {
+    seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+  seurat <- ScaleData(seurat)
+} else {
+  seurat[["RNA"]] <- split(
+    seurat[["RNA"]], 
+    f = seurat$Patient,
+    layers = c("counts","data")
+  )
+  seurat <- SCTransform(seurat)
+  assay <- "SCT"
+  DefaultAssay(seurat) <- "SCT"
+  if (assay == "sketch") {
+     seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+}
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+
+# Dimension visualisation
+DimPlot(
+    seurat, 
+    # cells = seq(3.2e5),
+    reduction = 'pca',
+    group.by = "Patient", 
+    split.by = "Type", 
+    cols = col_inds,
+    repel = TRUE,
+    pt.size = .5,
+    alpha = .25
+) %>% theme_sc_dim()
+DimPlot(
+  seurat, 
+  reduction = 'pca',
+  group.by = "Type", 
+  cols = color_types
+) %>% theme_sc_dim()
+# coord <- trans_coord(
+#   seurat@reductions$pca@cell.embeddings[, seq(2)], 
+#   add = seurat@meta.data[, "seurat_clusters"] %>% paste("Cluster", .)
+# )
+# plot_dimred(coord, eig, colour = GimmeMyPlot:::palette_discrete2())
+```
+
+## Cell cycle
+```{r}
+seurat <- CellCycleScoring(
+  seurat,
+  s.features = s.genes, 
+  g2m.features = g2m.genes, 
+  set.ident = TRUE
+)
+seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
+
+FeaturePlot(
+    seurat,
+    features = "CC.Difference",
+    alpha = 0.5
+) %>% theme_sc_dim()  +
+    scale_color_gradientn(
+        colors = col_pal,
+        limits = c(-1, 1),
+        name = "S to G2/M"
+    ) + labs(x = NULL, y = NULL, title = NULL)
+
+
+DimPlot(
+    object = seurat, 
+    label = TRUE,
+    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = GimmeMyPlot:::palette_discrete(),
+    repel = TRUE,
+    group.by = "Phase",
+    na.value = "white",
+    reduction = "umap",
+    pt.size = 1,
+    alpha = 0.25
+) %>% 
+    theme_sc_dim() +  labs(x = NULL, y = NULL, title = NULL)
+
+RidgePlot(seurat, features = c("PCNA", "TOP2A", "MCM6", "MKI67"), ncol = 2)
+```
+
+```{r, eval = FALSE}
+seurat <- RunPCA(seurat, features = c(s.genes, g2m.genes))
+DimPlot(seurat)
+
+cc_diff <- TRUE
+if (!cc_diff)
+  seurat <- ScaleData(seurat, vars.to.regress = c("S.Score", "G2M.Score"), features = rownames(seurat))
+else
+  seurat <- ScaleData(seurat, vars.to.regress = "CC.Difference", features = rownames(seurat))
+
+seurat <- RunPCA(seurat, features = VariableFeatures(seurat), nfeatures.print = 10)
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+```
+
+## Dimension selection
+```{r}
+# Dimension selection
+plot_eig(seurat[['pca']]@stdev) + 
+   geom_hline(yintercept = mean(seurat[['pca']]@stdev), col = "gray50", lwd =1, lty = 2)
+
+eig <- seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100
+plot_eig(eig) + 
+  geom_hline(yintercept = mean(eig), col = "gray50", lwd = 1, lty = 2) +
+  ylab("% Explained\n variance")
+# cumsum(eig) %>% .[. < 80]
+cumsum(eig) %>% 
+  plot_eig()+ 
+  ylim(0, NA) +
+  ylab("% Cumulated\n explained variance") + 
+  geom_hline(yintercept = 80, color = "gray50", lwd =1, lty = 2)
+```
+
+```{r}
+DimHeatmap(seurat, dims = seq(15), cells = 500, balanced = TRUE)
+DimHeatmap(seurat, dims = 16:30, cells = 500, balanced = TRUE)
+DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
+
+DimPlot(
+  seurat,
+  reduction = "pca",
+  group.by = 'Patient',
+  cols = col_inds0,
+  repel = TRUE,
+  pt.size = .5,
+  alpha = .25
+) %>% theme_sc_dim() + ggtitle(NULL)
+```
+
+```{r}
+comp_genes <- list.map(
+    seq(max_dim),
+    f(x) ~ Loadings(seurat, reduction = "pca") %>%
+        as.data.frame() %>%
+        select(paste0("PC_", x)) %>%
+        arrange(abs(!!sym(paste0("PC_", x)))) %>%
+        tail(20) %>%
+        rownames()
+) %>% set_names(seq(max_dim))
+
+list.map(
+  list(g2m.genes, s.genes),
+  f(i) ~lapply(comp_genes, function(x) x[x %in% str_to_sentence(i)]) %>% compact()
+) %>% set_names(c("G2/M", "S"))
+
+# n_dim <- 20
+round(cumsum(eig)[n_dim], 1)
+```
+
+
+## Component markers
+```{r pca_plot, eval = FALSE}
+# DimHeatmap(seurat, dims = 1)
+
+# Markers
+print(seurat[['pca']], dims = 1:5, nfeatures = 5)
+VizDimLoadings(seurat, dims = 1:2, reduction = 'pca')
+
+# i <- 1
+# seurat[['pca']]@feature.loadings[, i] %>%
+#   plot_bar(
+#     abs = TRUE,
+#     n_max = 10,
+#     label_x = "none",
+#     geom = "point",
+#     title = paste0("Dim ", i, " (", round(seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100, 1) , "%)"),
+#     colour = "red"
+#   )
+```
+
+# Batch effect
+## Cluster
+```{r clus_unint, eval = FALSE}
+resolution <- c(seq(.1, .4, 0.05), seq(.5, 1, by = 0.1), 1.2, 1.5)
+seurat <- FindNeighbors(seurat, dims = seq(n_dim)) 
+seurat <- seurat %>% 
+  FindClusters(verbose = FALSE, algorithm = 3, resolution = resolution)
+
+select(seurat2@meta.data, contains("RNA_snn_res")) %>%
+    list.mapv(f(x) ~ levels(x) %>% length())
+
+resolution <- 0.1
+Idents(seurat) <- "seurat_clusters"
+col_clus <- get_colors0()(length(levels(Idents(seurat))))
+```
+
+## UMAP
+```{r umap}
+seurat <- RunUMAP(
+  seurat, 
+  dims = seq(n_dim),
+  reduction.key = "Dim. ",
+  # reduction.name = "umap.unintegrated"
+  )
+
+# Batch effect
+DimPlot(
+  seurat,
+  # reduction = 'umap.unintegrated',
+  group.by = 'Patient',
+  cols = col_inds0,
+  repel = TRUE,
+  pt.size = .5,
+  alpha = .25
+) %>% theme_sc_dim() + ggtitle(NULL)
+DimPlot(
+  seurat,
+  # reduction = 'umap.unintegrated',
+  split.by = 'Patient',
+  cols = col_inds0,
+  repel = TRUE,
+  alpha = .25
+) %>% theme_sc_dim() + NoLegend()
+```
+
+
+```{r, eval = FALSE}
+DimPlot(
+  seurat,
+  reduction = 'umap.unintegrated',
+  group.by = 'Type',
+  cols = color_types,
+  repel = TRUE
+) %>% theme_sc_dim() +
+DimPlot(
+  seurat,
+  reduction = 'umap.unintegrated',
+  group.by = 'seurat_clusters',
+  cols = col_clus,
+  label = TRUE,
+  repel = TRUE
+)
+
+DimPlot(
+  seurat,
+  # reduction = 'umap.unintegrated',
+  group.by = "Patient",
+  split.by = "Type",
+  cols = col_inds,
+  repel = TRUE
+) %>% theme_sc_dim()
+```
+
+# Integration
+```{r, eval = FALSE}
+if(SCT) {
+  seurat[["v5"]] <- CreateAssay5Object(
+    counts =  seurat@assays$RNA$counts,
+    data =  seurat@assays$SCT$data,
+    # scale.data = seurat@assays$SCT$scale.data
+  )
+  seurat@assays[["v5"]]@key <- "v5_"
+  DefaultAssay(seurat) <- "v5"
+    seurat[["v5"]] <- split(
+    seurat[["v5"]], 
+    f = seurat$Patient,
+    layers = c("counts","data")
+  )
+  assay <- "V5"
+}
+```
+
+```{r}
+integration_method <- "RPCA"
+seurat <- IntegrateLayers(
+    object = seurat, 
+    method = get(paste0(integration_method, "Integration")),
+    new.reduction = integration_method,
+    # reduction.key = "Dim. ",
+    orig.reduction = "pca",
+    assay = assay,
+    dims.to.integrate = n_dim,
+    # scale.layer = "data",
+    normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+    verbose = TRUE
+)
+# integration_method <- "RPCA"
+# seurat <- IntegrateLayers(
+#   object = seurat, 
+#   method = get(paste0(integration_method, "Integration")),
+#   new.reduction = integration_method,
+#   # reduction.key = "Dim. ",
+#   # features = Features(seurat@assays[["v5"]]),
+#   orig.reduction = "pca",
+#   # assay = "v5",
+#   dims.to.integrate = n_dim,
+#   # scale.layer = "data",
+#   normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+#   verbose = TRUE
+# )
+
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+```
+
+## UMAP
+```{r}
+seurat <- RunUMAP(
+  seurat, 
+  dims = seq(n_dim),
+  reduction = integration_method
+)
+```
+
+```{r int}
+assay_old <- assay
+assay <- "RNA"
+p <- map(
+    features,
+    ~FeaturePlot(
+        object = seurat,
+        features = .,
+        alpha = 0.5,
+        # cols = c("yellow", "blue"), 
+        # min.cutoff = "q10", 
+        # max.cutoff = "q90"
+    ) %>% 
+        theme_sc_dim() +
+        ggtitle(str_clean(.)) +
+    scale_color_gradientn(
+        colors = col_pal
+    )
+
+)
+
+plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
+assay <- assay_old
+```
+
+
+```{r, eval = FALSE}
+list.map(
+  c("pca", integration_method),
+  f(x) ~{
+  DimPlot(
+    seurat_integrated, 
+    reduction = x, 
+    group = "Patient",
+    cols = col_inds,
+    label = TRUE,
+    repel = TRUE
+) %>% theme_sc_dim() + ggtitle(x)
+  }
+) %>% plot_grid(plotlist = ., ncol = 2)
+
+DimPlot(
+  seurat_integrated, 
+  reduction = integration_method, 
+  group = "Type",
+  cols = color_types,
+  repel = TRUE
+) %>% theme_sc_dim()
+```
+
+
+```{r}
+DimPlot(
+  seurat, 
+  reduction = integration_method, 
+  group = "Patient",
+  split.by = "Type",
+  cols = col_inds,
+  repel = TRUE
+) %>% theme_sc_dim()
+# seurat[[assay]] <- JoinLayers(seurat[[assay]])
+```
+
+## Cluster
+```{r clus_int}
+resolution2 <- seq(.1, .4, 0.05)
+resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
+resolution_tot <-c(resolution2, resolution)
+DefaultAssay(seurat) <- assay
+seurat <- FindNeighbors(
+  seurat,
+  reduction = integration_method, 
+  dims = seq(n_dim)
+)
+
+seurat <- FindClusters(
+    seurat,
+    verbose = FALSE,
+    algorithm = 3,
+    resolution = resolution_tot,
+    graph.name = tail(names(seurat@graphs), 1)
+  )
+
+prefix_cl <- paste0(assay, "_snn_res.")
+select(seurat@meta.data, contains(prefix_cl)) %>%
+     list.mapv(f(x) ~ levels(x) %>% length())
+```
+
+```{r clus_int_res, eval = FALSE}
+resolution <- 0.1
+snn_cluster <- paste0(
+  ifelse(SCT, "SCT", assay),
+  "_snn_res.",
+  resolution
+)
+Idents(seurat_integrated) <- snn_cluster
+col_clus <- get_colors0()(length(levels(Idents(seurat_integrated))))
+
+DimPlot(
+  seurat_integrated, 
+  reduction = "pca",
+  group.by = snn_cluster,
+  cols = col_clus,
+  # cols = brewer.pal(12, "Paired"),
+  label = TRUE,
+  repel = TRUE
+  )
+```
+
+```{r clus_int_plot, eval = FALSE}
+# Look at cluster IDs of the first 5 cells
+head(Idents(seurat_integrated), 5)
+
+cell_type <- Idents(seurat_integrated) %>%
+  as.character() %>% 
+  as.numeric() %>% 
+  `+`(1) %>%
+  str_replace_all("^(\\d)$", "0\\1") %>%
+  paste("Cluster", .)
+
+cell_type %>%
+  fct_count() %>%
+  column_to_rownames("f") %>%
+    mutate(freq = round(n/sum(n) * 100, 1)) # %>%
+  # plot_bar(label_x = "value")
+
+# names(cell_type) <- levels(seurat_integrated)
+# seurat_integrated <- RenameIdents(seurat_integrated, cell_type)
+```
+
+
+```{r}
+stop()
+```
+
+```{r}
+# Visualization
+# DimPlot(seurat_integrated, reduction = 'umap', group.by=c('Patient', 'Type'))
+DimPlot(
+  seurat_integrated,
+  reduction = 'umap',
+  group.by = 'Patient',
+  cols = col_inds,
+  repel = TRUE
+) %>% theme_sc_dim() +
+DimPlot(
+  seurat_integrated,
+  reduction = 'umap',
+  group.by = 'Type',
+  cols = color_types,
+  repel = TRUE
+) %>% theme_sc_dim() +
+DimPlot(
+  seurat_integrated,
+  reduction = 'umap',
+  group.by = snn_cluster,
+  cols = col_clus,
+  label = TRUE,
+  repel = TRUE
+)
+
+DimPlot(
+  seurat_integrated, 
+  reduction = "umap", 
+  group = "Patient",
+  split.by = "Type",
+  cols = col_inds,
+  repel = TRUE
+) %>% theme_sc_dim()
+
+list.map(
+  c("umap.unintegrated", "umap"),
+  f(x) ~{
+  DimPlot(
+    seurat_integrated, 
+    reduction = x, 
+    group = "Patient",
+    cols = col_inds,
+    repel = TRUE
+) %>% theme_sc_dim() + ggtitle(x)
+  }
+) %>% plot_grid(plotlist = ., ncol = 2)
+
+list.map(
+  c("umap.unintegrated", "umap"),
+  f(x) ~{
+  DimPlot(
+    seurat_integrated, 
+    reduction = x, 
+    group = "Type",
+    cols = color_types,
+    repel = TRUE
+) %>% theme_sc_dim() + ggtitle(x)
+  }
+) %>% plot_grid(plotlist = ., ncol = 2)
+```
+
+```{r}
+SaveSeuratRds(
+  seurat_integrated, 
+  file = file.path(cwd, "Seurat", "seurat_stillhealthy.rds"), 
+  compress = TRUE
+)
+```
+
+# Markers
+## Cell markers
+```{r marker_cell}
+seurat_integrated$cell_type <- seurat_integrated@meta.data[, snn_cluster] %>%
+  as.character() %>% 
+  as.numeric() %>%
+  `+`(1) %>%
+  paste0("G", .)
+
+# makers for epithelial endothelial mesenchymal and immune cells
+FeaturePlot(
+  seurat_integrated,
+  features = c("EPCAM", "CLDN5", "COL1A2", "PTPRC"),
+  min.cutoff = "q10", 
+  max.cutoff = "q90",
+  label = TRUE,
+  cols = c("grey", "red")
+)
+
+# markers for macrophage, neutrophil, B cell, T cell, NK cell 
+FeaturePlot(
+  seurat_integrated,
+  features = c("AIF1", "S100A8", "BANK1", "CD3G", "NKG7"),
+  min.cutoff = "q10", 
+  max.cutoff = "q90",
+  label = TRUE,
+  cols = c("grey", "red")
+)
+
+# DefaultAssay(seurat_integrated)
+if (SCT)
+  seurat_integrated <- PrepSCTFindMarkers(seurat_integrated)
+
+cell_markers <- lapply(
+  levels(Idents(seurat_integrated)),
+  function(x) {
+  FindConservedMarkers(
+    seurat_integrated, 
+    ident.1 = x, 
+    grouping.var = "Patient", 
+    verbose = TRUE
+  )
+  }
+)
+
+(top_genes <- lapply(
+  cell_markers,
+  function(x) {
+        head(x, n = 10) %>%
+          # filter(abs(avg_log2FC) > 1) %>%
+          rownames()
+  }
+))
+
+# head(cluster2.markers, n = 10) %>% 
+#   `^`(2, .) %>%
+#   select("avg_log2FC") %>% 
+#   plot_bar(label_x = "value", digits = 1, title = "FC")
+
+top_genes2 <- lapply(
+  c(1, 2, 5),
+  function(i) {
+  lapply(top_genes, function(x) head(x,  i)) %>% unlist() %>% sort() %>% unique()
+  }
+)
+RidgePlot(
+  seurat_integrated, 
+  features = top_genes2[[1]], 
+  ncol = 4,
+  cols = col_clus
+)
+VlnPlot(
+  seurat_integrated, 
+  features = top_genes2[[1]],
+  pt.size = 0,
+  cols = col_clus
+)
+VlnPlot(
+  seurat_integrated, 
+  features = top_genes2[[1]],
+  pt.size = 0, 
+  split.by = "Patient", 
+  split.plot = TRUE
+)
+# VlnPlot(seurat_integrated, features = top_genes[[1]], slot = 'counts', log = TRUE)
+FeaturePlot(
+  seurat_integrated,
+  features = top_genes2[[1]],
+  min.cutoff = "q10", 
+  max.cutoff = "q90",
+  label = TRUE,
+  cols = c("grey", "red")
+)
+
+DoHeatmap(
+  subset(seurat_integrated, downsample = 100),
+  features = top_genes2[[2]],
+  group.colors = col_clus,
+  group.by = "cell_type"
+  ) + scale_fill_gradientn(
+    colors = c("blue", "white", "red"), 
+    na.value = "black"
+  )
+DotPlot(
+  seurat_integrated, 
+  features = top_genes2[[2]], 
+  cols = c('blue', 'red'), 
+  dot.scale = 8,
+  split.by = "Patient"
+  ) +
+  RotatedAxis()+
+  theme_custom()
+```
+
+## Automatic annotation
+```{r}
+# p1 <- DimPlot(
+#   seurat_integrated, 
+#   reduction = 'umap', 
+#   group.by = snn_cluster,
+#   cols = col_clus,
+#   label = TRUE,
+#   repel = TRUE
+# )
+
+hpca <- celldex::HumanPrimaryCellAtlasData()
+dice <- celldex::DatabaseImmuneCellExpressionData()
+monaco <- celldex::MonacoImmuneData()
+hpca <- celldex::ImmGenData()
+dice <- celldex:::MouseRNAseqData()
+
+hpca$label.main <- format_annot(hpca$label.main)
+dice$label.main <- format_annot(dice$label.main)
+monaco$label.main <- format_annot(monaco$label.main)
+hpca$label.fine <- format_annot(hpca$label.fine)
+# hpca2 <- filter(hpca, !str_detect(label.main, "B cell") | str_detect(label.fine, "FR[A-F]|CLP"))
+dice$label.fine <- format_annot(dice$label.fine)
+monaco$label.fine <- format_annot(monaco$label.fine)
+
+bcell_subtypes <- unique(hpca$label.fine) %>%
+  .[str_detect(., "FR[A-F]|CLP")] %>%
+  sort() %>%
+  rev()
+is_bcell <- str_starts(hpca$label.fine, "B cell")
+keep_cells <- (!is_bcell) | (hpca$label.fine %in% bcell_subtypes)
+
+hpca2 <- hpca[, keep_cells]
+# View(as.data.frame(colData(hpca)))
+
+cts <- GetAssayData(seurat, layer = 'counts')
+
+# seurat_annotation <- list()
+# seurat_annotation <- readRDS(file.path(cwd, "Seurat", "seurat_annotation.rds"))
+```
+
+```{r, eval = FALSE}
+lim <- 100
+label_type <- "labels"
+x1 <- "singleR_fine"
+x <- get(x1)
+# x$pruned.labels
+# x$scores
+x0 <- as.data.frame(x) %>% select(label_type) # %>% mutate(rowname = rownames(.))
+
+seurat[[]][, x1] <- x0
+# saveRDS(seurat_annotation, file = file.path(cwd, "Seurat", "seurat_annotation.rds"))
+
+if (pull(x0, label_type) %>% str_detect("CL\\:\\d*") %>% any()) {
+  x0 <- rbind(as.data.frame(colData(hpca.ont)), as.data.frame(colData(dice.ont))) %>%
+      filter(str_detect(label.ont, paste0("^", unique(pull(x0, "labels")), "$", collapse = "|"))) %>% 
+      filter(!duplicated(label.ont)) %>%
+      mutate(labels = label.ont) %>%
+      mutate(label.main = label.main %>% 
+        str_replace_all("(cell)s", "\\1") %>%
+        str_replace_all("_", " ") %>%
+        str_replace_all("(Monocyte)s", "\\1")) %>%
+    mutate(label.main = label.fine %>% 
+        str_replace_all("(cell)s", "\\1") %>%
+        str_replace_all("_", " ") %>%
+        str_replace_all("\\:", ", ") %>%
+        str_replace_all("(Monocyte)s", "\\1")) %>%
+      left_join(x0) %>%
+      column_to_rownames()
+  label_type <- "label.fine"
+}
+
+# fct_count(pull(x0, label_type)) %>% arrange(desc(n)) %>% tail(20) %>% print(20)
+to_remove <- table(pull(x0, label_type)) %>% .[. < lim] %>% names()
+# seurat[[]][, x0] <- x0
+x0[pull(x0, label_type) %in% to_remove, label_type] <- NA
+pull(x0, label_type) %>% cluster_size() %>% kable0()
+pull(x0, label_type) %>% cluster_size() %>% 
+  select(n) %>%
+  GimmeMyPlot::plot_bar(
+    label_x = "none",
+    label_y = "percent",
+    sample_size = nrow(x0),
+    digits = 1,
+    n_max = 15
+  ) + ggtitle(NULL)
+seurat$cell_subtype <- 
+  x0[match(rownames(seurat[[]]), rownames(x0)), label_type]
+# Idents(seurat) <- x0[match(rownames(seurat[[]]), rownames(x0)), label_type]
+
+to_keep <- paste(paste(unique(seurat$cell_type) %>% na.omit(),  "\\("), collapse = "|")
+x0[[label_type]][!str_detect(x0[[label_type]], to_keep)] <- NA
+# x0[[label_type]][str_detect(x0[[label_type]], "B cell") & !(x0[[label_type]] %in% bcell_subtypes)] <- NA
+
+seurat$b_cell <- seurat$cell_subtype
+seurat$b_cell[!str_detect(seurat$b_cell, "B cell")] <- NA
+seurat$b_cell <- keep_parenthesis(seurat$b_cell)
+to_remove <- table(seurat$b_cell) %>% .[. < 100] %>% names()
+seurat$b_cell[seurat$b_cell %in% to_remove] <- NA
+
+label_type <- "labels"
+x0 <- data.frame(labels = seurat$singleR_main)
+
+seurat$id <- remove_parenthesis(seurat$cell_subtype)
+seurat$id2 <- keep_parenthesis(seurat$cell_subtype)
+
+Idents(seurat) <- pull(x0, label_type) %>% as.factor()
+# Idents(seurat) <- pull(x0, label_type)  %>% str_remove_all( "B cell \\(|\\)") %>% str_replace("(\\w+)\\.(\\w+)", "\\1 (\\2)") %>% str_replace( "FR", "Fr") %>% as.factor()
+type <- "B cell"
+x2 <- mutate(x0, labels = ifelse(str_detect(labels, type), labels, NA))
+
+type <- NULL
+DimPlot(
+    object = seurat, 
+    label = TRUE,
+    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = GimmeMyPlot:::palette_discrete(),
+    repel = TRUE,
+    na.value = "white",
+    reduction = "umap",
+    pt.size = 1,
+    alpha = 0.25
+) %>% 
+    theme_sc_dim() + ggtitle(type)
+
+type <- "SCT_snn_res.0.35"
+table(seurat[[]][, type], seurat$id2) %>%
+    as.data.frame.matrix() %>%
+    t() %>%
+    as.data.frame() %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        colour =  GimmeMyPlot:::palette_continuous(gray = FALSE)(length(unique(seurat[[]][, "id2"]))),
+        pct  = FALSE,
+        threshold = 1,
+        digits = 1
+    ) + labs(y = "% Cells")
+
+cell_categories <- seurat$cell_subtype %>%
+  str_split(" \\(", simplify = TRUE) %>%
+  .[,1] %>%
+  unique()
+
+
+cell_list <- map(cell_categories, ~ {
+  seurat$cell_subtype[str_detect(seurat$cell_subtype, paste0("^", .x))] %>% na.omit() %>% keep_parenthesis()
+}) %>%
+  set_names(cell_categories)
+
+p <- list.map(
+  compact(cell_list),
+  f(x, y, z) ~ cluster_size(x) %>% 
+    select(n) %>%
+    GimmeMyPlot::plot_bar(
+        label_x = "none",
+        label_y = "percent",
+        sample_size = length(x),
+        digits = 1,
+        n_max = 15,
+        ratio = 1
+    ) + ggtitle(z)
+)
+
+plot_grid(plotlist = p, align = "hv", ncol =3, nrow = 2)
+
+x2 <- seurat$singleR_fine
+x2[!x2 %in% bcell_subtypes] <- NA
+Idents(seurat) <- x2
+    
+DimPlot(
+    seurat, 
+    reduction = 'umap', 
+    group.by = "cell_type",
+    cols = col_cont(unique(seurat$cell_type) %>% length()),
+    label = TRUE,
+    repel = TRUE,
+    alpha = 0.5,
+    na.value = "white"
+) %>% theme_sc_dim() + ggtitle(NULL)
+
+DimPlot(
+    seurat, 
+    reduction = 'umap', 
+    group.by = "b_cell",
+    cols = col_cont(unique(seurat$b_cell) %>% length()),
+    label = TRUE,
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white"
+) %>% theme_sc_dim() + ggtitle(NULL) + 
+    xlim(-7, 5) + ylim(-7, 8)
+
+DimPlot(
+    seurat, 
+    reduction = 'umap', 
+    split.by = "b_cell",
+    group.by = "b_cell",
+    cols = col_cont(unique(seurat$b_cell) %>% length()),
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white",
+    ncol = 3
+) %>% theme_sc_dim() + ggtitle(NULL) + 
+    xlim(-7, 5) + ylim(-7, 8)
+
+list.map(
+    seurat_type,
+    f(x, y, z) ~
+        DimPlot(
+            x, 
+            reduction = 'umap.unintegrated',
+            group.by = "cell_annotation",
+            na.value = "white",
+            cols = col_cont(unique(seurat$cell_annotation) %>% length()),
+            label = TRUE,
+            repel = TRUE
+        )  %>% theme_sc_dim() + NoLegend() + ggtitle(z)
+) %>% plot_grid(plotlist = ., align = "hv", ncol = 2, nrow = 2)
+
+# plotScoreHeatmap(x)
+plotScoreHeatmap(x, annotation_legend = FALSE)
+# plotScoreHeatmap(x, labels.use = unique(seurat$cell_type))
+# plotScoreHeatmap(x, scores.use = 2, annotation_legend = FALSE)
+plotDeltaDistribution(x)
+snn_cluster <- "ATAC_snn_res.0.2"
+tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = paste0("G", seurat[[]][, snn_cluster]))
+pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
+
+Idents(seurat) <- "cell_type"
+idents <- Idents(seurat) %>% 
+  unique() %>% 
+  na.omit() %>%
+  as.character()
+cd4 <- subset(
+  seurat_integrated, 
+  idents = idents %>% .[str_detect(., "CD4+")] 
+)
+
+  idents = idents %>% .[str_detect(., "T[_ ]cell")] %>% .[!str_detect(., "CD4")]
+
+  idents = idents %>% .[str_detect(., "B[_ ]cell")]
+
+  idents = idents %>% .[str_detect(., "Monocyte")]
+```
+
+```{r, eval = FALSE}
+singleR_main <- SingleR(
+  test = cts,
+  ref = hpca,
+  labels = hpca$label.main
+)
+
+singleR_fine <- SingleR(
+  test = cts,
+  ref = hpca2,
+  labels = hpca2$label.fine
+)
+
+label_type0 <- "label.main"
+label_type0 <- "label.fine"
+
+hpca$label_db <- paste0('HPCA.', hpca[[label_type0]])
+dice$label_db <- paste0('DICE.', dice[[label_type0]])
+# monaco$label_db <- paste0('MONACO.', monaco[[label_type0]])
+shared <- intersect(rownames(hpca), rownames(dice))
+combined <- cbind(hpca[shared, ], dice[shared, ])
+# combined$label_db
+
+# singleR_comb_main <- SingleR(test = cts, ref = combined, labels = combined$label_db)
+
+# ...2. Strategy 2: Comparing scores across references ----------
+singleR_comb_fine <- SingleR(
+    test = cts,
+    ref = list(HPCA = hpca, DICE = dice),
+labels = list(hpca[[label_type0]], dice[[label_type0]])
+)
+
+singleR_comb3_fine <- SingleR(
+  test = cts,
+  ref = list(HPCA = hpca, DICE = dice, Monaco = monaco)),
+  labels = list(hpca[[label_type0]], dice[[label_type0]], monaco[[label_type0]])
+)
+
+# which reference scored best for which label?
+grouping <- paste0(singleR_com2$labels,'.', singleR_com2$reference)
+best_ref <- as.data.frame(split(singleR_com2, grouping))
+
+# get de. genes from each individual references
+metadata(singleR_com2$orig.results$HPCA)$de.genes
+metadata(singleR_com2$orig.results$DICE)$de.genes
+
+# ...3. Strategy 3: Using Harmonized Labels ----------
+
+hpca.ont <- celldex::HumanPrimaryCellAtlasData(cell.ont = 'nonna')
+dice.ont <- celldex::DatabaseImmuneCellExpressionData(cell.ont = 'nonna')
+# monaco.ont <- celldex::MonacoImmuneData(cell.ont = 'nonna')
+
+# Using the same sets of genes:
+shared <- intersect(rownames(hpca.ont), rownames(dice.ont))
+hpca.ont <- hpca.ont[shared, ]
+dice.ont <- dice.ont[shared, ]
+
+# Showing the top 10 most frequent terms:
+tail(sort(table(hpca.ont$label.ont)), 10)
+tail(sort(table(dice.ont$label.ont)), 10)
+
+# using label.ont instead on label.main while running SingleR
+singleR_com3 <- SingleR(
+  test = cts,
+  ref = list(HPCA = hpca.ont, DICE = dice.ont),
+  labels = list(hpca.ont$label.ont, dice.ont$label.ont)
+)
+```
+
+## Condition markers
+```{r feature.heatmaps, eval = FALSE}
+FeaturePlot(
+  seurat_integrated, 
+  features = head(dgea, n = 3) %>% rownames(), 
+  split.by = "Patient", 
+  min.cutoff = "q10",
+  max.cutoff = "q90",
+  # cols = c("grey", "red"),
+  reduction = 'umap'
+)
+
+VlnPlot(
+    seurat_integrated, 
+    features = head(top_genes, 4) %>% rownames(),
+    pt.size = 0, 
+    group.by = "cell_type",
+    split.by = "Patient", 
+    split.plot = TRUE,
+    ncol = 2
+)
+
+library(ComplexHeatmap)
+rowAnnotation(
+  "HV" = anno_barplot(top_genes$pct.1),
+  "AOSD"= anno_barplot(top_genes$pct.2),
+  width = unit(10, "cm")
+) %>%
+  Heatmap(
+    top_genes$avg_log2FC,
+    name = "Log2FC",
+    cluster_rows = TRUE,
+    row_labels = rownames(top_genes),
+    right_annotation = .,
+    width = unit(1, "cm")
+    )
+
+theme_set(theme_cowplot())
+pop_seurat <- subset(seurat_integrated, idents = "G1")
+Idents(pop_seurat) <- "Patient"
+avg_pop <- as.data.frame(log1p(AverageExpression(pop_seurat, verbose = FALSE)$RNA))
+avg_pop$gene <- rownames(avg_pop)
+p <- ggplot(avg_pop, aes(S01004A, S01013A)) + 
+  geom_point() + 
+  ggtitle("G1")
+LabelPoints(p, points = top_genes %>% head(15) %>% rownames(), repel = TRUE, color = "red")
+```
+
+## Pseudo-bulk
+```{r scatterplots}
+# seurat_integrated@meta.data[, "sample"] <- paste0(
+#   seurat_integrated@meta.data[, "Patient"],
+#   seurat_integrated@meta.data[, "Type"],
+# )
+# seurat$cell_type <- seurat[[]][, clusters[nb_optimal]]
+# seurat$cell_type <- Idents(seurat) %>% 
+  # fct_relevel(as.character(0:9))
+cts <- AggregateExpression(
+  seurat,
+  group.by = c("predicted.labels", "Patient"),
+  assay = "RNA",
+  slot = "counts",
+  return.seurat = FALSE
+)
+
+# bulk.mono.de <- FindMarkers(
+#   object = cts,
+#   ident.1 = "G1_S01004A",
+#   ident.2 = "G1_S01013A",
+#   test.use = "DESeq2"
+# )
+# head(bulk.mono.de, n = 15)
+
+cts <- as.data.frame(cts$RNA)
+cts <- list.map(
+  levels(seurat@meta.data[, "predicted.labels"]),
+  f(x) ~{
+    select(cts, starts_with(paste0("g", x, "_"))) %>% 
+      set_colnames(colnames(.) %>% str_remove_all(paste0("g", x, "_")))
+  }
+) %>% set_names(levels(seurat@meta.data[, "predicted.labels"]))
+
+saveRDS(cts, file.path(path, "l_cts.rds"))
+
+pct <- pct_by_ident_type(seurat)
+saveRDS(pct, file.path(path, "sc_metadata.rds"))
+```
+
+```{r}
+l_deg0 <- readRDS(file.path(path, "l_deg.rds"))
+l_deg <- discard(l_deg0, ~ nrow(.x) == 0)
+top10 <- list.map(l_deg,  f(x, xx, xxx) ~head(x, 10) %>% mutate(cluster = xxx)) %>%
+    list.rbind() %>%
+    rename(gene = "gene_name")
+l_bcell_markers <- list.map(l_deg, unique(.) %>% head(12) %>% pull(Gene))
+DotPlot(
+    seurat, 
+    features = unique(pull(top10, "gene")), 
+    dot.scale = 8,
+    scale = FALSE,
+    group.by = "cell_type",
+    split.by = "Type",
+    cols = GimmeMyPlot:::palette_discrete()
+) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = NULL, y = NULL) +
+    geom_vline(xintercept = last_row_numbers[-last_id] + 0.5) +
+    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5)
+
+
+l_bcell_markers <- list.map(l_deg, unique(.) %>% pull(Gene))
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ FeaturePlot(
+        seurat,
+        features = str_to_sentence(x) %>% .[. %in% Features(seurat)] %>% head(4),
+        min.cutoff = "q10", 
+        max.cutoff = "q90",
+        cols = c("white", "red"),
+        split.by = "Type",
+        reduction = "umap",
+        pt.size = 1,
+        alpha = .5,
+        combine = FALSE
+    )  %>% 
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)) %>%
+  plot_grid(plotlist = ., ncol = 4) +
+    plot_annotation(
+      title = z, 
+      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+    ) 
+)
+
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ 
+VlnPlot(
+    object = seurat,
+    features = str_to_sentence(x) %>% .[. %in% Features(seurat)] %>% head(12),
+    pt.size = 0,
+    group.by = "cell_type",
+    split.by = "Type",
+    cols = cols,
+    combine = FALSE
+) %>%
+map(~. +theme_violin() + labs(y = NULL) + NoLegend()) %>%
+  plot_grid(plotlist = ., ncol = 4, nrow = 3) +
+    plot_annotation(
+      title = z, 
+      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+    ) 
+)
+# i = 2; plot_grid(plotlist = p [(12*(i-1)+1):(12*i)], ncol = 4, nrow = 3)
+
+
+list.map(
+    split(cell_markers_bcell, ceiling(seq_along(cell_markers_bcell)/4)),
+f(x) ~ 
+FeaturePlot(
+    seurat,
+    features = x,
+    min.cutoff = "q10", 
+    max.cutoff = "q90",
+    cols = c("white", "red"),
+    split.by = "Type",
+    reduction = "umap",
+    pt.size = 1,
+    alpha = .5,
+    combine = FALSE
+)  %>% 
+    map(~theme_sc_dim(.) + labs(x = NULL, y = NULL))  %>%
+    plot_grid(plotlist = ., ncol = 4)
+)
+
+top10 <- l_bcell_markers %>%
+  list.map(f(x, y, z) ~  x[x %in% Features(seurat)] %>% head(10) %>% data.frame(gene = ., cluster = y)) %>% 
+  list.rbind() %>%
+  filter(!duplicated(gene))
+
+DotPlot(
+    seurat, 
+    features = list.map(l_bcell_markers, .[. %in% Features(seurat)] %>% head(10)) %>% unlist() %>% unique(), 
+    dot.scale = 8,
+    scale = FALSE,
+    group.by = "cell_type",
+    split.by = "Type",
+    cols = GimmeMyPlot:::palette_discrete()
+) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = NULL, y = NULL) +
+    geom_vline(xintercept = last_row_numbers[-last_id] + 0.5) +
+    # geom_vline(xintercept = seq(10, 60, 10) + 0.5) +
+    geom_hline(yintercept = seq(2, 12, by = 2) + 0.5)
+
+list.map(
+    top50,
+    f(i, ii, z) ~
+    list.map(
+        str_to_sentence(i) %>% .[. %in% Features(seurat)] %>% head(4*3) %>% split(., ceiling(seq_along(.)/4)),
+    f(x) ~ 
+        FeaturePlot(
+            seurat,
+            features = x,
+            min.cutoff = "q10", 
+            max.cutoff = "q90",
+            cols = c("white", "red"),
+            split.by = "Type",
+            reduction = "umap",
+            pt.size = 1,
+            alpha = .5,
+            combine = FALSE
+        )  %>% 
+        map(~theme_sc_dim(.) + labs(x = NULL, y = NULL))  %>%
+        plot_grid(plotlist = ., ncol = 4) +
+        plot_annotation(
+            title = z, 
+            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+        )
+)
+) -> p
+```
+
+```{r }
+cts0 <- cts[[1]]
+colData <- data.frame(samples = colnames(cts0)) %>%
+  mutate(condition = str_extract(samples, unique(seurat$Type) %>% paste(collapse = "|")) %>% as.factor()) %>%
+  column_to_rownames(var = 'samples')
+
+dds <- DESeqDataSetFromMatrix(
+  countData = cts0,
+  colData = colData,
+  design = ~ condition
+) %>%
+   .[rowSums(counts(.) >= 10) >= 3, ] %>%
+  DESeq(quiet = TRUE)
+
+
+resultsNames(dds)[2]
+res <- results(dds, name = resultsNames(dds)[2])
+
+# genes.to.label <- NULL
+# p <- lapply(
+#   c("S01004A", "S01013A"),
+#   function(x) {
+#   CellScatter(aggregate_seurat, paste0("G0_", x), paste0("G1_", x), highlight = genes.to.label) %>%
+#   LabelPoints(points = genes.to.label, repel = TRUE)
+# })
+```
+
+```{r}
+colours <- get_colors()[c(3, 1, 4:5)]
+list.map(tmpp0, f(x, y) ~data.frame(Type = colours[y], val = x)) %>% list.rbind() %>% set_rownames(rownames(.) %>% str_remove_all("A\\d{2}PB\\d")) -> cou
+plot_bar(select(cou, 2), colour = pull(cou, 1), label_x = "none", ratio = 10) + theme(axis.text.y = element_text(colour = "gray"), axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), panel.grid.major.y = element_line(colour = "grey", linewidth = 0.5), panel.grid.major.x = element_blank()) + ggtitle(NULL)
+```
+
+# Trajectory analysis
+
+## Monocle
+```{r}
+library(monocle3)
+library(SeuratWrappers)
+cds <- as.cell_data_set(seurat)
+```
+
+```{r, eval = FALSE}
+expression_data <- GetAssayData(seurat, assay = "RNA", slot = "counts")
+gene_annotation <- data.frame(
+  gene_short_name = rownames(expression_data),
+  row.names = rownames(expression_data)
+)
+
+cds <- new_cell_data_set(
+  expression_data,
+  cell_metadata = seurat@meta.data,
+  gene_metadata = gene_annotation
+)
+
+reducedDims(cds)$UMAP <- Embeddings(seurat, reduction = "umap")
+cds@clusters$UMAP$clusters <- seurat@active.ident
+
+partitions <- factor(rep(1, ncol(cds)))
+cds@clusters$UMAP$partitions <- partitions
+```
+
+```{r}
+names(cds@clusters$UMAP$partitions) <- colnames(cds)
+root_cells <- colnames(cds)[cds@clusters$UMAP$clusters == "5"]
+
+cds <- learn_graph(cds, use_partition = FALSE) %>%
+  order_cells(root_cells = root_cells)
+
+cds@principal_graph_aux@listData$UMAP$pseudotime <- max(pseudotime(cds), na.rm = TRUE) - pseudotime(cds)
+```
+
+```{r}
+plot_cells(
+    cds,
+    color_cells_by = "pseudotime",
+    label_root = FALSE,
+    label_leaves = FALSE,
+    label_branch_points = FALSE,
+    trajectory_graph_color = "black",
+    trajectory_graph_segment_size = 1.5,
+    cell_size = 1,
+    alpha = .15
+) %>% theme_sc_dim() + 
+    scale_color_gradientn(
+      colors = col_pal, 
+      name = "Pseudotime"
+    )
+
+# seurat <- as.Seurat(cds, assay = "integrated")
+```
+
+## Slingshot
+```{r}
+library("slingshot")
+start.clus <- 5
+
+sce <- as.SingleCellExperiment(seurat)
+reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") -> reduc_coords
+
+sce <- slingshot(
+  sce,
+  start.clus = start.clus,
+  clusterLabels = "cell_type",
+  reducedDim = "UMAP"
+)
+
+# lin <- getLineages(reduc_coords, seurat$cell_type, start.clus = start.clus)
+
+# SlingshotDataSet(sce)
+
+curves <- slingCurves(sce)
+lineage_probs <- list.map(curves, .$w) %>%
+  list.cbind() %>%
+  max.col(ties.method = "first")
+
+pseudotime <- slingPseudotime(sce) %>%
+  .[cbind(seq_len(nrow(.)), lineage_probs)]
+
+plot(
+  reduc_coords,
+  # col = GimmeMyPlot:::palette_discrete()[sce$cell_type],
+  col = colorRampPalette(col_pal)(100)[cut(pseudotime, breaks = 100)],
+  pch = 16,
+  asp = 1
+)
+# lines(SlingshotDataSet(sce), lwd = 4, col = "black")
+lines(SlingshotDataSet(sce), lwd = 4, type = 'lineages', col = "black",  show.constraints = TRUE)
+
+p <- as.data.frame(reduc_coords) %>%
+  mutate(pseudotime = pseudotime) %>%
+  ggplot(aes(x = umap_1, y = umap_2, colour = pseudotime)) +
+  geom_point(alpha = 0.8)
+
+p <- reduce(
+  names(curves),
+  .f = function(plot, lineage_name) {
+    plot + geom_path(
+      data = as.data.frame(curves[[lineage_name]]$s),
+      aes(x = umap_1, y = umap_2),
+      size = 1.2,
+      color = "black",
+      inherit.aes = FALSE
+    )
+  },
+  .init = p
+)
+theme_sc_dim(p)  + 
+    scale_color_gradientn(
+      colors = col_pal, 
+      name = "Pseudotime"
+    )
+```
+
+# Transfer learning
+```{r}
+wt@meta.data[, "labels"] <- Idents(wt)
+# wt@assays$SCT@scale.data <- matrix()
+# ko@assays$SCT@scale.data <- matrix()
+seurat <- merge(wt, y = ko)
+```
+
+```{r}
+anchors <- FindTransferAnchors(
+    reference = wt,
+    query = seurat,
+    # normalization.method = "SCT",
+    reference.reduction = "pca",
+    # reference.reduction = integration_method,
+    dims = seq(n_dim)
+)
+```
+
+```{r, eval = FALSE}
+cl_trans <- TransferData(
+    anchorset = anchors,
+    dims = seq(n_dim),
+    # weight.reduction = KO[[integration_method]],
+    refdata = Idents(wt)
+  )
+seurat <- AddMetaData(seurat, metadata = cl_trans)
+```
+
+```{r, eval = FALSE}
+wt2 <- RunUMAP(
+  wt,
+  dims = seq(n_dim),
+  # reduction = integration_method,
+  reduction = "pca",
+  return.model = TRUE
+)
+```
+
+```{r}
+seurat <- MapQuery(
+    anchorset = anchors,
+    query = seurat,
+    reference = wt,
+    refdata = list(labels = "labels"),
+    # reference.reduction = integration_method,
+    reduction.model = "umap"
+)
+```
+
+```{r}
+plot_sc_violin(
+    seurat,
+    features = paste0("prediction.score.", levels(Idents(wt))),
+    cols = GimmeMyPlot:::palette_discrete(),
+    nrow = 3
+)
+```
+
+```{r}
+type <- NULL
+seurat$predicted.labels<- factor(seurat$predicted.labels, levels = 0: (length(unique(seurat$predicted.labels)) - 1))
+Idents(seurat) <- "predicted.labels"
+DimPlot(
+    object = seurat, 
+    label = TRUE,
+    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = GimmeMyPlot:::palette_discrete(),
+    repel = TRUE,
+    na.value = "white",
+    split.by = "Type",
+    # group.by = ,
+    reduction = "ref.umap",
+    pt.size = 1,
+    alpha = 0.25
+) %>% 
+    theme_sc_dim() + ggtitle(type) + NoLegend()
 ```
 
 ## Session information
