@@ -16,23 +16,22 @@ knitr::opts_chunk$set(
 
 # Setup
 ```{r init, message = FALSE}
-set.seed(1234)
 library(GimmmeMySC)
+library(RColorBrewer)
+library(rlist)
+library(Seurat)
+library(cowplot)
+library(GimmeMyPlot)
+library(scDblFinder)
+
+set.seed(1234)
 options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
 
-cwd <- file.path(
-  "/shared",
-  "projects",
-  "immunaid",
-  "data"
-)
-
-project <- "deep-seq"
 path <- file.path(
-  cwd,
-  "dobino_1124",
-  project
+  dirname(getwd()),
+  "inst",
+  "extdata"
 )
 
 SCT <- TRUE
@@ -40,33 +39,18 @@ max_dim <- 100
 n_dim <- 30
 assay <- "RNA"
 
-source("utils_theme.R")
-source("utils_sc.R")
 l_samples <- list.files(path) %>%  
   .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
   .[str_detect(., "KO")]
-col_inds0 <- GimmeMyPlot:::palette_discrete()[seq_along(l_samples)]
-
-col_pal <- c(
-  rev(brewer.pal(9, "Blues")[-c(1, 3, 5, 7, 9)]),
-  "white",
-  # "grey90",
-  brewer.pal(9, "Reds")[-c(1, 3, 5, 7, 9)]
-)
-```
-
-```{r, eval = FALSE}
-seurat <- readRDS(file.path(path, "seurat2.rds"))
+col_inds0 <- palette_discrete()[seq_along(l_samples)]
 ```
 
 # Load data
 ```{r data}
-# library(hdf5r)
-
 list_seurat <-  list.map(
     l_samples,
     f(x) ~{
-      count_matrix <- file.path(path, x) %>%
+      count_matrix <- file.path(path, x, "outs") %>%
         list.files(full.names =TRUE) %>% 
         .[str_detect(., "filtered_feature_bc_matrix.h5")]
       tmp <- Read10X_h5(count_matrix) %>%
@@ -112,7 +96,8 @@ seurat[[]] <- separate(
 ## Filter cells with low or too high genes
 ```{r qc_plot}
 print_sc_stats(seurat, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
-  kable0(digits = 3)
+  kable_sc(digits = 3)
+
 # plot_sc_cor(seurat)
 
 list.map(
@@ -127,21 +112,15 @@ list.map(
   )
   }
     
-)%>% plot_grid(plotlist = ., align = "hv")
+) %>% plot_grid(plotlist = ., align = "hv")
 
 Idents(seurat) <- "Patient"
 plot_sc_violin(
     seurat,
-    # features = c(features_atac[-6], "passed_filters"),
     cols = col_inds,
     nrow = 1,
     normalize = c(10, 10, 10)
 )
-
-# GimmeMyPlot:::plot_cor(
-#     seurat@meta.data[, "nCount_RNA"],
-#     seurat@meta.data[, "mitochondrial"]
-# )
 ```
 
 ```{r}
@@ -221,18 +200,47 @@ t(df_doublets) %>%
 
 # number of singlets and doublets
 
-VlnPlot(
-  seurat,
-  features = c("nFeature_RNA", "nCount_RNA", "mitochondrial"),
-  pt.size = 0,
-  group.by = "doublets",
-  ncol = 3
+Idents(seurat) <- "doublets"
+plot_sc_violin(
+    seurat,
+    cols = col_inds,
+    nrow = 1,
+    normalize = c(10, 10, 10),
+    cols = palette_discrete()
 )
+Idents(seurat) <- "Patient"
 
 seurat <- subset(seurat, subset = doublets == "singlet")
 ```
 
 ## QC after
+```{r}
+print_sc_stats(seurat, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
+  kable_sc(digits = 3)
+
+list.map(
+  c(paste0("nFeature", "_", assay), "percent_mitochondrial"),
+  f(i, j) ~ {
+    density_scatter(
+      seurat,
+      x = i,
+      y = paste0("nCount", "_", assay),
+      log_x = TRUE,
+      log_y = TRUE
+  )
+  }
+    
+) %>% plot_grid(plotlist = ., align = "hv")
+
+Idents(seurat) <- "Patient"
+plot_sc_violin(
+    seurat,
+    cols = col_inds,
+    nrow = 1,
+    normalize = c(10, 10, 10)
+)
+```
+
 ```{r qc_sub}
 (ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
 
@@ -261,80 +269,17 @@ list.map(
     )
 ```
 
-## Biotype
-```{r, eval = FALSE}
-# genome_species <- "Hsapiens"
-genome_species <- "Mmusculus"
-ref_path <- "/shared/projects/immunaid/data/ref"
-annotation_file <- file.path(ref_path, paste(tolower(genome_species), 113, "annotation.tsv", sep = "_"))
-annotation <- read_tsv(annotation_file) %>% as.data.frame()
-
-gene_query <- mutate(annotation, biotype = gene_biotype %>% 
-  str_replace_all(".*(pseudogene)", "Pseudogene") %>%
-  str_replace_all("(IG)_.*", "\\1") %>%
-  str_replace_all("(TR)_.*", "\\1") %>%
-  str_replace_all(".*(decay)", "Decayed") %>%
-  str_replace_all("(misc_RNA)|(snRNA)|(miRNA)|(snoRNA)|(scaRNA)|(sRNA)|(scRNA)|(vault_RNA)|(Mt_ncRNA)|(Mt_tRNA)", "sncRNA") %>%
-  str_replace_all("Mt_rRNA", "rRNA") %>% 
-  # str_replace_all("retained_intron", "lncRNA") %>% 
-  str_replace_all("(IG)|(TR)", "somatic recombination") %>% 
-  # str_replace_all("(somatic recombination)|(TEC)|(rRNA)|(ribozyme)", "Others") %>% 
-  str_replace_all("^protein_coding$", "CDS") %>%
-  str_replace_all("processed_transcript", "ncRNA")
-)
-
-
-cts <- GetAssayData(seurat, layer = 'counts')
-common_genes <- intersect(pull(gene_query, external_gene_name), rownames(cts))
-biotype <- list.map(
-  c("CDS", "Pseudogene", "rRNA", "lncRNA", "sncRNA"),
-    f(i) ~{
-      n <- filter(gene_query, external_gene_name %in% common_genes) %>%
-        filter(biotype == y) %>% 
-        filter(!duplicated(external_gene_name)) %>%
-        nrow()
-      list.map(
-        rownames(cts),
-        f(x) ~{
-          tmp <- gene_query %>% filter(external_gene_name == x & biotype == i)
-          if (nrow(tmp) > 0) {
-            cts0 <- cts %>%
-              filter(rownames(.) == x) %>% 
-              as.numeric() %>%
-              `>`(1) %>% 
-              as.numeric()
-          } else {
-            rep(0, ncol(cts))
-          }
-        }
-      ) %>% list.cbind() %>%
-      apply(1, sum) %>% `/`(n) %>% `*`(100)
-  }
-)
-```
-
 ## Negative / positive control genes
-```{r, eval = FALSE}
+```{r}
 g_neg <- c("DRD1", "ALB", "MYL1", "NPPA") %>% sort()
 g_pos <- c("GAPDH", "ACTB", "TMSB4X", "B2M") %>% sort()
 g_ctr <- c(g_neg, g_pos)
 g_sex <- c("XIST", "DDX3Y")
-DotPlot(
-    seurat, 
-    features = str_to_sentence(g_sex), 
-    scale = FALSE,
-    dot.scale = 8
-) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = NULL, y = NULL)
-
 list.map(
-    list(g_neg, g_pos),
+    list(g_sex, g_ctr),
     ~DotPlot(
     seurat, 
-    features = str_to_sentence(.) %>% sort(), 
+    features = str_to_sentence(.), 
     dot.scale = 8
 ) +
     RotatedAxis() +
@@ -348,62 +293,9 @@ list.map(
 ## Scater
 
 # Gene filtering
-```{r filter}
-seurat[["RNA"]] <- split(seurat[["RNA"]], f = seurat$Patient)
-if (!SCT) {
-  seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures()
-}
-```
-
-```{r eval = FALSE}
-# cts0 <- GetAssayData(seurat, layer = 'data')
-cts <- as.matrix(seurat[["RNA"]]$counts) %>% as.data.frame()
-cts0 <- as.matrix(seurat[["RNA"]]$data) %>% as.data.frame()
-
-n_cell <- 1e3
-plot_density_genes(select(cts0, seq(n_cell)), density = TRUE, norm = TRUE)
-plot_density_genes(select(cts, seq(n_cell)), density = TRUE)
-```
-
-```{r filter, eval = FALSE}
-vst <- seurat[["RNA"]]@meta.data[, seq(2)]
-vst0 <- seurat[["RNA"]]@meta.data[, 3:4]
-# vst0 <- sapply(
-#   c(mean, var),
-#   function(i) apply(cts, 1, i)
-#   ) %>% as.data.frame()
-
-vst %>% 
-  # select(vf_vst_counts_mean, vf_vst_counts_variance.standardized) %>%
-  set_colnames(c("Average expression", "Variance")) %>%
-  ggplot(mapping = aes(x = `Average expression`, y = Variance)) + 
-    geom_point() +
-    scale_x_continuous(trans = log10_trans(),
-      breaks = trans_breaks("log10", function(x) 10^x),
-      labels = trans_format("log10", math_format(10^.x))) +
-    scale_y_continuous(trans = log2_trans(),
-      breaks = trans_breaks("log2", function(x) 2^x),
-      labels = trans_format("log2", math_format(2^.x))) +
-    theme_custom()
-```
-
 ```{r filter_mark}
 if (!SCT)
-VariableFeaturePlot(seurat) %>%
-    LabelPoints(
-        points = head(VariableFeatures(seurat), 10), 
-        repel = TRUE
-    ) +
-    scale_x_continuous(trans = log10_trans(),
-                       breaks = trans_breaks("log10", function(x) 10^x),
-                       labels = trans_format("log10", math_format(10^.x))) +
-    scale_y_continuous(trans = log2_trans(),
-                       breaks = trans_breaks("log2", function(x) 2^x),
-                       labels = label_number_auto()) +
-    theme_custom() +
-    ylab("Variance") +
-    NoLegend()
+    variable_plot(x)
 ```
 
 # PCA
@@ -474,7 +366,7 @@ FeaturePlot(
     alpha = 0.5
 ) %>% theme_sc_dim()  +
     scale_color_gradientn(
-        colors = col_pal,
+        colors = pal_sc,
         limits = c(-1, 1),
         name = "S to G2/M"
     ) + labs(x = NULL, y = NULL, title = NULL)
@@ -735,7 +627,7 @@ p <- map(
         theme_sc_dim() +
         ggtitle(str_clean(.)) +
     scale_color_gradientn(
-        colors = col_pal
+        colors = pal_sc
     )
 
 )
@@ -1114,7 +1006,7 @@ if (pull(x0, label_type) %>% str_detect("CL\\:\\d*") %>% any()) {
 to_remove <- table(pull(x0, label_type)) %>% .[. < lim] %>% names()
 # seurat[[]][, x0] <- x0
 x0[pull(x0, label_type) %in% to_remove, label_type] <- NA
-pull(x0, label_type) %>% cluster_size() %>% kable0()
+pull(x0, label_type) %>% cluster_size() %>% kable_sc()
 pull(x0, label_type) %>% cluster_size() %>% 
   select(n) %>%
   GimmeMyPlot::plot_bar(
@@ -1665,7 +1557,7 @@ plot_cells(
     alpha = .15
 ) %>% theme_sc_dim() + 
     scale_color_gradientn(
-      colors = col_pal, 
+      colors = pal_sc, 
       name = "Pseudotime"
     )
 
@@ -1702,7 +1594,7 @@ pseudotime <- slingPseudotime(sce) %>%
 plot(
   reduc_coords,
   # col = GimmeMyPlot:::palette_discrete()[sce$cell_type],
-  col = colorRampPalette(col_pal)(100)[cut(pseudotime, breaks = 100)],
+  col = colorRampPalette(pal_sc)(100)[cut(pseudotime, breaks = 100)],
   pch = 16,
   asp = 1
 )
@@ -1729,7 +1621,7 @@ p <- reduce(
 )
 theme_sc_dim(p)  + 
     scale_color_gradientn(
-      colors = col_pal, 
+      colors = pal_sc, 
       name = "Pseudotime"
     )
 ```

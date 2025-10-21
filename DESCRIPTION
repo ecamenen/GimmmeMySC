@@ -17,6 +17,7 @@ Suggests:
     GenomicRanges,
     GimmeMyCluster,
     glmGamPoi,
+    hdf5r,
     igraph,
     irlba,
     knitr,
@@ -36,6 +37,7 @@ Imports:
     GimmeMyPlot,
     magrittr,
     patchwork,
+    RColorBrewer,
     Seurat,
     Signac,
     SingleR
