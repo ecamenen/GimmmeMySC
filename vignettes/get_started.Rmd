@@ -355,59 +355,6 @@ DimPlot(
 # plot_dimred(coord, eig, colour = GimmeMyPlot:::palette_discrete2())
 ```
 
-## Cell cycle
-```{r}
-seurat <- CellCycleScoring(
-  seurat,
-  s.features = s.genes, 
-  g2m.features = g2m.genes, 
-  set.ident = TRUE
-)
-seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
-
-p1 <- FeaturePlot(
-    seurat,
-    features = "CC.Difference",
-    alpha = 0.5
-) %>% theme_sc_dim()  +
-    scale_color_gradientn(
-        colors = pal_sc,
-        limits = c(-1, 1),
-        name = "S to G2/M"
-    ) + labs(x = NULL, y = NULL, title = NULL)
-
-
-p2 <- DimPlot(
-    object = seurat, 
-    label = TRUE,
-    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    cols = GimmeMyPlot:::palette_discrete(),
-    repel = TRUE,
-    group.by = "Phase",
-    na.value = "white",
-    reduction = "umap",
-    pt.size = 1,
-    alpha = 0.25
-) %>% 
-    theme_sc_dim() +  labs(x = NULL, y = NULL, title = NULL)
-
-RidgePlot(seurat, features = c("PCNA", "TOP2A", "MCM6", "MKI67"), ncol = 2)
-```
-
-```{r, eval = FALSE}
-seurat <- RunPCA(seurat, features = c(s.genes, g2m.genes))
-DimPlot(seurat)
-
-cc_diff <- TRUE
-if (!cc_diff)
-  seurat <- ScaleData(seurat, vars.to.regress = c("S.Score", "G2M.Score"), features = rownames(seurat))
-else
-  seurat <- ScaleData(seurat, vars.to.regress = "CC.Difference", features = rownames(seurat))
-
-seurat <- RunPCA(seurat, features = VariableFeatures(seurat), nfeatures.print = 10)
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
-```
-
 ## Dimension selection
 ```{r}
 # Dimension selection
@@ -645,285 +592,45 @@ list.map(
 ) %>% plot_grid(plotlist = ., ncol = 2)
 ```
 
-## Cluster
-```{r clus_int}
-resolution2 <- seq(.1, .4, 0.05)
-resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
-resolution_tot <-c(resolution2, resolution)
-DefaultAssay(seurat) <- assay
-seurat <- FindNeighbors(
+## Cell cycle
+```{r}
+seurat <- CellCycleScoring(
   seurat,
-  reduction = integration_method, 
-  dims = seq(n_dim)
+  s.features = s.genes, 
+  g2m.features = g2m.genes, 
+  set.ident = TRUE
 )
+seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
 
-seurat <- FindClusters(
+p1 <- FeaturePlot(
     seurat,
-    verbose = FALSE,
-    algorithm = 3,
-    resolution = resolution_tot,
-    graph.name = tail(names(seurat@graphs), 1)
-  )
-
-seurat2 <- seurat
-prefix_cl <- paste0(assay, "_snn_res.")
-cols_to_remove <- paste0(prefix_cl, resolution[-1])
-seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
-
-select(seurat@meta.data, contains(prefix_cl)) %>%
-     list.mapv(f(x) ~ levels(x) %>% length()) %>% 
-    set_names(names(.) %>% str_remove(prefix_cl)) %>%
-  plot_bar(
-    label_x = "none",
-    label_y = "value",
-    sort = "desc",
-    digits = 1,
-    n_max = 15
-  ) + ggtitle(NULL)
-```
-```{r}
-clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
-clusters2 <- paste0(prefix_cl, resolution2)
-list.mapv(clusters, f(i) ~length(unique(seurat@meta.data[, i])))
-cl_size <- map_dfr(
-    clusters,
-    ~ cluster_size(seurat@meta.data[, .x]) %>% 
-        pull(1) %>% 
-        tibble(
-            Clusters = .x,
-            cluster = seq_along(.),
-            inertia = .
-        )
-) %>% pivot_wider(names_from = cluster, values_from = inertia, names_prefix = "") %>%
-  as.data.frame() %>%
-  mutate(Clusters = str_remove_all(Clusters, paste0(assay, "_snn_res.")))
-  
-cl_size[is.na(cl_size)] <- ""
-kable0(cl_size)
-```
-
-```{r}
-clustree(seurat, prefix = prefix_cl) +
-    # scale_color_discrete(type = brewer.pal(length(clusters), "Reds")) +
-    scale_color_discrete(type = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(clusters))) +
-    theme(
-        legend.title = element_text(face = "italic", size = 15),
-        legend.text = element_text(size = 10)
-    )
-```
-
-```{r}
-p_cl <- list.map(
-    clusters,
-    f(x, y, z) ~
-        DimPlot(
-            seurat, 
-            reduction = 'umap',
-            group.by = x,
-            na.value = "white",
-            cols = palette_continuous()(seurat@meta.data[, x] %>% unique() %>% length()),
-            label = TRUE,
-            repel = TRUE
-        )  %>% theme_sc_dim() + 
-      NoLegend() + 
-      labs(x = NULL, y = NULL, title = str_remove(x, ".*_snn_res."))
-)
-plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = 4, nrow = 2)
-plot_grid(plotlist = p_cl[8:15], align = "hv", ncol = 4, nrow = 2)
-```
+    features = "CC.Difference",
+    alpha = 0.5
+) %>% theme_sc_dim()  +
+    scale_color_gradientn(
+        colors = pal_sc,
+        limits = c(-1, 1),
+        name = "S to G2/M"
+    ) + labs(x = NULL, y = NULL, title = NULL)
 
 
-```{r clus_int_res}
-best_resolution <- 0.35
-snn_cluster <- paste0(
-  ifelse(SCT, "SCT", assay),
-  "_snn_res.",
-  best_resolution
-)
-
-Idents(seurat) <- seurat[[]][, snn_cluster] #%>%
-  # as.character() %>% 
-  # as.numeric() %>% 
-  # `+`(1) %>%
-  # str_replace_all("^(\\d)$", "0\\1") %>%
-  # paste("G", .)
-
-Idents(seurat) %>% 
-    cluster_size() %>%
-    kable_sc()
-
-# names(cell_type) <- levels(seurat_integrated)
-# seurat_integrated <- RenameIdents(seurat_integrated, cell_type)
-```
-
-
-```{r}
-DimPlot(
-  seurat, 
-  reduction = "umap",
-  cols = palette_continuous()(length(levels(Idents(seurat)))),
-  label = TRUE,
-  repel = TRUE
-)
-
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
-    split.by = snn_cluster,
-    cols = palette_continuous()(length(levels(Idents(seurat)))),
+p2 <- DimPlot(
+    object = seurat, 
+    label = TRUE,
+    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = GimmeMyPlot:::palette_discrete(),
     repel = TRUE,
-    pt.size = 0.5,
+    group.by = "Phase",
     na.value = "white",
-    ncol = 4
-) %>% theme_sc_dim() + 
-    ggtitle(NULL)
+    reduction = "umap",
+    pt.size = 1,
+    alpha = 0.25
+) %>% 
+    theme_sc_dim() +  labs(x = NULL, y = NULL, title = NULL)
 
-table(Idents(seurat), seurat$cell_subtype_formatted) %>%
-    as.data.frame.matrix() %>%
-    t() %>%
-    as.data.frame() %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        colour =  palette_continuous(gray = FALSE)(length(unique(seurat[[]][, "cell_subtype_formatted"]))),
-        pct  = FALSE,
-        threshold = 1,
-        digits = 1
-    ) + labs(y = "% Cells")
+p1 + p2
 
-tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = Idents(seurat))
-pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
-```
-
-```{r}
-project <- "KO"
-saveRDS(seurat, file = file.path(path, paste0(project, ".rds")))
-```
-
-```{r}
-bcell <- subset(
-  seurat, 
-  subset = !is.na(seurat$b_cell)
-)
-
-saveRDS(bcell, file = file.path(path, paste0(project, "bcell.rds")))
-```
-
-## Sample effect
-```{r}
-table(seurat$Patient)
-meta <- seurat@meta.data
-meta$cell_id <- rownames(meta)
-
-cells_to_keep <- meta %>%
-    group_by(Patient) %>%
-    sample_n(size = min(table(seurat$Patient), n()), replace = FALSE) %>%
-    pull(cell_id)
-
-seurat_subset <- subset(seurat, cells = cells_to_keep)
-
-
-DimPlot(
-object = seurat_subset,
-label = TRUE,
-cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-# cols = GimmeMyPlot:::palette_discrete(),
-repel = TRUE,
-na.value = "white",
-reduction = "umap",
-split.by = "Patient",
-pt.size = 1,
-alpha = 0.25
-) %>%
-theme_sc_dim() + labs(title = NULL, x = NULL, y = NULL)
-
-
-
-df_cl <- list.map(
-    unique(seurat_subset$Patient),
-    f(x) ~ filter(seurat_subset[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
-) %>%
-    list.rbind() %>%
-    as.data.frame()
-    
-df_cl %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        colour = col_inds,
-        pct  = FALSE,
-        digits = 1
-    ) + labs(y = "% Cells") +
-    geom_hline(yintercept = 50, color = "gray")
-
-df_cl <- list.map(
-    unique(seurat$Patient),
-    f(x) ~ filter(seurat[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
-) %>%
-    list.rbind() %>%
-    as.data.frame()
-    
-df_cl %>%
-    t() %>%
-    as.data.frame() %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        # colour = palette_discrete(),
-        colour = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-        legend =  colnames(df_cl),
-        pct  = FALSE,
-        digits = 1
-    ) + labs(y = "% Cells")
-```
-
-# Markers
-
-## Predictions from dataset
-```{r}
-library(readxl)
-# fileIn <- file.path(path, "41467_2021_27232_MOESM4_ESM.xlsx")
-# name <- "symbol"
-fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
-name <- "Gene name"
-
-l_bcell_markers <- list.map(
-    excel_sheets(fileIn),
-    f(i) ~ read_excel(fileIn, sheet = i) %>%
-        pull(!!sym(name)) %>%
-        na.omit() %>%
-        func_format()
-) 
-
-p <- list.map(
-    l_bcell_markers,
-  f(i, j, k) ~ {
-      tmp <- list(i) %>%
-          AddModuleScore(seurat, features = .)
-      stats <- quantile(tmp$Cluster1, probs = c(0.01, 0.99))
-      tmp <- subset(tmp, subset = Cluster1 >= stats[1] & Cluster1 <= stats[2])
-      VlnPlot(
-        object = tmp,
-        features = "Cluster1",
-        # idents = c(0, 2, 4, 8, 6, 12, 14),
-        # cols = palette_discrete(),
-        cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(unique(Idents(tmp)))),
-        pt.size = 0
-      ) + 
-          theme_violin_sc() +
-        labs(x = NULL, y = NULL, title = str_remove_all(k, " ?vs_all")) + 
-        NoLegend()
-      }
-)
-
- plot_grid(
-    plotlist = p,
-    ncol  = 3,
-    align = "hv"
-)
+RidgePlot(seurat, features = c("PCNA", "TOP2A", "MCM6", "MKI67") %>% func_format(), ncol = 2)
 ```
 
 ## Automatic annotation
@@ -954,7 +661,70 @@ cts <- GetAssayData(seurat, layer = 'counts')
 ```
 
 ```{r}
-lim <- 100
+singleR_main <- SingleR(
+  test = cts,
+  ref = hpca,
+  labels = hpca$label.main
+)
+
+singleR_fine <- SingleR(
+  test = cts,
+  ref = hpca2,
+  labels = hpca2$label.fine
+)
+
+annotation <- list(singleR_main = singleR_main, singleR_fine = singleR_fine)
+saveRDS(annotation, file = file.path(path, paste(project,  "_annotation.rds")))
+```
+
+```{r, eval = FALSE}
+label_type0 <- "label.main"
+label_type0 <- "label.fine"
+
+hpca$label_db <- paste0('HPCA.', hpca[[label_type0]])
+dice$label_db <- paste0('DICE.', dice[[label_type0]])
+shared <- intersect(rownames(hpca), rownames(dice))
+combined <- cbind(hpca[shared, ], dice[shared, ])
+
+
+# ...2. Strategy 2: Comparing scores across references ----------
+singleR_comb <- SingleR(
+    test = cts,
+    ref = list(HPCA = hpca, DICE = dice),
+labels = list(hpca[[label_type0]], dice[[label_type0]])
+)
+
+# which reference scored best for which label?
+grouping <- paste0(singleR_comb$labels,'.', singleR_comb$reference)
+best_ref <- as.data.frame(split(singleR_comb, grouping))
+
+# get de. genes from each individual references
+metadata(singleR_comb$orig.results$HPCA)$de.genes
+metadata(singleR_comb$orig.results$DICE)$de.genes
+
+# ...3. Strategy 3: Using Harmonized Labels ----------
+
+hpca.ont <- HumanPrimaryCellAtlasData(cell.ont = 'nonna')
+dice.ont <- DatabaseImmuneCellExpressionData(cell.ont = 'nonna')
+
+# Using the same sets of genes:
+shared <- intersect(rownames(hpca.ont), rownames(dice.ont))
+hpca.ont <- hpca.ont[shared, ]
+dice.ont <- dice.ont[shared, ]
+
+# Showing the top 10 most frequent terms:
+tail(sort(table(hpca.ont$label.ont)), 10)
+tail(sort(table(dice.ont$label.ont)), 10)
+
+# using label.ont instead on label.main while running SingleR
+singleR_ont <- SingleR(
+  test = cts,
+  ref = list(HPCA = hpca.ont, DICE = dice.ont),
+  labels = list(hpca.ont$label.ont, dice.ont$label.ont)
+)
+```
+
+```{r}
 label_type <- "labels"
 x1 <- "singleR_fine"
 x <- get(x1)
@@ -1130,67 +900,284 @@ plotDeltaDistribution(x)
 ```
 
 
+## Cluster
+```{r clus_int}
+resolution2 <- seq(.1, .4, 0.05)
+resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
+resolution_tot <-c(resolution2, resolution)
+DefaultAssay(seurat) <- assay
+seurat <- FindNeighbors(
+  seurat,
+  reduction = integration_method, 
+  dims = seq(n_dim)
+)
+
+seurat <- FindClusters(
+    seurat,
+    verbose = FALSE,
+    algorithm = 3,
+    resolution = resolution_tot,
+    graph.name = tail(names(seurat@graphs), 1)
+  )
+
+seurat2 <- seurat
+prefix_cl <- paste0(assay, "_snn_res.")
+cols_to_remove <- paste0(prefix_cl, resolution[-1])
+seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
+
+select(seurat@meta.data, contains(prefix_cl)) %>%
+     list.mapv(f(x) ~ levels(x) %>% length()) %>% 
+    set_names(names(.) %>% str_remove(prefix_cl)) %>%
+  plot_bar(
+    label_x = "none",
+    label_y = "value",
+    sort = "desc",
+    digits = 1,
+    n_max = 15
+  ) + ggtitle(NULL)
+```
 ```{r}
-singleR_main <- SingleR(
-  test = cts,
-  ref = hpca,
-  labels = hpca$label.main
-)
-
-singleR_fine <- SingleR(
-  test = cts,
-  ref = hpca2,
-  labels = hpca2$label.fine
-)
-
-annotation <- list(singleR_main = singleR_main, singleR_fine = singleR_fine)
-saveRDS(annotation, file = file.path(path, paste(project,  "_annotation.rds")))
+clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
+clusters2 <- paste0(prefix_cl, resolution2)
+list.mapv(clusters, f(i) ~length(unique(seurat@meta.data[, i])))
+cl_size <- map_dfr(
+    clusters,
+    ~ cluster_size(seurat@meta.data[, .x]) %>% 
+        pull(1) %>% 
+        tibble(
+            Clusters = .x,
+            cluster = seq_along(.),
+            inertia = .
+        )
+) %>% pivot_wider(names_from = cluster, values_from = inertia, names_prefix = "") %>%
+  as.data.frame() %>%
+  mutate(Clusters = str_remove_all(Clusters, paste0(assay, "_snn_res.")))
+  
+cl_size[is.na(cl_size)] <- ""
+kable0(cl_size)
 ```
 
-```{r, eval = FALSE}
-label_type0 <- "label.main"
-label_type0 <- "label.fine"
+```{r}
+clustree(seurat, prefix = prefix_cl) +
+    # scale_color_discrete(type = brewer.pal(length(clusters), "Reds")) +
+    scale_color_discrete(type = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(clusters))) +
+    theme(
+        legend.title = element_text(face = "italic", size = 15),
+        legend.text = element_text(size = 10)
+    )
+```
 
-hpca$label_db <- paste0('HPCA.', hpca[[label_type0]])
-dice$label_db <- paste0('DICE.', dice[[label_type0]])
-shared <- intersect(rownames(hpca), rownames(dice))
-combined <- cbind(hpca[shared, ], dice[shared, ])
+```{r}
+p_cl <- list.map(
+    clusters,
+    f(x, y, z) ~
+        DimPlot(
+            seurat, 
+            reduction = 'umap',
+            group.by = x,
+            na.value = "white",
+            cols = palette_continuous()(seurat@meta.data[, x] %>% unique() %>% length()),
+            label = TRUE,
+            repel = TRUE
+        )  %>% theme_sc_dim() + 
+      NoLegend() + 
+      labs(x = NULL, y = NULL, title = str_remove(x, ".*_snn_res."))
+)
+plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = 4, nrow = 2)
+plot_grid(plotlist = p_cl[8:15], align = "hv", ncol = 4, nrow = 2)
+```
 
 
-# ...2. Strategy 2: Comparing scores across references ----------
-singleR_comb <- SingleR(
-    test = cts,
-    ref = list(HPCA = hpca, DICE = dice),
-labels = list(hpca[[label_type0]], dice[[label_type0]])
+```{r clus_int_res}
+best_resolution <- 0.35
+snn_cluster <- paste0(
+  ifelse(SCT, "SCT", assay),
+  "_snn_res.",
+  best_resolution
 )
 
-# which reference scored best for which label?
-grouping <- paste0(singleR_comb$labels,'.', singleR_comb$reference)
-best_ref <- as.data.frame(split(singleR_comb, grouping))
+Idents(seurat) <- seurat[[]][, snn_cluster] #%>%
+  # as.character() %>% 
+  # as.numeric() %>% 
+  # `+`(1) %>%
+  # str_replace_all("^(\\d)$", "0\\1") %>%
+  # paste("G", .)
 
-# get de. genes from each individual references
-metadata(singleR_comb$orig.results$HPCA)$de.genes
-metadata(singleR_comb$orig.results$DICE)$de.genes
+Idents(seurat) %>% 
+    cluster_size() %>%
+    kable_sc()
 
-# ...3. Strategy 3: Using Harmonized Labels ----------
+# names(cell_type) <- levels(seurat_integrated)
+# seurat_integrated <- RenameIdents(seurat_integrated, cell_type)
+```
 
-hpca.ont <- HumanPrimaryCellAtlasData(cell.ont = 'nonna')
-dice.ont <- DatabaseImmuneCellExpressionData(cell.ont = 'nonna')
 
-# Using the same sets of genes:
-shared <- intersect(rownames(hpca.ont), rownames(dice.ont))
-hpca.ont <- hpca.ont[shared, ]
-dice.ont <- dice.ont[shared, ]
+```{r}
+DimPlot(
+  seurat, 
+  reduction = "umap",
+  cols = palette_continuous()(length(levels(Idents(seurat)))),
+  label = TRUE,
+  repel = TRUE
+  )
 
-# Showing the top 10 most frequent terms:
-tail(sort(table(hpca.ont$label.ont)), 10)
-tail(sort(table(dice.ont$label.ont)), 10)
+DimPlot(
+    seurat, 
+    reduction = 'umap', 
+    split.by = snn_cluster,
+    cols = palette_continuous()(length(levels(Idents(seurat)))),
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white",
+    ncol = 4
+) %>% theme_sc_dim() + 
+    ggtitle(NULL)
 
-# using label.ont instead on label.main while running SingleR
-singleR_ont <- SingleR(
-  test = cts,
-  ref = list(HPCA = hpca.ont, DICE = dice.ont),
-  labels = list(hpca.ont$label.ont, dice.ont$label.ont)
+table(Idents(seurat), seurat$cell_subtype_formatted) %>%
+    as.data.frame.matrix() %>%
+    t() %>%
+    as.data.frame() %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        colour =  palette_continuous(gray = FALSE)(length(unique(seurat[[]][, "cell_subtype_formatted"]))),
+        pct  = FALSE,
+        threshold = 1,
+        digits = 1
+    ) + labs(y = "% Cells")
+
+tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = Idents(seurat))
+pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
+```
+
+```{r}
+project <- "KO"
+saveRDS(seurat, file = file.path(path, paste0(project, ".rds")))
+```
+
+```{r}
+bcell <- subset(
+  seurat, 
+  subset = !is.na(seurat$b_cell)
+)
+
+saveRDS(bcell, file = file.path(path, paste0(project, "bcell.rds")))
+```
+
+## Sample effect
+```{r}
+table(seurat$Patient)
+meta <- seurat@meta.data
+meta$cell_id <- rownames(meta)
+
+cells_to_keep <- meta %>%
+    group_by(Patient) %>%
+    sample_n(size = min(table(seurat$Patient), n()), replace = FALSE) %>%
+    pull(cell_id)
+
+seurat_subset <- subset(seurat, cells = cells_to_keep)
+
+
+DimPlot(
+object = seurat_subset,
+label = TRUE,
+cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+# cols = GimmeMyPlot:::palette_discrete(),
+repel = TRUE,
+na.value = "white",
+reduction = "umap",
+split.by = "Patient",
+pt.size = 1,
+alpha = 0.25
+) %>%
+theme_sc_dim() + labs(title = NULL, x = NULL, y = NULL)
+
+
+
+df_cl <- list.map(
+    unique(seurat_subset$Patient),
+    f(x) ~ filter(seurat_subset[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
+) %>%
+    list.rbind() %>%
+    as.data.frame()
+    
+df_cl %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        colour = col_inds,
+        pct  = FALSE,
+        digits = 1
+    ) + labs(y = "% Cells") +
+    geom_hline(yintercept = 50, color = "gray")
+
+df_cl <- list.map(
+    unique(seurat$Patient),
+    f(x) ~ filter(seurat[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
+) %>%
+    list.rbind() %>%
+    as.data.frame()
+    
+df_cl %>%
+    t() %>%
+    as.data.frame() %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        # colour = palette_discrete(),
+        colour = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+        legend =  colnames(df_cl),
+        pct  = FALSE,
+        digits = 1
+    ) + labs(y = "% Cells")
+```
+
+# Markers
+
+## Predictions from dataset
+```{r}
+library(readxl)
+# fileIn <- file.path(path, "41467_2021_27232_MOESM4_ESM.xlsx")
+# name <- "symbol"
+fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
+name <- "Gene name"
+
+l_bcell_markers <- list.map(
+    excel_sheets(fileIn),
+    f(i) ~ read_excel(fileIn, sheet = i) %>%
+        pull(!!sym(name)) %>%
+        na.omit() %>%
+        func_format()
+) 
+
+p <- list.map(
+    l_bcell_markers,
+  f(i, j, k) ~ {
+      tmp <- list(i) %>%
+          AddModuleScore(seurat, features = .)
+      stats <- quantile(tmp$Cluster1, probs = c(0.01, 0.99))
+      tmp <- subset(tmp, subset = Cluster1 >= stats[1] & Cluster1 <= stats[2])
+      VlnPlot(
+        object = tmp,
+        features = "Cluster1",
+        # idents = c(0, 2, 4, 8, 6, 12, 14),
+        # cols = palette_discrete(),
+        cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(unique(Idents(tmp)))),
+        pt.size = 0
+      ) + 
+          theme_violin_sc() +
+        labs(x = NULL, y = NULL, title = str_remove_all(k, " ?vs_all")) + 
+        NoLegend()
+      }
+)
+
+ plot_grid(
+    plotlist = p,
+    ncol  = 3,
+    align = "hv"
 )
 ```
 
