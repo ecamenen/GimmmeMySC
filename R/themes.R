@@ -32,12 +32,27 @@ str_clean <- function(x) {
 theme_sc_dim <- function(p, dims = seq(2)) {
     p +
         theme_custom() +
+        theme(
+            panel.background = element_rect(fill = "white", color = NA),
+            panel.grid.major = element_line(color = "gray90"),
+            panel.grid.minor = element_line(color = "gray90")
+        ) +
         labs(
             x = paste("Dim.", dims[1]),
             y = paste("Dim.", dims[2])
         ) +
         geom_hline(yintercept = 0, linewidth = 1, color = "gray30") +
         geom_vline(xintercept = 0, linewidth = 1, color = "gray30")
+}
+
+#' @export
+theme_violin_sc <- function() {
+    theme_custom() +
+        theme(
+            axis.title.x = element_blank(),
+            axis.line = element_line(linewidth = 1),
+            panel.grid.major.y = element_line(colour = "grey", linetype = 2)
+        )
 }
 
 #' @export
@@ -53,10 +68,12 @@ format_annot <- function(x) {
         str_replace_all("(B cell), pro", "\\1")
 }
 
+#' @export
 remove_parenthesis <- function(x) {
     str_remove(x, "\\s*\\(.*\\)")
 }
 
+#' @export
 keep_parenthesis <- function(x) {
     str_extract(x, "(?<=\\()[^\\)]+")
 }
