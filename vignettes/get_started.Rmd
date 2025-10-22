@@ -1194,6 +1194,397 @@ singleR_ont <- SingleR(
 )
 ```
 
+## Cell markers
+```{r}
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ FeaturePlot(
+        seurat,
+        features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
+        min.cutoff = "q10", 
+        max.cutoff = "q90",
+        cols = c("white", "red"),
+        reduction = "umap",
+        pt.size = 1,
+        alpha = .5,
+        combine = FALSE
+    )  %>% 
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)) %>%
+  plot_grid(plotlist = ., align = "hv", ncol = 4, nrow = 3) +
+    plot_annotation(
+      title = z, 
+      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+    ) 
+)
+
+p2 <- list.map(
+    l_bcell_markers,
+    f(x, y, z) ~ 
+        VlnPlot(
+            object = seurat,
+            features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
+            pt.size = 0,
+            cols = GimmeMyPlot:::palette_discrete(),
+            combine = FALSE
+        ) %>%
+        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
+        plot_grid(plotlist = ., align = "hv", ncol = 4, nrow = 3) +
+        plot_annotation(
+            title = z, 
+            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+        ) 
+)
+
+
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ DotPlot(
+    seurat,
+    features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(50) %>% unique(),
+    dot.scale = 8,
+    scale = FALSE
+  ) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(
+      x = NULL,
+      y = NULL,
+      # title = paste("Cluster", x)
+      title = z
+    )
+)
+```
+
+```{r}
+l_bcell_markers <- list(
+  General = c(
+    "Pax5", "Ebf1", "Spi1", "Ikzf1", "Ikzf3", # facteurs de transcription clés
+    "Pou2f2", "Ets1", "Bach2",                # maintien du programme B
+    "Ptprc", "Fnip1", "Hdac5", "Hdac9"
+  ),
+    
+  FrA = c( # B220+CD43+ très précoces
+    "Enpep", "Foxp1", "Il7r", "Kit", "Spn"
+  ),
+  
+  FrB = c( # Pro-B précoces
+    "Cdkn3", "Dntt", "Igll1", "Irf8", "Lef1", "Rag1", "Rag2", "Vpreb1a", "Vpreb1b", "Il7r"
+  ),
+  
+  FrC = c( # Pro-B tardives (pré-BCR en recombinaison)
+     "Polm", "Rag1", "Rag2", "Spib"
+  ),
+  
+  FrD = c( # Pré-B prolifératives
+    "Ccna2", "Ccnb1", "Ccnd2", "Ccne1", "Fancg", "Gfi1b",
+    "Il2ra", "Mki67", "Pcna", "Polr2a", "Reln", "Top2a"
+  ),
+  
+  FrE = c( # B immatures IgM+
+    "Cd19", "Cd79a", "Cd79b", "Ighm", "Igkc", "Iglc2", "Iglc3", "Bcl6"
+  ),
+  
+  FrF = c( # B matures (transit moelle → périphérie)
+    "Cd19", "Cd79a", "Cd79b", "Ighm", "Igkc", "Il4i1", "Ms4a1",
+    "Nfkbiz", "Notch2", "Ptk2b", "Ptprj", "Tlr9"
+  ),
+  
+  Plasmablast = c(
+    "Dnajb9", "Mmp14", "Prdm1", "Sdc1", "Xbp1"
+  ),
+  
+  MemoryB = c(
+    "Ahr", "Tnfaip3", "Zfp36l1", "Cd27", "Cd80", "Cd86", "Ms4a1"
+  )
+  
+  # Regulatory<- c(
+  #   "Clcf1", "Irf2bp2"
+  # )
+)
+```
+
+## Differentially Expressed Genes
+```{r}
+cts0 <- AverageExpression(
+    seurat,
+    group.by = c(snn_cluster),
+    # group.by = c(snn_cluster, "Type"),
+    assay = assay,
+    slot = "data",
+    return.seurat = FALSE
+) %>% 
+  pluck(assay) %>%
+  as.data.frame() %>% 
+  rename_with(~ str_remove(., "^g")) %>%
+  mutate(gene = rownames(.))
+
+cts <- calc_other_cluster_avg(cts0)
+
+# ids <- data.frame(
+#     id.1 = c(6, 3, 3, 3, 0, 0, 4, 5, 5),
+#     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
+# )
+
+cluster_marker_genes0 <- list.map(
+  levels(Idents(seurat)),
+  # seq(nrow(ids)),
+  f(x) ~ FindConservedMarkers(
+    ident.1 = x,
+    # ident.1 = ids[x, 1],
+    # ident.2 = ids[x, 2],
+    grouping.var = "Patient",
+    assay = assay,
+    # grouping.var = "Type",
+    seurat,
+    logfc.threshold = .Machine$double.xmin
+  ) %>%
+    mutate(
+      cluster = x,
+      # cluster = paste(ids[x, 2], ids[x, 1], sep = " vs "),
+      gene = rownames(.),
+      log2FoldChange = rowMeans(select(., ends_with("avg_log2FC")), na.rm = TRUE),
+      padj = rowMeans(select(., ends_with("p_val_adj")), na.rm = TRUE),
+      `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
+      `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
+    ) %>%
+  # left_join(select(cts, all_of(c("gene", ids[x, 1], ids[x, 2]))) %>% set_colnames(c("gene", "exp.1", "exp.2")), by = "gene")
+  left_join(select(cts, all_of(c("gene", x, paste0("except_", x)))) %>% set_colnames(c("gene", "exp.1", "exp.2")), by = "gene")
+)
+cluster_marker_genes <- list.rbind(cluster_marker_genes0)
+
+min_p <- cluster_marker_genes %>%
+  filter(padj > 0) %>%
+  summarise(min_padj = min(padj)) %>%
+  pull(min_padj)
+
+cluster_marker_genes$padj[which(cluster_marker_genes$padj == 0)] <- min_p
+```
+
+```{r}
+fc_threshold  <- log2(1.5)
+p_threshold <- .05
+pct_threshold <- 0.25
+
+l_dea_raw <- cluster_marker_genes %>%
+  mutate(gene_name = gene) %>%
+  format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
+```
+
+### Volcano plots
+```{r}
+l_dea_raw <- l_dea_raw %>%
+    mutate(cluster = factor(cluster, levels = as.character(sort(as.numeric(unique(cluster)))))) %>%
+    group_split(cluster, .keep = TRUE) %>%
+    set_names(map_chr(., ~as.character(first(.x$cluster)))) %>%
+    list.map(
+        select(., -cluster) %>%
+            mutate(Expression = ifelse(pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold, Expression, "ns"))
+    )
+
+list.map(
+    l_dea_raw, f(x, xx, xxx) ~
+        fct_count(x$Expression) %>%
+        filter(f!="ns") %>%
+        set_colnames(c("Nb DEG", xxx))) %>%
+    Reduce(function(x, y) left_join(x, y, by = "Nb DEG"), .) %>%
+    bind_rows(summarise(., `Nb DEG` = "Total", across(-`Nb DEG`, sum, na.rm = TRUE))) %>%
+    kable0()
+
+l_deg_top <- list.map(
+  l_dea_raw,
+  f(x) ~ top_genes(
+    x,
+    fc_threshold = fc_threshold,
+    p_threshold = p_threshold,
+    n = 15
+  )
+)
+
+p <- list.map(
+    discard(l_dea_raw, function(x) nrow(x) == 0),
+    f(x, y, z) ~ {
+        volcano_plot(
+            x,
+            title = z,
+            top_genes = l_deg_top[[y]],
+            fc_threshold = fc_threshold,
+            cex = 1,
+            cex_genes = 4,
+            p_threshold = p_threshold,
+            max.overlaps = 1e3,
+            force =1e2
+        ) + labs(x = NULL, y = NULL, title = z) +
+            theme(legend.position = "none")
+    })
+
+plot_grid(plotlist = p, align = "hv", ncol = 4, nrow = 2)
+
+head(l_dea_raw[[1]], n = 10) %>%
+    pull("log2FoldChange") %>%
+    `^`(2, .) %>%
+    plot_bar(label_x = "value", digits = 1, title = "FC")
+```
+
+### Dotplots
+```{r}
+l_dea <- list.map(
+    unique(l_dea_raw$cluster),
+    f(x) ~ filter(l_dea_raw, cluster == x) %>%
+    filter(pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold) %>%
+  # filter((pct.1 > pct_threshold | pct.2 > pct_threshold) & abs(pct.1 - pct.2) > pct_threshold) %>%
+  # TODO: filter cts > 10
+      top_genes(return_rank = TRUE, fc_threshold = fc_threshold, p_threshold = p_threshold)
+    )
+```
+
+```{r}
+top10 <- list.map(
+  l_dea, 
+  f(x) ~ x %>%
+    # filter(log2FoldChange > 0) %>%
+  slice_head(n = 10)
+) %>%
+  list.rbind()
+
+last_genes <- top10 %>%
+    slice_tail(n = 1)  %>%
+    pull(gene)
+last_row_numbers <- top10 %>%
+    # ungroup() %>%
+    filter(!duplicated(gene)) %>%
+    mutate(row_num = row_number() %>% rev()) %>%
+    # mutate(row_num = row_number()) %>% # if pseudo
+    group_by(cluster) %>%
+    slice_tail(n = 1) %>%
+    pull(row_num) %>%
+    sort()
+
+DoHeatmap(
+    seurat,
+    features = top10$gene,
+    # group.by = "cell_type_na",
+    group.colors = palette_discrete(),
+    slot = "data"
+) + 
+    NoLegend() + 
+    scale_fill_gradientn(
+        colors = c("blue", "white", "red"),
+        na.value = "black"
+    ) +
+    geom_hline(yintercept = last_row_numbers[-1] - 0.5, color = "black", linetype = "solid", linewidth = 1)
+
+
+last_row_numbers <- top10 %>%
+    # ungroup() %>%
+    filter(!duplicated(gene)) %>%
+    mutate(row_num = row_number()) %>%
+    group_by(cluster) %>%
+    slice_tail(n = 1) %>%
+    pull(row_num) %>%
+    sort()
+
+DotPlot(
+    seurat, 
+    features = unique(pull(top10, "gene")), 
+    dot.scale = 8,
+    scale = FALSE
+) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(x = NULL, y = NULL) +
+    geom_vline(xintercept = last_row_numbers[-1] + 0.5)
+
+cluster_marker_genes %>% 
+    filter(cluster == 0) %>%
+  head(15) %>%
+  mutate(padj = format(padj, digits = 1, scientific = TRUE)) %>%
+  mutate(FC = 2^abs(log2FoldChange) * sign(log2FoldChange)) %>%
+   set_rownames(pull(., gene)) %>%
+  select(FC, padj) %>%
+  kable0()
+```
+
+```{r}
+top50 <- list.map(
+  l_dea, 
+  f(x) ~ x %>%
+    # filter(log2FoldChange > 0) %>%
+  slice_head(n = 50)
+) %>%
+  list.rbind()
+
+p2 <- list.map(
+  unique(pull(top50, cluster)),
+  f(x) ~ DotPlot(
+    seurat,
+    features = filter(top50, cluster == x) %>% pull("gene") %>% unique(),
+    dot.scale = 8,
+    scale = FALSE
+  ) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(
+      x = NULL,
+      y = NULL,
+      # title = paste("Cluster", x)
+      title = x
+    )
+)
+```
+
+```{r marker_cell}
+RidgePlot(
+  seurat_integrated, 
+  features = top_genes2[[1]], 
+  ncol = 4,
+  cols = col_clus
+)
+VlnPlot(
+  seurat_integrated, 
+  features = top_genes2[[1]],
+  pt.size = 0,
+  cols = col_clus
+)
+VlnPlot(
+  seurat_integrated, 
+  features = top_genes2[[1]],
+  pt.size = 0, 
+  split.by = "Patient", 
+  split.plot = TRUE
+)
+# VlnPlot(seurat_integrated, features = top_genes[[1]], slot = 'counts', log = TRUE)
+FeaturePlot(
+  seurat_integrated,
+  features = top_genes2[[1]],
+  min.cutoff = "q10", 
+  max.cutoff = "q90",
+  label = TRUE,
+  cols = c("grey", "red")
+)
+
+DoHeatmap(
+  subset(seurat_integrated, downsample = 100),
+  features = top_genes2[[2]],
+  group.colors = col_clus,
+  group.by = "cell_type"
+  ) + scale_fill_gradientn(
+    colors = c("blue", "white", "red"), 
+    na.value = "black"
+  )
+DotPlot(
+  seurat_integrated, 
+  features = top_genes2[[2]], 
+  cols = c('blue', 'red'), 
+  dot.scale = 8,
+  split.by = "Patient"
+  ) +
+  RotatedAxis()+
+  theme_custom()
+```
+
 ## Condition markers
 ```{r feature.heatmaps, eval = FALSE}
 FeaturePlot(
