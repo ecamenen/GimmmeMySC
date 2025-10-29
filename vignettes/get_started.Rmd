@@ -50,6 +50,13 @@ if (species == "human") {
 } else {
     func_format <- str_to_sentence
 }
+
+pal_sc <- c(
+  rev(brewer.pal(9, "Blues")[-c(1, 3, 5, 7, 9)]),
+  # "white",
+  "grey90",
+  brewer.pal(9, "Reds")[-c(1, 3, 5, 7, 9)]
+)
 ```
 
 # Load data
@@ -328,7 +335,7 @@ if (!SCT) {
     DefaultAssay(seurat) <- "sketch"
   }
 }
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim, assay = assay)
 
 # Dimension visualisation
 DimPlot(
@@ -352,15 +359,11 @@ DimPlot(
 #   seurat@reductions$pca@cell.embeddings[, seq(2)], 
 #   add = seurat@meta.data[, "seurat_clusters"] %>% paste("Cluster", .)
 # )
-# plot_dimred(coord, eig, colour = GimmeMyPlot:::palette_discrete2())
+# plot_dimred(coord, eig, colour = palette_discrete2())
 ```
 
 ## Dimension selection
 ```{r}
-# Dimension selection
-plot_eig(seurat[['pca']]@stdev) + 
-   geom_hline(yintercept = mean(seurat[['pca']]@stdev), col = "gray50", lwd =1, lty = 2)
-
 eig <- seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100
 p1 <- plot_eig(eig) + 
   geom_hline(yintercept = mean(eig), col = "gray50", lwd = 1, lty = 2) +
@@ -506,24 +509,6 @@ DimPlot(
 ```
 
 # Integration
-```{r, eval = FALSE}
-if(SCT) {
-  seurat[["v5"]] <- CreateAssay5Object(
-    counts =  seurat@assays$RNA$counts,
-    data =  seurat@assays$SCT$data,
-    # scale.data = seurat@assays$SCT$scale.data
-  )
-  seurat@assays[["v5"]]@key <- "v5_"
-  DefaultAssay(seurat) <- "v5"
-    seurat[["v5"]] <- split(
-    seurat[["v5"]], 
-    f = seurat$Patient,
-    layers = c("counts","data")
-  )
-  assay <- "V5"
-}
-```
-
 ```{r}
 integration_method <- "RPCA"
 seurat <- IntegrateLayers(
@@ -617,8 +602,8 @@ p1 <- FeaturePlot(
 p2 <- DimPlot(
     object = seurat, 
     label = TRUE,
-    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    cols = GimmeMyPlot:::palette_discrete(),
+    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = palette_discrete(),
     repel = TRUE,
     group.by = "Phase",
     na.value = "white",
@@ -634,6 +619,7 @@ RidgePlot(seurat, features = c("PCNA", "TOP2A", "MCM6", "MKI67") %>% func_format
 ```
 
 ## Automatic annotation
+### Database processing
 ```{r}
 if (species == "human") {
     hpca <- celldex::HumanPrimaryCellAtlasData()
@@ -660,6 +646,7 @@ hpca2 <- hpca[, keep_cells]
 cts <- GetAssayData(seurat, layer = 'counts')
 ```
 
+### Modelling
 ```{r}
 singleR_main <- SingleR(
   test = cts,
@@ -677,53 +664,7 @@ annotation <- list(singleR_main = singleR_main, singleR_fine = singleR_fine)
 saveRDS(annotation, file = file.path(path, paste(project,  "_annotation.rds")))
 ```
 
-```{r, eval = FALSE}
-label_type0 <- "label.main"
-label_type0 <- "label.fine"
-
-hpca$label_db <- paste0('HPCA.', hpca[[label_type0]])
-dice$label_db <- paste0('DICE.', dice[[label_type0]])
-shared <- intersect(rownames(hpca), rownames(dice))
-combined <- cbind(hpca[shared, ], dice[shared, ])
-
-
-# ...2. Strategy 2: Comparing scores across references ----------
-singleR_comb <- SingleR(
-    test = cts,
-    ref = list(HPCA = hpca, DICE = dice),
-labels = list(hpca[[label_type0]], dice[[label_type0]])
-)
-
-# which reference scored best for which label?
-grouping <- paste0(singleR_comb$labels,'.', singleR_comb$reference)
-best_ref <- as.data.frame(split(singleR_comb, grouping))
-
-# get de. genes from each individual references
-metadata(singleR_comb$orig.results$HPCA)$de.genes
-metadata(singleR_comb$orig.results$DICE)$de.genes
-
-# ...3. Strategy 3: Using Harmonized Labels ----------
-
-hpca.ont <- HumanPrimaryCellAtlasData(cell.ont = 'nonna')
-dice.ont <- DatabaseImmuneCellExpressionData(cell.ont = 'nonna')
-
-# Using the same sets of genes:
-shared <- intersect(rownames(hpca.ont), rownames(dice.ont))
-hpca.ont <- hpca.ont[shared, ]
-dice.ont <- dice.ont[shared, ]
-
-# Showing the top 10 most frequent terms:
-tail(sort(table(hpca.ont$label.ont)), 10)
-tail(sort(table(dice.ont$label.ont)), 10)
-
-# using label.ont instead on label.main while running SingleR
-singleR_ont <- SingleR(
-  test = cts,
-  ref = list(HPCA = hpca.ont, DICE = dice.ont),
-  labels = list(hpca.ont$label.ont, dice.ont$label.ont)
-)
-```
-
+### Visualization
 ```{r}
 label_type <- "labels"
 x1 <- "singleR_fine"
@@ -936,6 +877,7 @@ select(seurat@meta.data, contains(prefix_cl)) %>%
     n_max = 15
   ) + ggtitle(NULL)
 ```
+
 ```{r}
 clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
 clusters2 <- paste0(prefix_cl, resolution2)
@@ -960,7 +902,7 @@ kable0(cl_size)
 ```{r}
 clustree(seurat, prefix = prefix_cl) +
     # scale_color_discrete(type = brewer.pal(length(clusters), "Reds")) +
-    scale_color_discrete(type = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(clusters))) +
+    scale_color_discrete(type = palette_continuous(gray = FALSE)(length(clusters))) +
     theme(
         legend.title = element_text(face = "italic", size = 15),
         legend.text = element_text(size = 10)
@@ -986,7 +928,6 @@ p_cl <- list.map(
 plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = 4, nrow = 2)
 plot_grid(plotlist = p_cl[8:15], align = "hv", ncol = 4, nrow = 2)
 ```
-
 
 ```{r clus_int_res}
 best_resolution <- 0.35
@@ -1078,21 +1019,19 @@ cells_to_keep <- meta %>%
 
 seurat_subset <- subset(seurat, cells = cells_to_keep)
 
-
 DimPlot(
-object = seurat_subset,
-label = TRUE,
-cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-# cols = GimmeMyPlot:::palette_discrete(),
-repel = TRUE,
-na.value = "white",
-reduction = "umap",
+    object = seurat_subset,
+    label = TRUE,
+    cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    # cols = palette_discrete(),
+    repel = TRUE,
+    na.value = "white",
+    reduction = "umap",
 split.by = "Patient",
 pt.size = 1,
 alpha = 0.25
 ) %>%
-theme_sc_dim() + labs(title = NULL, x = NULL, y = NULL)
-
+    theme_sc_dim() + labs(title = NULL, x = NULL, y = NULL)
 
 
 df_cl <- list.map(
@@ -1128,7 +1067,7 @@ df_cl %>%
         count = TRUE,
         stats = FALSE,
         # colour = palette_discrete(),
-        colour = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+        colour = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
         legend =  colnames(df_cl),
         pct  = FALSE,
         digits = 1
@@ -1165,7 +1104,7 @@ p <- list.map(
         features = "Cluster1",
         # idents = c(0, 2, 4, 8, 6, 12, 14),
         # cols = palette_discrete(),
-        cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(unique(Idents(tmp)))),
+        cols = palette_continuous(gray = FALSE)(length(unique(Idents(tmp)))),
         pt.size = 0
       ) + 
           theme_violin_sc() +
@@ -1190,13 +1129,15 @@ p2 <- list.map(
         features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
         min.cutoff = "q10", 
         max.cutoff = "q90",
-        cols = c("white", "red"),
         reduction = "umap",
         pt.size = 1,
         alpha = .5,
         combine = FALSE
     )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)) %>%
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
+    scale_color_gradientn(
+        colors = pal_sc
+    )) %>%
   plot_grid(plotlist = ., align = "hv", ncol = 4, nrow = 3) +
     plot_annotation(
       title = z, 
@@ -1211,7 +1152,7 @@ p2 <- list.map(
             object = seurat,
             features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
             pt.size = 0,
-            cols = GimmeMyPlot:::palette_discrete(),
+            cols = palette_discrete(),
             combine = FALSE
         ) %>%
         map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
@@ -1360,7 +1301,7 @@ l_dea_raw <- cluster_marker_genes %>%
 
 ### Volcano plots
 ```{r}
-l_dea_raw <- l_dea_raw %>%
+l_dea_proc <- l_dea_raw %>%
     mutate(cluster = factor(cluster, levels = as.character(sort(as.numeric(unique(cluster)))))) %>%
     group_split(cluster, .keep = TRUE) %>%
     set_names(map_chr(., ~as.character(first(.x$cluster)))) %>%
@@ -1370,7 +1311,7 @@ l_dea_raw <- l_dea_raw %>%
     )
 
 list.map(
-    l_dea_raw, f(x, xx, xxx) ~
+    l_dea_proc, f(x, xx, xxx) ~
         fct_count(x$Expression) %>%
         filter(f!="ns") %>%
         set_colnames(c("Nb DEG", xxx))) %>%
@@ -1379,7 +1320,7 @@ list.map(
     kable0()
 
 l_deg_top <- list.map(
-  l_dea_raw,
+  l_dea_proc,
   f(x) ~ top_genes(
     x,
     fc_threshold = fc_threshold,
@@ -1389,7 +1330,7 @@ l_deg_top <- list.map(
 )
 
 p <- list.map(
-    discard(l_dea_raw, function(x) nrow(x) == 0),
+    discard(l_dea_proc, function(x) nrow(x) == 0),
     f(x, y, z) ~ {
         volcano_plot(
             x,
@@ -1397,7 +1338,7 @@ p <- list.map(
             top_genes = l_deg_top[[y]],
             fc_threshold = fc_threshold,
             cex = 1,
-            cex_genes = 4,
+            cex_genes = 3.5,
             p_threshold = p_threshold,
             max.overlaps = 1e3,
             force =1e2
@@ -1406,11 +1347,6 @@ p <- list.map(
     })
 
 plot_grid(plotlist = p, align = "hv", ncol = 4, nrow = 2)
-
-head(l_dea_raw[[1]], n = 10) %>%
-    pull("log2FoldChange") %>%
-    `^`(2, .) %>%
-    plot_bar(label_x = "value", digits = 1, title = "FC")
 ```
 
 ### Dotplots
@@ -1422,7 +1358,8 @@ l_dea <- list.map(
   # filter((pct.1 > pct_threshold | pct.2 > pct_threshold) & abs(pct.1 - pct.2) > pct_threshold) %>%
   # TODO: filter cts > 10
       top_genes(return_rank = TRUE, fc_threshold = fc_threshold, p_threshold = p_threshold)
-    )
+    ) %>%
+    discard(~ nrow(.x) == 0)
 ```
 
 ```{r}
@@ -1437,6 +1374,10 @@ top10 <- list.map(
 last_genes <- top10 %>%
     slice_tail(n = 1)  %>%
     pull(gene)
+```
+
+
+```{r, eval = FALSE}
 last_row_numbers <- top10 %>%
     # ungroup() %>%
     filter(!duplicated(gene)) %>%
@@ -1456,12 +1397,13 @@ DoHeatmap(
 ) + 
     NoLegend() + 
     scale_fill_gradientn(
-        colors = c("blue", "white", "red"),
+        colors = brewer.pal(11, "Spectral"),
         na.value = "black"
     ) +
     geom_hline(yintercept = last_row_numbers[-1] - 0.5, color = "black", linetype = "solid", linewidth = 1)
+```
 
-
+```{r}
 last_row_numbers <- top10 %>%
     # ungroup() %>%
     filter(!duplicated(gene)) %>%
@@ -1497,12 +1439,11 @@ cluster_marker_genes %>%
 top50 <- list.map(
   l_dea, 
   f(x) ~ x %>%
-    # filter(log2FoldChange > 0) %>%
   slice_head(n = 50)
 ) %>%
   list.rbind()
 
-p2 <- list.map(
+p <- list.map(
   unique(pull(top50, cluster)),
   f(x) ~ DotPlot(
     seurat,
@@ -1522,54 +1463,54 @@ p2 <- list.map(
 )
 ```
 
-```{r marker_cell}
-RidgePlot(
-  seurat_integrated, 
-  features = top_genes2[[1]], 
-  ncol = 4,
-  cols = col_clus
-)
-VlnPlot(
-  seurat_integrated, 
-  features = top_genes2[[1]],
-  pt.size = 0,
-  cols = col_clus
-)
-VlnPlot(
-  seurat_integrated, 
-  features = top_genes2[[1]],
-  pt.size = 0, 
-  split.by = "Patient", 
-  split.plot = TRUE
-)
-# VlnPlot(seurat_integrated, features = top_genes[[1]], slot = 'counts', log = TRUE)
-FeaturePlot(
-  seurat_integrated,
-  features = top_genes2[[1]],
-  min.cutoff = "q10", 
-  max.cutoff = "q90",
-  label = TRUE,
-  cols = c("grey", "red")
+```{r}
+top12 <- list.map(
+  l_dea, 
+  f(x) ~ x %>%
+    # filter(log2FoldChange > 0) %>%
+  slice_head(n = 12)
 )
 
-DoHeatmap(
-  subset(seurat_integrated, downsample = 100),
-  features = top_genes2[[2]],
-  group.colors = col_clus,
-  group.by = "cell_type"
-  ) + scale_fill_gradientn(
-    colors = c("blue", "white", "red"), 
-    na.value = "black"
-  )
-DotPlot(
-  seurat_integrated, 
-  features = top_genes2[[2]], 
-  cols = c('blue', 'red'), 
-  dot.scale = 8,
-  split.by = "Patient"
-  ) +
-  RotatedAxis()+
-  theme_custom()
+p2 <- list.map(
+  top12,
+  f(x, y, z) ~ FeaturePlot(
+        seurat,
+        features = unique(pull(x, gene)) %>% .[. %in% Features(seurat)] %>% head(12),
+        min.cutoff = "q10", 
+        max.cutoff = "q90",
+        reduction = "umap",
+        pt.size = 1,
+        alpha = .5,
+        combine = FALSE
+    )  %>% 
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
+    scale_color_gradientn(
+        colors = pal_sc
+    )) %>%
+  plot_grid(plotlist = ., ncol = 4, nrow = 3) +
+    plot_annotation(
+      title = z, 
+      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+    ) 
+)
+
+p3 <- list.map(
+    top12,
+    f(x, y, z) ~ 
+        VlnPlot(
+            object = seurat,
+            features = unique(pull(x, gene)) %>% .[. %in% Features(seurat)] %>% head(12),
+            pt.size = 0,
+            cols = palette_discrete(),
+            combine = FALSE
+        ) %>%
+        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
+        plot_grid(plotlist = ., ncol = 5) +
+        plot_annotation(
+            title = z, 
+            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+        ) 
+)
 ```
 
 ## Condition markers
@@ -1580,9 +1521,11 @@ FeaturePlot(
   split.by = "Patient", 
   min.cutoff = "q10",
   max.cutoff = "q90",
-  # cols = c("grey", "red"),
   reduction = 'umap'
-)
+) +
+    scale_color_gradientn(
+        colors = pal_sc
+    )
 
 VlnPlot(
     seurat_integrated, 
@@ -1610,13 +1553,13 @@ rowAnnotation(
     )
 
 theme_set(theme_cowplot())
-pop_seurat <- subset(seurat_integrated, idents = "G1")
+pop_seurat <- subset(seurat_integrated, idents = "0")
 Idents(pop_seurat) <- "Patient"
 avg_pop <- as.data.frame(log1p(AverageExpression(pop_seurat, verbose = FALSE)$RNA))
 avg_pop$gene <- rownames(avg_pop)
 p <- ggplot(avg_pop, aes(S01004A, S01013A)) + 
   geom_point() + 
-  ggtitle("G1")
+  ggtitle("0")
 LabelPoints(p, points = top_genes %>% head(15) %>% rownames(), repel = TRUE, color = "red")
 ```
 
@@ -1674,7 +1617,7 @@ DotPlot(
     scale = FALSE,
     group.by = "cell_type",
     split.by = "Type",
-    cols = GimmeMyPlot:::palette_discrete()
+    cols = palette_discrete()
 ) +
     RotatedAxis() +
     theme_custom() +
@@ -1692,14 +1635,16 @@ p2 <- list.map(
         features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(4),
         min.cutoff = "q10", 
         max.cutoff = "q90",
-        cols = c("white", "red"),
         split.by = "Type",
         reduction = "umap",
         pt.size = 1,
         alpha = .5,
         combine = FALSE
     )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)) %>%
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
+    scale_color_gradientn(
+        colors = pal_sc
+    )) %>%
   plot_grid(plotlist = ., ncol = 4) +
     plot_annotation(
       title = z, 
@@ -1737,14 +1682,16 @@ FeaturePlot(
     features = x,
     min.cutoff = "q10", 
     max.cutoff = "q90",
-    cols = c("white", "red"),
     split.by = "Type",
     reduction = "umap",
     pt.size = 1,
     alpha = .5,
     combine = FALSE
 )  %>% 
-    map(~theme_sc_dim(.) + labs(x = NULL, y = NULL))  %>%
+    map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
+    scale_color_gradientn(
+        colors = pal_sc
+    ))  %>%
     plot_grid(plotlist = ., ncol = 4)
 )
 
@@ -1760,7 +1707,7 @@ DotPlot(
     scale = FALSE,
     group.by = "cell_type",
     split.by = "Type",
-    cols = GimmeMyPlot:::palette_discrete()
+    cols = palette_discrete()
 ) +
     RotatedAxis() +
     theme_custom() +
@@ -1781,14 +1728,16 @@ list.map(
             features = x,
             min.cutoff = "q10", 
             max.cutoff = "q90",
-            cols = c("white", "red"),
             split.by = "Type",
             reduction = "umap",
             pt.size = 1,
             alpha = .5,
             combine = FALSE
         )  %>% 
-        map(~theme_sc_dim(.) + labs(x = NULL, y = NULL))  %>%
+        map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
+    scale_color_gradientn(
+        colors = pal_sc
+    ))  %>%
         plot_grid(plotlist = ., ncol = 4) +
         plot_annotation(
             title = z, 
@@ -1895,7 +1844,7 @@ pseudotime <- slingPseudotime(sce) %>%
 
 plot(
   reduc_coords,
-  # col = GimmeMyPlot:::palette_discrete()[sce$cell_type],
+  # col = palette_discrete()[sce$cell_type],
   col = colorRampPalette(pal_sc)(100)[cut(pseudotime, breaks = 100)],
   pch = 16,
   asp = 1
