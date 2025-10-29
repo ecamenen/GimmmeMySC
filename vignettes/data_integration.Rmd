@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(GimmmeMySC)
+library(Seurat)
 ```
 
 # Transfer learning
@@ -26,6 +27,7 @@ wt@meta.data[, "labels"] <- Idents(wt)
 seurat <- merge(wt, y = ko)
 ```
 
+## Learning
 ```{r}
 anchors <- FindTransferAnchors(
     reference = wt,
@@ -57,6 +59,7 @@ wt2 <- RunUMAP(
 )
 ```
 
+## Transfering
 ```{r}
 seurat <- MapQuery(
     anchorset = anchors,
@@ -68,6 +71,7 @@ seurat <- MapQuery(
 )
 ```
 
+## Scores
 ```{r}
 plot_sc_violin(
     seurat,
@@ -77,24 +81,319 @@ plot_sc_violin(
 )
 ```
 
+## UMAP per Type
 ```{r}
-type <- NULL
-seurat$predicted.labels<- factor(seurat$predicted.labels, levels = 0: (length(unique(seurat$predicted.labels)) - 1))
+seurat$predicted.labels <- factor(
+    seurat$predicted.labels,
+    levels = 0:(length(unique(seurat$predicted.labels)) - 1)
+)
 Idents(seurat) <- "predicted.labels"
 DimPlot(
     object = seurat, 
     label = TRUE,
-    # cols = GimmeMyPlot:::palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    cols = GimmeMyPlot:::palette_discrete(),
+    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    cols = palette_discrete(),
     repel = TRUE,
     na.value = "white",
     split.by = "Type",
-    # group.by = ,
     reduction = "ref.umap",
     pt.size = 1,
     alpha = 0.25
 ) %>% 
-    theme_sc_dim() + ggtitle(type) + NoLegend()
+    theme_sc_dim() + ggtitle(NULL) + NoLegend()
+```
+
+## Cell per cluster
+```{r}
+seurat_old <- seurat
+seurat <- subset(
+    seurat, 
+    subset = Type == "KO"
+)
+DimPlot(
+    seurat, 
+    reduction = 'ref.umap', 
+    split.by = "predicted.labels",
+    cols = palette_continuous()(length(levels(Idents(seurat)))),
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white",
+    ncol = 4
+) %>% theme_sc_dim() + 
+    ggtitle(NULL)
+```
+
+## Confusing table
+```{r}
+tab <- table(
+    Assigned = seurat[[]][, "SCT_snn_res.0.35"], 
+    Clusters = seurat[[]][, "predicted.labels"]
+)
+tab <- tab[
+    as.character(0:(nrow(tab)-1)), 
+    as.character(0:(ncol(tab)-1))
+]
+
+breaks <- seq(
+    min(log10(tab + 10)),
+    max(log10(tab + 10)),
+    length.out = 12
+)
+labels <- round(10^breaks - 10)
+pheatmap(
+    log10(tab + 10),
+    # color = c("white", rev(brewer.pal(11, "Spectral"))),
+    color = c("white", brewer.pal(9, "Reds")),
+    # color = pal_sc,
+    legend_breaks = breaks,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+    legend_labels = labels,
+na_col = "white"
+)
+```
+
+## Misclassified
+```{r}
+res <- c(0.01, 1e-5, 0.6, 1e-5, 1e-5, 1e-5, 0.1, 0.01, 0.05, 1e-5, 1e-5)
+l_seurat <- list.map(
+    levels(seurat$predicted.labels),
+    f(x, y) ~{
+    tmp <- subset(
+        seurat, 
+        subset = predicted.labels == x
+    ) %>%
+    FindNeighbors(
+      reduction = "ref.umap", 
+      dims = seq(2)
+    ) %>%
+    FindClusters(
+        verbose = FALSE,
+        algorithm = 3,
+        resolution = res,
+        graph.name = tail(names(.@graphs), 1)
+      )
+    res_name <- paste0("SCT_snn_res.", res[y])
+    Idents(tmp) <- tmp[[]][, res_name]
+    tmp@$misclassified <- Idents(tmp)
+    return(tmp)
+    }
+)
+```
+
+```{r}
+DimPlot(
+    l_seurat$`2`, 
+    reduction = 'ref.umap', 
+    # group.by = res_name,
+    cols = palette_discrete(),
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white"
+) %>% theme_sc_dim() +
+    geom_hline(yintercept = -2.5)
+
+umap_coords <- Embeddings(object = l_seurat$`2`, reduction = "ref.umap")
+Idents(l_seurat$`2`) <- ifelse(
+  test = umap_coords[, 2] > -2.5,
+  "0",
+  "1"
+)
+
+l_seurat$`6` <- RenameIdents(
+  object = l_seurat$`6`,
+  "1" = "0",
+  "2" = "1"
+)
+
+idents <- Idents(l_seurat$`8`)
+idents <- case_when(
+  idents %in% c(1:3) ~ "0",
+  idents == "4" ~ "1",
+  TRUE ~ idents
+)
+Idents(l_seurat$`8`) <- idents
+
+l_seurat <- keep(l_seurat, ~ nlevels(Idents(.x)) == 2)
+```
+
+```{r}
+list.map(
+    l_seurat,
+    f(x, y, z) ~
+DimPlot(
+    x, 
+    reduction = 'ref.umap', 
+    # group.by = res_name,
+    cols = palette_discrete(),
+    repel = TRUE,
+    pt.size = 0.5,
+    na.value = "white"
+) %>% theme_sc_dim() + 
+    ggtitle(z)
+) %>% plot_grid(plotlist = ., nrow = 3)
+```
+
+```{r}
+tmp <- list.map(
+    l_seurat,
+    f(x, y, z) ~cluster_size(Idents(x))  %>%
+     rbind("Total" = c(n = colSums(.[, "n", drop = FALSE]), freq = "")) %>% 
+        rownames_to_column(var = "Group") %>%
+        mutate(Cluster = z)
+    ) %>%
+     list_rbind()
+
+
+cluster_counts <- tmp %>% 
+  count(Cluster) %>% 
+  pull(n)
+
+group_names <- paste("Cluster", unique(tmp$Cluster))
+
+tmp %>% 
+    select(-Cluster) %>%
+    kable_sc()  %>%
+  pack_rows(
+    index = setNames(cluster_counts, group_names),
+    label_row_css = "background-color: #666; color: #fff;"
+  )
+```
+
+```{r}
+cluster_marker_genes0 <- list.map(
+  l_seurat,
+  f(x, y, z) ~ {
+      cts <- AverageExpression(
+            x,
+            assay = assay,
+            slot = "data",
+            return.seurat = FALSE
+        ) %>% 
+          pluck(assay) %>%
+          as.data.frame() %>% 
+          rename_with(~ str_remove(., "^g")) %>%
+          mutate(gene = rownames(.))
+
+    FindConservedMarkers(
+     x,
+    ident.1 = "1",
+    ident.2 = "0",
+    grouping.var = "Patient",
+    assay = assay,
+    # grouping.var = "Type",
+    logfc.threshold = .Machine$double.xmin
+  ) %>%
+    mutate(
+      cluster = z,
+      gene = rownames(.),
+      log2FoldChange = rowMeans(select(., ends_with("avg_log2FC")), na.rm = TRUE),
+      padj = rowMeans(select(., ends_with("p_val_adj")), na.rm = TRUE),
+      `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
+      `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
+    ) %>%
+  left_join(set_colnames(cts, c("exp.1", "exp.2", "gene")), by = "gene")
+  }
+)
+cluster_marker_genes <- list.rbind(cluster_marker_genes0)
+min_p <- cluster_marker_genes %>%
+  filter(padj > 0) %>%
+  summarise(min_padj = min(padj)) %>%
+  pull(min_padj)
+
+cluster_marker_genes$padj[which(cluster_marker_genes$padj == 0)] <- min_p
+```
+
+```{r}
+top50 <- list.map(
+  l_dea, 
+  f(x) ~ x %>%
+  slice_head(n = 50)
+)
+
+p <- list.map(
+  top50,
+  f(x, y, z) ~ DotPlot(
+    l_seurat[[z]],
+    features = x %>% pull("gene") %>% unique(),
+    dot.scale = 8,
+    scale = TRUE
+  ) +
+    RotatedAxis() +
+    theme_custom() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(
+      x = NULL,
+      y = NULL,
+      # title = paste("Cluster", x)
+      title = z
+    )
+)
+plot_grid(plotlist = p, nrow = 2, align = "hv")
+
+p2 <- list.map(
+  top50,
+  f(x, y, z) ~ FeaturePlot(
+        l_seurat[[z]],
+        features = x %>% pull("gene") %>% unique(),
+        min.cutoff = "q10", 
+        max.cutoff = "q90",
+        reduction = "ref.umap",
+        slot = "data",
+        pt.size = 1,
+        alpha = .5,
+        combine = FALSE
+    )  %>% 
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
+    scale_color_gradientn(
+        colors = brewer.pal(9, "Reds")
+    )) %>%
+  plot_grid(plotlist = ., ncol = 3, align = "hv", nrow = 2) +
+    plot_annotation(
+      title = z, 
+      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+    ) 
+)
+
+p3 <- list.map(
+    top50,
+    f(x, y, z) ~ 
+        VlnPlot(
+            object = l_seurat[[z]],
+            features = x %>% pull("gene") %>% unique(),
+            pt.size = 0,
+            cols = palette_discrete(),
+            combine = FALSE,
+            slot = "data",
+            assay = assay
+        ) %>%
+        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
+        plot_grid(plotlist = ., ncol = 3, align = "hv", nrow = 2) +
+        plot_annotation(
+            title = z, 
+            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
+        ) 
+)
+```
+```{r}
+p2 <- list.rbind(top50) %>% 
+    pull("gene") %>% 
+    unique() %>%
+    FeaturePlot(
+        seurat,
+        features = .,
+        min.cutoff = "q10", 
+        max.cutoff = "q90",
+        reduction = "ref.umap",
+        pt.size = 1,
+        alpha = .5,
+        combine = FALSE
+    )  %>% 
+  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
+    scale_color_gradientn(
+        colors = brewer.pal(9, "Reds")
+    ))
+  plot_grid(plotlist = p2, ncol = 4, nrow = 3)
 ```
 
 ## Session information
