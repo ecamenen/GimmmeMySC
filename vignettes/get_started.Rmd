@@ -1117,6 +1117,7 @@ cluster_marker_genes$padj[which(cluster_marker_genes$padj == 0)] <- min_p
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25
+exp_threshold <- 0.1
 
 l_dea_raw <- cluster_marker_genes %>%
   mutate(gene_name = gene) %>%
@@ -1131,7 +1132,13 @@ l_dea_proc <- l_dea_raw %>%
     set_names(map_chr(., ~as.character(first(.x$cluster)))) %>%
     list.map(
         select(., -cluster) %>%
-            mutate(Expression = ifelse(pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold, Expression, "ns"))
+            mutate(
+              Expression = ifelse(
+                (pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold) | (exp.1 > exp_threshold),
+                Expression, 
+                "ns"
+                )
+              )
     )
 
 list.map(
@@ -1165,7 +1172,7 @@ p <- list.map(
             cex_genes = 3.5,
             p_threshold = p_threshold,
             max.overlaps = 1e3,
-            force =1e2
+            force = 1e2
         ) + labs(x = NULL, y = NULL, title = z) +
             theme(legend.position = "none")
     })
@@ -1180,24 +1187,26 @@ l_dea <- list.map(
     f(x) ~ filter(l_dea_raw, cluster == x) %>%
     filter(pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold) %>%
   # filter((pct.1 > pct_threshold | pct.2 > pct_threshold) & abs(pct.1 - pct.2) > pct_threshold) %>%
-  # TODO: filter cts > 10
+    filter(exp.1 > exp_threshold) %>%
       top_genes(return_rank = TRUE, fc_threshold = fc_threshold, p_threshold = p_threshold)
     ) %>%
     discard(~ nrow(.x) == 0)
 ```
 
 ```{r}
-top10 <- list.map(
-  l_dea, 
-  f(x) ~ x %>%
-    # filter(log2FoldChange > 0) %>%
-  slice_head(n = 10)
-) %>%
-  list.rbind()
-
-last_genes <- top10 %>%
-    slice_tail(n = 1)  %>%
-    pull(gene)
+n_tops <- c(10, 15, 50)
+tops <- list.map(
+  n_tops,
+    f(i) ~
+    list.map(
+    l_dea, 
+    f(x) ~ x %>%
+      # filter(log2FoldChange > 0) %>%
+    slice_head(n = i)
+  ) 
+) %>% set_names(n_tops)
+top10 <- tops[["10"]] %>%
+    list.rbind()
 ```
 
 
@@ -1241,7 +1250,7 @@ plot_dot(
     seurat, 
     features = unique(pull(top10, "gene"))
 ) +
-    geom_vline(xintercept = last_row_numbers[-1] + 0.5)
+    geom_vline(xintercept = last_row_numbers + 0.5)
 
 cluster_marker_genes %>% 
     filter(cluster == 0) %>%
@@ -1254,15 +1263,12 @@ cluster_marker_genes %>%
 ```
 
 ```{r}
-top50 <- list.map(
-  l_dea, 
-  f(x) ~ x %>%
-  slice_head(n = 50)
-) %>%
+top50 <- tops[["50"]] %>%
   list.rbind()
-
-p <- list.map(
-  unique(pull(top50, cluster)),
+p <- top50 %>%
+  pull(cluster) %>%
+  unique() %>%
+  list.map(
   f(x) ~ plot_dot(
     seurat,
     features = filter(top50, cluster == x) %>% pull("gene") %>% unique()
@@ -1369,10 +1375,75 @@ cts <- list.map(
   }
 ) %>% set_names(levels(seurat@meta.data[, "predicted.labels"]))
 
-saveRDS(cts, file.path(path, "l_cts.rds"))
+cell_pct <- pct_by_ident_type(seurat) %>%
+    rownames_to_column("gene_name")
+```
 
-pct <- pct_by_ident_type(seurat)
-saveRDS(pct, file.path(path, "sc_metadata.rds"))
+```{r}
+library(DESeq2)
+
+metadata_samples <- colnames(cts[[1]]) %>%
+    data.frame(id = ., condition = str_remove_all(., "\\d*$") %>% str_remove_all(., "_$")) %>%
+    mutate(across(everything(), as.factor)) %>%
+    column_to_rownames("id")
+metadata_samples$condition <- relevel(metadata_samples$condition, ref = "KO")
+
+genome_version <- 113
+if (species == "human") {
+    genome_species <- "hsapiens"
+} else {
+  genome_species <- "mmusculus"
+}
+
+data("biomart_annotation", package = "GimmeMyOmics")
+annotation <- biomart_annotation[[paste(genome_species, genome_version, sep = "_")]]
+
+l_dea_proc <- list.map(
+    names(cts),
+    f(name_cl) ~{
+        gene_count_raw  <- pluck(cts, name_cl) %>%
+            rownames_to_column("gene_name")
+        
+        metadata_genes <- filter(annotation, !duplicated(ensembl_gene_id)) %>%
+            left_join(gene_count_raw, ., by = "gene_name") %>%
+            select(colnames(annotation))
+        
+        gene_count <- pluck(cts, name_cl) %>%
+            round()
+        
+        dea_df <- DESeqDataSetFromMatrix(
+            countData = gene_count,
+            colData = metadata_samples,
+            design = ~ condition
+        ) %>%
+            .[rowSums(counts(.) >= 10) >= 3, ]
+        
+        dea <- DESeq(dea_df, quiet = TRUE)
+        
+        dea_raw <- lfcShrink(
+            dea,
+            contrast = c(colnames(metadata_samples)[1], levels(pull(metadata_samples, 1))),
+            type = "ashr",
+            quiet = TRUE
+        )
+        
+        dea_pretty <- format_dea(
+            dea_raw,
+            metadata_genes,
+            fc_threshold = fc_threshold,
+            p_threshold = p_threshold,
+            name_id = "gene_name"
+        ) %>%
+            mutate(
+                Expression = ifelse(
+                    gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".WT")]] > pct_threshold] |
+                        gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".KO")]] > pct_threshold],
+                    Expression,
+                    "ns"
+                )
+            )
+    }
+)
 ```
 
 ```{r}

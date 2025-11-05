@@ -230,6 +230,23 @@ calc_other_cluster_avg <- function(avg_matrix) {
     return(avg_matrix)
 }
 
+pct_by_ident_type <- function(
+        seurat,
+        clusters = Idents(seurat),
+        group.by = seurat$Type
+    ) {
+
+    expr_bin <- GetAssayData(seurat, layer = "data") > 0
+    group <- interaction(clusters, group.by, drop = TRUE)
+    percent_matrix <- sapply(
+        levels(group),
+        function(g) {
+            cells <- colnames(seurat)[group == g]
+            rowMeans(expr_bin[, cells, drop = FALSE])
+    })
+    as.matrix(percent_matrix) %>% as.data.frame()
+}
+
 #' @export
 plot_feature <- function(
      object = object,
@@ -247,8 +264,8 @@ plot_feature <- function(
         pt.size = pt.size,
         alpha = alpha,
         combine = FALSE,
-        min.cutoff = "q10",
-        max.cutoff = "q90",
+        # min.cutoff = "q10",
+        # max.cutoff = "q90",
         ...
     )  %>%
         map(
@@ -263,21 +280,27 @@ plot_feature <- function(
 plot_mfeature <- function(
         object = object,
         features =  features,
-        split.by = "Type",
+        pt.size = .5,
         ncol = 4,
         nrow = NULL,
-        func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(4),
+        func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(12),
+        cols = brewer.pal(9, "Reds"),
         ...
     ) {
     list.map(
         features,
-        f(x, y, z) ~ plot_feature(
+        f(x, y, z) ~ {
+            x <- unique(func(x))
+            names(x) <- NULL
+            plot_feature(
                 object,
-                features = func(x),
-                split.by = split.by,
+                features = x,
+                pt.size = pt.size,
+                cols = cols,
                 ...
             ) %>%
             theme_multiple(ncol = ncol, nrow = nrow, title = z)
+        }
     )
 }
 
@@ -285,21 +308,37 @@ plot_mfeature <- function(
 plot_dot <- function(
         object = object,
         features = features,
-        cols = palette_discrete(),
+        cols = NULL,
+        split.by = NULL,
         ...
     ) {
-    DotPlot(
+    if (is.null(cols)) {
+        if (!is.null(split.by)) {
+            cols <- palette_discrete()
+        } else {
+            cols <- pal_sc
+        }
+    }
+    p <- DotPlot(
         object = object,
         features = features,
         dot.scale = 8,
-        cols = cols,
         assay = assay,
+        cols = cols,
+        split.by = split.by,
+        # scale = FALSE,
         ...
     ) +
         RotatedAxis() +
         theme_custom() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = NULL, y = NULL)
+        labs(x = NULL, y = NULL, size = "Percentage Expressed") +
+        guides(size = guide_legend(order = 1))
+    if (is.null(split.by)) {
+        p + scale_color_gradientn(colors = cols)
+    } else {
+        p
+    }
 }
 
 #' @export
@@ -325,24 +364,21 @@ plot_violin_sc <- function(
 plot_mviolin <- function(
         object = object,
         features =  features,
-        func = function(x) func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
-        split.by = "Type",
-        group.by = "cell_type",
+        func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(12),
         ncol = 4,
         nrow = 3,
         ...
 ) {
     list.map(
         features,
-    f(x, y, z) ~
+    f(x, y, z) ~ {
         plot_violin_sc(
             object = object,
             features = func(x),
-            group.by = group.by,
-            split.by = split.by,
             ...
         ) %>%
         theme_multiple(ncol = ncol, nrow = nrow, title = z)
+    }
     )
 }
 
@@ -353,7 +389,7 @@ plot_dim <- function(
         cols = palette_discrete(),
         label = TRUE,
         title = FALSE,
-        axis = FALSE
+        axis = FALSE,
         ...
     ) {
         p <- DimPlot(
