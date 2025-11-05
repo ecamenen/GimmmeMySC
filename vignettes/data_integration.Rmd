@@ -88,19 +88,12 @@ seurat$predicted.labels <- factor(
     levels = 0:(length(unique(seurat$predicted.labels)) - 1)
 )
 Idents(seurat) <- "predicted.labels"
-DimPlot(
-    object = seurat, 
-    label = TRUE,
+plot_dim(
+    object = seurat,
     # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    cols = palette_discrete(),
-    repel = TRUE,
-    na.value = "white",
     split.by = "Type",
-    reduction = "ref.umap",
-    pt.size = 1,
-    alpha = 0.25
-) %>% 
-    theme_sc_dim() + ggtitle(NULL) + NoLegend()
+    reduction = "ref.umap"
+) + NoLegend()
 ```
 
 ## Cell per cluster
@@ -110,17 +103,14 @@ seurat <- subset(
     seurat, 
     subset = Type == "KO"
 )
-DimPlot(
+plot_dim(
     seurat, 
     reduction = 'ref.umap', 
     split.by = "predicted.labels",
     cols = palette_continuous()(length(levels(Idents(seurat)))),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white",
-    ncol = 4
-) %>% theme_sc_dim() + 
-    ggtitle(NULL)
+    ncol = 4,
+    label = FALSE
+)+ NoLegend()
 ```
 
 ## Confusing table
@@ -175,22 +165,18 @@ l_seurat <- list.map(
       )
     res_name <- paste0("SCT_snn_res.", res[y])
     Idents(tmp) <- tmp[[]][, res_name]
-    tmp@$misclassified <- Idents(tmp)
+    tmp$misclassified <- Idents(tmp)
     return(tmp)
     }
 )
 ```
 
 ```{r}
-DimPlot(
+plot_dim(
     l_seurat$`2`, 
     reduction = 'ref.umap', 
-    # group.by = res_name,
-    cols = palette_discrete(),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white"
-) %>% theme_sc_dim() +
+    # group.by = res_name
+) +
     geom_hline(yintercept = -2.5)
 
 umap_coords <- Embeddings(object = l_seurat$`2`, reduction = "ref.umap")
@@ -221,17 +207,14 @@ l_seurat <- keep(l_seurat, ~ nlevels(Idents(.x)) == 2)
 list.map(
     l_seurat,
     f(x, y, z) ~
-DimPlot(
+plot_dim(
     x, 
     reduction = 'ref.umap', 
-    # group.by = res_name,
-    cols = palette_discrete(),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white"
-) %>% theme_sc_dim() + 
+    label = FALSE
+    # group.by = res_name
+) + 
     ggtitle(z)
-) %>% plot_grid(plotlist = ., nrow = 3)
+) %>% plot_grid(plotlist = ., ncol = 3)
 ```
 
 ```{r}
@@ -313,87 +296,49 @@ top50 <- list.map(
 
 p <- list.map(
   top50,
-  f(x, y, z) ~ DotPlot(
+  f(x, y, z) ~ plot_dot(
     l_seurat[[z]],
-    features = x %>% pull("gene") %>% unique(),
-    dot.scale = 8,
-    scale = TRUE
+    features = x %>% pull("gene") %>% unique()
   ) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(
-      x = NULL,
-      y = NULL,
-      # title = paste("Cluster", x)
-      title = z
-    )
+    labs(title = z)
 )
 plot_grid(plotlist = p, nrow = 2, align = "hv")
 
 p2 <- list.map(
   top50,
-  f(x, y, z) ~ FeaturePlot(
+  f(x, y, z) ~ plot_feature(
         l_seurat[[z]],
         features = x %>% pull("gene") %>% unique(),
-        min.cutoff = "q10", 
-        max.cutoff = "q90",
         reduction = "ref.umap",
         slot = "data",
-        pt.size = 1,
-        alpha = .5,
-        combine = FALSE
-    )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
-    scale_color_gradientn(
-        colors = brewer.pal(9, "Reds")
-    )) %>%
-  plot_grid(plotlist = ., ncol = 3, align = "hv", nrow = 2) +
-    plot_annotation(
-      title = z, 
-      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-    ) 
+        cols = brewer.pal(9, "Reds")
+    ) %>%
+        theme_multiple(ncol = 3, nrow = 2, title = z)
 )
 
 p3 <- list.map(
     top50,
     f(x, y, z) ~ 
-        VlnPlot(
+        plot_violin_sc(
             object = l_seurat[[z]],
             features = x %>% pull("gene") %>% unique(),
-            pt.size = 0,
-            cols = palette_discrete(),
-            combine = FALSE,
             slot = "data",
             assay = assay
         ) %>%
-        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
-        plot_grid(plotlist = ., ncol = 3, align = "hv", nrow = 2) +
-        plot_annotation(
-            title = z, 
-            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-        ) 
+        theme_multiple(ncol = 3, nrow = 2, title = z)
 )
 ```
 ```{r}
 p2 <- list.rbind(top50) %>% 
     pull("gene") %>% 
     unique() %>%
-    FeaturePlot(
+    plot_feature(
         seurat,
         features = .,
-        min.cutoff = "q10", 
-        max.cutoff = "q90",
         reduction = "ref.umap",
-        pt.size = 1,
-        alpha = .5,
-        combine = FALSE
-    )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
-    scale_color_gradientn(
-        colors = brewer.pal(9, "Reds")
-    ))
-  plot_grid(plotlist = p2, ncol = 4, nrow = 3)
+        cols = brewer.pal(9, "Reds")
+    )
+ plot_grid(plotlist = p2, ncol = 4, nrow = 3)
 ```
 
 ## Session information

@@ -229,3 +229,150 @@ calc_other_cluster_avg <- function(avg_matrix) {
 
     return(avg_matrix)
 }
+
+#' @export
+plot_feature <- function(
+     object = object,
+     features =  features,
+     cols = pal_sc,
+     reduction = "umap",
+     pt.size = 1,
+     alpha = .5,
+     ...
+    ) {
+    FeaturePlot(
+        object = object,
+        features =  features,
+        reduction = reduction,
+        pt.size = pt.size,
+        alpha = alpha,
+        combine = FALSE,
+        min.cutoff = "q10",
+        max.cutoff = "q90",
+        ...
+    )  %>%
+        map(
+            ~theme_sc_dim(.) +
+                labs(x = NULL, y = NULL) +
+                scale_color_gradientn(colors = cols)
+        ) %>%
+        set_names(features)
+}
+
+#' @export
+plot_mfeature <- function(
+        object = object,
+        features =  features,
+        split.by = "Type",
+        ncol = 4,
+        nrow = NULL,
+        func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(4),
+        ...
+    ) {
+    list.map(
+        features,
+        f(x, y, z) ~ plot_feature(
+                object,
+                features = func(x),
+                split.by = split.by,
+                ...
+            ) %>%
+            theme_multiple(ncol = ncol, nrow = nrow, title = z)
+    )
+}
+
+#' @export
+plot_dot <- function(
+        object = object,
+        features = features,
+        cols = palette_discrete(),
+        ...
+    ) {
+    DotPlot(
+        object = object,
+        features = features,
+        dot.scale = 8,
+        cols = cols,
+        assay = assay,
+        ...
+    ) +
+        RotatedAxis() +
+        theme_custom() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        labs(x = NULL, y = NULL)
+}
+
+#' @export
+plot_violin_sc <- function(
+        object = object,
+        features =  features,
+        pt.size = 0,
+        cols = palette_discrete(),
+        ...
+    ) {
+    VlnPlot(
+        object = object,
+        features =  features,
+        pt.size = pt.size,
+        cols = cols,
+        combine = FALSE,
+        ...
+    ) %>%
+        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend())
+}
+
+#' @export
+plot_mviolin <- function(
+        object = object,
+        features =  features,
+        func = function(x) func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
+        split.by = "Type",
+        group.by = "cell_type",
+        ncol = 4,
+        nrow = 3,
+        ...
+) {
+    list.map(
+        features,
+    f(x, y, z) ~
+        plot_violin_sc(
+            object = object,
+            features = func(x),
+            group.by = group.by,
+            split.by = split.by,
+            ...
+        ) %>%
+        theme_multiple(ncol = ncol, nrow = nrow, title = z)
+    )
+}
+
+#' @export
+plot_dim <- function(
+        object = object,
+        reduction = "umap",
+        cols = palette_discrete(),
+        label = TRUE,
+        title = FALSE,
+        axis = FALSE
+        ...
+    ) {
+        p <- DimPlot(
+            object = object,
+            reduction = reduction,
+            cols = cols,
+            pt.size = .5,
+            alpha = .25,
+            repel = TRUE,
+            label = label,
+            na.value = "white",
+            ...
+        ) %>%
+            theme_sc_dim()
+        if (isFALSE(title)) {
+            p <- p + labs(title = NULL)
+        }
+        if (isFALSE(axis)) {
+            p <- p + labs(x = NULL, y = NULL)
+        }
+        return(p)
+}

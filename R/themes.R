@@ -56,6 +56,20 @@ theme_violin_sc <- function() {
 }
 
 #' @export
+theme_multiple <- function(p, ncol = 4, nrow = NULL, title = NULL) {
+    p %>%
+        plot_grid(plotlist = ., ncol = ncol, nrow = nrow, align = "hv") +
+        plot_annotation(
+            title = title,
+            theme = theme(
+                plot.title = element_text(
+                    face = "bold", size = 18, hjust = 0.5
+                )
+            )
+        )
+}
+
+#' @export
 format_annot <- function(x) {
     str_replace_all(x, "(cell)s", "\\1") %>%
         str_replace_all("_", " ") %>%

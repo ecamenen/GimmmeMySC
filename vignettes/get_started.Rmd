@@ -43,7 +43,6 @@ species <- "human"
 l_samples <- list.files(path) %>%  
   .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
   .[str_detect(., "KO")]
-col_inds0 <- palette_discrete()[seq_along(l_samples)]
 
 if (species == "human") {
     func_format <- identity
@@ -204,16 +203,12 @@ t(df_doublets) %>%
 
 ```{r}
 # visualize doublets
-# DimPlot(
-#   seurat, 
-#   reduction = 'umap.unintegrated', 
-#   group.by = "doubletFinder",
-#   label = TRUE,
-#   repel = TRUE
+# plot_dim(
+#    seurat, 
+#   group.by = "doubletFinder"
 # )
 
 # number of singlets and doublets
-
 Idents(seurat) <- "doublets"
 plot_sc_violin(
     seurat,
@@ -223,7 +218,6 @@ plot_sc_violin(
     cols = palette_discrete()
 )
 Idents(seurat) <- "Patient"
-
 seurat <- subset(seurat, subset = doublets == "singlet")
 ```
 
@@ -291,16 +285,8 @@ g_ctr <- c(g_neg, g_pos)
 g_sex <- c("XIST", "DDX3Y")
 list.map(
     list(g_sex, g_ctr),
-    ~DotPlot(
-    seurat, 
-    features = func_format(.), 
-    dot.scale = 8
-) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = NULL, y = NULL)
-)%>%
+    ~plot_dot(seurat, features = func_format(.), group.by = "Patient")
+) %>%
     plot_grid(plotlist = ., ncol = 2, align = "hv")
 ```
 
@@ -338,23 +324,23 @@ if (!SCT) {
 seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim, assay = assay)
 
 # Dimension visualisation
-DimPlot(
+plot_dim(
     seurat, 
     # cells = seq(3.2e5),
     reduction = 'pca',
     group.by = "Patient", 
     split.by = "Type", 
     cols = col_inds,
-    repel = TRUE,
-    pt.size = .5,
-    alpha = .25
-) %>% theme_sc_dim()
-DimPlot(
+    label = FALSE
+)
+plot_dim(
   seurat, 
   reduction = 'pca',
-  group.by = "Type", 
-  cols = color_types
-) %>% theme_sc_dim()
+  group.by = "Patient", 
+  split.by = "Type", 
+  cols = color_types,
+  label = FALSE
+)
 # coord <- trans_coord(
 #   seurat@reductions$pca@cell.embeddings[, seq(2)], 
 #   add = seurat@meta.data[, "seurat_clusters"] %>% paste("Cluster", .)
@@ -387,27 +373,19 @@ DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
 ```
 
 ```{r}
-DimPlot(
-  seurat,
-  reduction = "pca",
-  group.by = 'Patient',
-  cols = col_inds0,
-  repel = TRUE,
-  pt.size = .5,
-  alpha = .25
-) %>% theme_sc_dim() + ggtitle(NULL)
-
-DimPlot(
-  seurat,
-  reduction = "pca",
-  split.by = 'Patient',
-  cols = col_inds0,
-  repel = TRUE,
-  pt.size = .5,
-  alpha = .25
-) %>% theme_sc_dim() +
-    ggtitle(NULL) + 
-    NoLegend()
+plot_dim(
+    seurat,
+    reduction = "pca",
+    group.by = "Patient",
+    label = FALSE
+)
+plot_dim(
+    seurat,
+    reduction = "pca",
+    group.by = "Patient",
+    split.by = 'Patient',
+    label = FALSE
+) + NoLegend()
 ```
 
 ```{r}
@@ -462,50 +440,17 @@ seurat <- RunUMAP(
 ```
 
 ```{r umap}
-DimPlot(
+plot_dim(
   seurat,
   group.by = 'Patient',
-  cols = col_inds0,
-  repel = TRUE,
-  pt.size = .5,
-  alpha = .25
-) %>% theme_sc_dim() + ggtitle(NULL)
-DimPlot(
+  label = FALSE
+)
+plot_dim(
   seurat,
   group.by = 'Patient',
   split.by = 'Patient',
-  cols = col_inds0,
-  repel = TRUE,
-  alpha = .25
-) %>% theme_sc_dim() + NoLegend()
-```
-
-
-```{r, eval = FALSE}
-DimPlot(
-  seurat,
-  reduction = 'umap.unintegrated',
-  group.by = 'Type',
-  cols = color_types,
-  repel = TRUE
-) %>% theme_sc_dim() +
-DimPlot(
-  seurat,
-  reduction = 'umap.unintegrated',
-  group.by = 'seurat_clusters',
-  cols = col_clus,
-  label = TRUE,
-  repel = TRUE
-)
-
-DimPlot(
-  seurat,
-  # reduction = 'umap.unintegrated',
-  group.by = "Patient",
-  split.by = "Type",
-  cols = col_inds,
-  repel = TRUE
-) %>% theme_sc_dim()
+  label = FALSE
+) + NoLegend()
 ```
 
 # Integration
@@ -538,24 +483,8 @@ seurat <- RunUMAP(
 ```{r int}
 assay_old <- assay
 assay <- "RNA"
-p <- map(
-    features,
-    ~FeaturePlot(
-        object = seurat,
-        features = .,
-        alpha = 0.5,
-        # cols = c("yellow", "blue"), 
-        # min.cutoff = "q10", 
-        # max.cutoff = "q90"
-    ) %>% 
-        theme_sc_dim() +
-        ggtitle(str_clean(.)) +
-    scale_color_gradientn(
-        colors = pal_sc
-    )
-
-)
-
+p <- plot_feature(seurat, features) %>%
+        list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
 plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
 assay <- assay_old
 ```
@@ -565,14 +494,13 @@ assay <- assay_old
 list.map(
   c("pca", integration_method),
   f(x) ~{
-  DimPlot(
+  plot_dim(
     seurat, 
-    reduction = x, 
+    reduction = x,
     group = "Patient",
-    cols = col_inds0,
-    label = TRUE,
-    repel = TRUE
-) %>% theme_sc_dim() + ggtitle(x)
+    label = FALSE
+) %>% theme_sc_dim() + 
+          ggtitle(str_to_upper(x))
   }
 ) %>% plot_grid(plotlist = ., ncol = 2)
 ```
@@ -587,31 +515,20 @@ seurat <- CellCycleScoring(
 )
 seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
 
-p1 <- FeaturePlot(
+p1 <- plot_feature(
     seurat,
-    features = "CC.Difference",
-    alpha = 0.5
-) %>% theme_sc_dim()  +
-    scale_color_gradientn(
-        colors = pal_sc,
-        limits = c(-1, 1),
-        name = "S to G2/M"
-    ) + labs(x = NULL, y = NULL, title = NULL)
+    features = "CC.Difference"
+) %>% pluck(1) + 
+    labs(title = NULL, color = "S to G2/M")
 
 
-p2 <- DimPlot(
-    object = seurat, 
-    label = TRUE,
-    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    cols = palette_discrete(),
-    repel = TRUE,
+p2 <- plot_dim(
+    object = seurat,
+    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat))))
     group.by = "Phase",
-    na.value = "white",
-    reduction = "umap",
-    pt.size = 1,
-    alpha = 0.25
-) %>% 
-    theme_sc_dim() +  labs(x = NULL, y = NULL, title = NULL)
+    label = FALSE,
+    title = TRUE
+) +  labs(x = NULL, y = NULL)
 
 p1 + p2
 
@@ -729,58 +646,39 @@ seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
 ```
 
 ```{r}
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
-    group.by = "cell_type",
-    cols = palette_discrete(),
-    label = TRUE,
-    repel = TRUE,
-    alpha = 0.5,
-    na.value = "white"
-) %>% theme_sc_dim() + ggtitle(NULL)
+plot_dim(
+    seurat,
+    group.by = "cell_type"
+)
 
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
+plot_dim(
+    seurat,
     split.by = "cell_type",
-    group.by = "cell_type",
-    cols = palette_discrete(),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white",
-    ncol = 3
-) %>% theme_sc_dim() + ggtitle(NULL)
+    ncol = 3,
+    label = FALSE
+) + NoLegend()
 ```
 
 ```{r}
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
+plot_dim(
+    seurat,
     group.by = "cell_subtype",
-    cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype) %>% length()),
-    label = TRUE,
-    repel = TRUE,
-    alpha = 0.5,
-    na.value = "white"
-) %>% theme_sc_dim() + ggtitle(NULL)
+    cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype) %>% length())
+)
 
+#x11()
 list.map(
     unique(seurat$cell_type_formatted) %>% na.omit(),
     f(x) ~subset(seurat, cell_type_formatted == x)
     ) %>%
 list.map(
     f(x, y, z) ~
-        DimPlot(
-            x, 
-            reduction = 'umap',
+        plot_dim(
+            x,
             group.by = "cell_subtype_formatted",
-            na.value = "white",
-            cols = rep(palette_discrete(), 5),
-            label = TRUE,
-            repel = TRUE
-        )  %>% theme_sc_dim() +
-        labs(title = z, x = NULL, y = NULL) 
+            cols = rep(palette_discrete(), 5)
+        ) +
+        labs(title = z, x = NULL) 
 ) %>% plot_grid(plotlist = ., align = "hv", nrow = 2)
 
 cell_categories <- unique(seurat$cell_type_formatted)
@@ -808,30 +706,21 @@ plot_grid(plotlist = p, align = "hv", ncol = 3, nrow = 2)
 
 ```{r}
 zoom_coord <- function(x) x + xlim(-7, 5) + ylim(-7, 8)
-DimPlot(
+plot_dim(
     seurat, 
-    reduction = 'umap', 
-    group.by = "b_cell",
-    cols = palette_discrete(),
-    label = TRUE,
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white"
-) %>% theme_sc_dim() + ggtitle(NULL) %>%
+    group.by = "b_cell"
+) %>%
     zoom_coord()
 
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
+plot_dim(
+    seurat,
     split.by = "b_cell",
-    group.by = "b_cell",
-    cols = palette_discrete(),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white",
+    # group.by = "b_cell",
+    label = FALSE,
     ncol = 3
-) %>% theme_sc_dim() + ggtitle(NULL) %>%
-    zoom_coord()
+) %>%
+    zoom_coord() +
+    NoLegend()
 ```
 
 ```{r}
@@ -913,17 +802,13 @@ clustree(seurat, prefix = prefix_cl) +
 p_cl <- list.map(
     clusters,
     f(x, y, z) ~
-        DimPlot(
-            seurat, 
-            reduction = 'umap',
+        plot_dim(
+            seurat,
             group.by = x,
-            na.value = "white",
-            cols = palette_continuous()(seurat@meta.data[, x] %>% unique() %>% length()),
-            label = TRUE,
-            repel = TRUE
-        )  %>% theme_sc_dim() + 
+            cols = palette_continuous()(seurat@meta.data[, x] %>% unique() %>% length())
+        ) + 
       NoLegend() + 
-      labs(x = NULL, y = NULL, title = str_remove(x, ".*_snn_res."))
+      labs(title = str_remove(x, ".*_snn_res."))
 )
 plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = 4, nrow = 2)
 plot_grid(plotlist = p_cl[8:15], align = "hv", ncol = 4, nrow = 2)
@@ -954,25 +839,18 @@ Idents(seurat) %>%
 
 
 ```{r}
-DimPlot(
+plot_dim(
   seurat, 
-  reduction = "umap",
-  cols = palette_continuous()(length(levels(Idents(seurat)))),
-  label = TRUE,
-  repel = TRUE
+  cols = palette_continuous()(length(levels(Idents(seurat))))
   )
 
-DimPlot(
-    seurat, 
-    reduction = 'umap', 
+plot_dim(
+    seurat,
     split.by = snn_cluster,
     cols = palette_continuous()(length(levels(Idents(seurat)))),
-    repel = TRUE,
-    pt.size = 0.5,
-    na.value = "white",
+    label = FALSE,
     ncol = 4
-) %>% theme_sc_dim() + 
-    ggtitle(NULL)
+) + NoLegend()
 
 table(Idents(seurat), seurat$cell_subtype_formatted) %>%
     as.data.frame.matrix() %>%
@@ -990,6 +868,12 @@ table(Idents(seurat), seurat$cell_subtype_formatted) %>%
 
 tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = Idents(seurat))
 pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
+
+plot_dim(
+    seurat,
+    split.by = "cell_type",
+    ncol = 3
+)
 ```
 
 ```{r}
@@ -1019,19 +903,11 @@ cells_to_keep <- meta %>%
 
 seurat_subset <- subset(seurat, cells = cells_to_keep)
 
-DimPlot(
+plot_dim(
     object = seurat_subset,
-    label = TRUE,
-    cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    # cols = palette_discrete(),
-    repel = TRUE,
-    na.value = "white",
-    reduction = "umap",
-split.by = "Patient",
-pt.size = 1,
-alpha = 0.25
-) %>%
-    theme_sc_dim() + labs(title = NULL, x = NULL, y = NULL)
+    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
+    split.by = "Patient"
+)
 
 
 df_cl <- list.map(
@@ -1099,17 +975,14 @@ p <- list.map(
           AddModuleScore(seurat, features = .)
       stats <- quantile(tmp$Cluster1, probs = c(0.01, 0.99))
       tmp <- subset(tmp, subset = Cluster1 >= stats[1] & Cluster1 <= stats[2])
-      VlnPlot(
+      plot_violin_sc(
         object = tmp,
         features = "Cluster1",
-        # idents = c(0, 2, 4, 8, 6, 12, 14),
-        # cols = palette_discrete(),
-        cols = palette_continuous(gray = FALSE)(length(unique(Idents(tmp)))),
-        pt.size = 0
-      ) + 
-          theme_violin_sc() +
-        labs(x = NULL, y = NULL, title = str_remove_all(k, " ?vs_all")) + 
-        NoLegend()
+        # idents = c(0:3),
+        cols = palette_continuous(gray = FALSE)(length(unique(Idents(tmp))))
+      ) %>% 
+          pluck(1) +
+        labs(title = str_remove_all(k, " ?vs_all"))
       }
 )
 
@@ -1122,65 +995,16 @@ p <- list.map(
 
 ## Cell markers
 ```{r}
-p2 <- list.map(
+p2 <- plot_mfeature(seurat, l_bcell_markers)
+p3 <- plot_mviolin(seurat, l_bcell_markers)
+
+p <- list.map(
   l_bcell_markers,
-  f(x, y, z) ~ FeaturePlot(
-        seurat,
-        features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
-        min.cutoff = "q10", 
-        max.cutoff = "q90",
-        reduction = "umap",
-        pt.size = 1,
-        alpha = .5,
-        combine = FALSE
-    )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
-    scale_color_gradientn(
-        colors = pal_sc
-    )) %>%
-  plot_grid(plotlist = ., align = "hv", ncol = 4, nrow = 3) +
-    plot_annotation(
-      title = z, 
-      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-    ) 
-)
-
-p2 <- list.map(
-    l_bcell_markers,
-    f(x, y, z) ~ 
-        VlnPlot(
-            object = seurat,
-            features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
-            pt.size = 0,
-            cols = palette_discrete(),
-            combine = FALSE
-        ) %>%
-        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
-        plot_grid(plotlist = ., align = "hv", ncol = 4, nrow = 3) +
-        plot_annotation(
-            title = z, 
-            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-        ) 
-)
-
-
-p2 <- list.map(
-  l_bcell_markers,
-  f(x, y, z) ~ DotPlot(
+  f(x, y, z) ~ plot_dot(
     seurat,
-    features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(50) %>% unique(),
-    dot.scale = 8,
-    scale = FALSE
+    features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(50) %>% unique()
   ) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(
-      x = NULL,
-      y = NULL,
-      # title = paste("Cluster", x)
-      title = z
-    )
+    labs(title = z)
 )
 ```
 
@@ -1236,7 +1060,7 @@ l_bcell_markers <- list(
 ```{r}
 cts0 <- AverageExpression(
     seurat,
-    group.by = c(snn_cluster),
+    group.by = "ident",
     # group.by = c(snn_cluster, "Type"),
     assay = assay,
     slot = "data",
@@ -1413,16 +1237,10 @@ last_row_numbers <- top10 %>%
     pull(row_num) %>%
     sort()
 
-DotPlot(
+plot_dot(
     seurat, 
-    features = unique(pull(top10, "gene")), 
-    dot.scale = 8,
-    scale = FALSE
+    features = unique(pull(top10, "gene"))
 ) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = NULL, y = NULL) +
     geom_vline(xintercept = last_row_numbers[-1] + 0.5)
 
 cluster_marker_genes %>% 
@@ -1445,71 +1263,25 @@ top50 <- list.map(
 
 p <- list.map(
   unique(pull(top50, cluster)),
-  f(x) ~ DotPlot(
+  f(x) ~ plot_dot(
     seurat,
-    features = filter(top50, cluster == x) %>% pull("gene") %>% unique(),
-    dot.scale = 8,
-    scale = FALSE
+    features = filter(top50, cluster == x) %>% pull("gene") %>% unique()
   ) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(
-      x = NULL,
-      y = NULL,
-      # title = paste("Cluster", x)
-      title = x
-    )
+    labs(title = x)
 )
 ```
 
 ```{r}
-top12 <- list.map(
-  l_dea, 
-  f(x) ~ x %>%
-    # filter(log2FoldChange > 0) %>%
-  slice_head(n = 12)
+p2 <- plot_mfeature(
+    seurat,
+    tops[["15"]],
+    func = function(x) pull(x, gene_name) %>% head(12)
 )
 
-p2 <- list.map(
-  top12,
-  f(x, y, z) ~ FeaturePlot(
-        seurat,
-        features = unique(pull(x, gene)) %>% .[. %in% Features(seurat)] %>% head(12),
-        min.cutoff = "q10", 
-        max.cutoff = "q90",
-        reduction = "umap",
-        pt.size = 1,
-        alpha = .5,
-        combine = FALSE
-    )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL) +
-    scale_color_gradientn(
-        colors = pal_sc
-    )) %>%
-  plot_grid(plotlist = ., ncol = 4, nrow = 3) +
-    plot_annotation(
-      title = z, 
-      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-    ) 
-)
-
-p3 <- list.map(
-    top12,
-    f(x, y, z) ~ 
-        VlnPlot(
-            object = seurat,
-            features = unique(pull(x, gene)) %>% .[. %in% Features(seurat)] %>% head(12),
-            pt.size = 0,
-            cols = palette_discrete(),
-            combine = FALSE
-        ) %>%
-        map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
-        plot_grid(plotlist = ., ncol = 5) +
-        plot_annotation(
-            title = z, 
-            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-        ) 
+p3 <- plot_mviolin(
+    seurat,
+    tops[["15"]],
+    func = function(x) pull(x, gene_name) %>% head(12)
 )
 ```
 
@@ -1604,147 +1376,72 @@ saveRDS(pct, file.path(path, "sc_metadata.rds"))
 ```
 
 ```{r}
-l_deg0 <- readRDS(file.path(path, "l_deg.rds"))
-l_deg <- discard(l_deg0, ~ nrow(.x) == 0)
-top10 <- list.map(l_deg,  f(x, xx, xxx) ~head(x, 10) %>% mutate(cluster = xxx)) %>%
+l_deg0 <- list.map(
+    l_dea_proc, 
+    f(x) ~x %>% 
+        mutate(description = "") %>%
+        print_dea() %>%
+        select(-`Full name`)
+)
+l_deg <- l_deg0 %>% discard(~ nrow(.x) == 0)
+top10 <- list.map(
+    l_deg,  
+    f(x, xx, xxx) ~head(x, 10) %>%
+        mutate(cluster = xxx)) %>%
     list.rbind() %>%
-    rename(gene = "gene_name")
-l_bcell_markers <- list.map(l_deg, unique(.) %>% head(12) %>% pull(Gene))
-DotPlot(
+    rename(gene = "Gene") %>%
+    filter(!duplicated(gene))
+
+last_row_numbers <- top10 %>%
+    mutate(row_num = row_number()) %>%
+    group_by(cluster) %>%
+    slice_tail(n = 1) %>%
+    pull(row_num) %>%
+    sort()
+plot_dot(
     seurat, 
-    features = unique(pull(top10, "gene")), 
-    dot.scale = 8,
-    scale = FALSE,
-    group.by = "cell_type",
-    split.by = "Type",
-    cols = palette_discrete()
+    features = pull(top10, "gene"),
+    # group.by = "cell_type",
+    split.by = "Type"
 ) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = NULL, y = NULL) +
-    geom_vline(xintercept = last_row_numbers[-last_id] + 0.5) +
+    geom_vline(xintercept = last_row_numbers + 0.5) +
     geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5)
+```
 
+```{r}
+l_bcell_markers <- list.map(l_deg, pull(., Gene) %>% unique())
 
-l_bcell_markers <- list.map(l_deg, unique(.) %>% pull(Gene))
-p2 <- list.map(
+p <- list.map(
   l_bcell_markers,
-  f(x, y, z) ~ FeaturePlot(
-        seurat,
-        features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(4),
-        min.cutoff = "q10", 
-        max.cutoff = "q90",
-        split.by = "Type",
-        reduction = "umap",
-        pt.size = 1,
-        alpha = .5,
-        combine = FALSE
-    )  %>% 
-  map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
-    scale_color_gradientn(
-        colors = pal_sc
-    )) %>%
-  plot_grid(plotlist = ., ncol = 4) +
-    plot_annotation(
-      title = z, 
-      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-    ) 
-)
-
-p2 <- list.map(
-  l_bcell_markers,
-  f(x, y, z) ~ 
-VlnPlot(
-    object = seurat,
-    features = func_format(x) %>% .[. %in% Features(seurat)] %>% head(12),
-    pt.size = 0,
-    group.by = "cell_type",
-    split.by = "Type",
-    cols = cols,
-    combine = FALSE
-) %>%
-map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend()) %>%
-  plot_grid(plotlist = ., ncol = 4, nrow = 3) +
-    plot_annotation(
-      title = z, 
-      theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-    ) 
-)
-# i = 2; plot_grid(plotlist = p [(12*(i-1)+1):(12*i)], ncol = 4, nrow = 3)
-
-
-list.map(
-    split(cell_markers_bcell, ceiling(seq_along(cell_markers_bcell)/4)),
-f(x) ~ 
-FeaturePlot(
+  f(x, y, z) ~ plot_dot(
     seurat,
-    features = x,
-    min.cutoff = "q10", 
-    max.cutoff = "q90",
-    split.by = "Type",
-    reduction = "umap",
-    pt.size = 1,
-    alpha = .5,
-    combine = FALSE
-)  %>% 
-    map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
-    scale_color_gradientn(
-        colors = pal_sc
-    ))  %>%
-    plot_grid(plotlist = ., ncol = 4)
+    head(x, 50),
+    split.by = "Type"
+  ) +
+    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5) +
+    ggtitle(z)
 )
 
-top10 <- l_bcell_markers %>%
-  list.map(f(x, y, z) ~  x[x %in% Features(seurat)] %>% head(10) %>% data.frame(gene = ., cluster = y)) %>% 
-  list.rbind() %>%
-  filter(!duplicated(gene))
-
-DotPlot(
-    seurat, 
-    features = list.map(l_bcell_markers, .[. %in% Features(seurat)] %>% head(10)) %>% unlist() %>% unique(), 
-    dot.scale = 8,
-    scale = FALSE,
-    group.by = "cell_type",
-    split.by = "Type",
-    cols = palette_discrete()
-) +
-    RotatedAxis() +
-    theme_custom() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = NULL, y = NULL) +
-    geom_vline(xintercept = last_row_numbers[-last_id] + 0.5) +
-    # geom_vline(xintercept = seq(10, 60, 10) + 0.5) +
-    geom_hline(yintercept = seq(2, 12, by = 2) + 0.5)
-
-list.map(
-    top50,
-    f(i, ii, z) ~
-    list.map(
-        func_format(i) %>% .[. %in% Features(seurat)] %>% head(4*3) %>% split(., ceiling(seq_along(.)/4)),
-    f(x) ~ 
-        FeaturePlot(
-            seurat,
-            features = x,
-            min.cutoff = "q10", 
-            max.cutoff = "q90",
-            split.by = "Type",
-            reduction = "umap",
-            pt.size = 1,
-            alpha = .5,
-            combine = FALSE
-        )  %>% 
-        map(~theme_sc_dim(.) + labs(x = NULL, y = NULL)+
-    scale_color_gradientn(
-        colors = pal_sc
-    ))  %>%
-        plot_grid(plotlist = ., ncol = 4) +
-        plot_annotation(
-            title = z, 
-            theme = theme(plot.title = element_text(face = "bold", size = 18, hjust = 0.5))
-        )
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ {
+    head(x, 12) %>%
+      split(ceiling(seq_along(.)/4)) %>%
+  list.map(
+    f(i) ~ plot_feature(
+        seurat, 
+        features = i, 
+        split.by = "Type",
+        reduction = "ref.umap",
+        cols = brewer.pal(9, "Reds"),
+        pt.size = .5
+      ) %>%
+        theme_multiple(ncol = NULL, nrow = 2, title = z)
+    )
+  }
 )
-) -> p
+
+p3 <- plot_mviolin(seurat, l_bcell_markers, split.by = "Type")
 ```
 
 ```{r }
