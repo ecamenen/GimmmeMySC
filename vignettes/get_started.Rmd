@@ -1195,6 +1195,130 @@ gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
 ```
 
+### Enrichment
+```{r, eval = FALSE}
+if (species == "human") {
+  org_lib <- "org.Hs.eg.db"
+} else {
+    org_lib <- "org.Mm.eg.db"
+}
+library(org_lib, character.only = TRUE)
+filter <- dplyr::filter
+select <- dplyr::select
+rename <- dplyr::rename
+```
+
+#### ORA
+```{r, eval = FALSE}
+l_ora <- list.map(
+  l_dea,
+  f(x) ~enrichGO(
+    gene = pull(x, "gene_name"),
+    OrgDb = get(org_lib),
+    keyType = "ALIAS",
+    ont = "ALL",
+    pvalueCutoff = 1,
+    qvalueCutoff = 1,
+    universe = Features(seurat)
+  )
+)
+```
+
+```{r, eval = FALSE}
+list.map(
+    l_ora ,
+    f(x, y, z) ~ {
+      plot_enrich(
+        x,
+        cex = 0.65,
+        label_x = "generatio",
+        method = "ora",
+        # regex = pathway_keywords()$immunity_additional,
+        n = 15,
+        title = z,
+        name_id = "GeneRatio"
+      )
+    }
+) %>% compact() %>%
+  plot_grid(plotlist = ., ncol = 2, nrow = 2, align = "hv")
+
+list.map(l_ora, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
+    list.cbind() %>%
+    set_rownames("# Pathway GO") %>%
+    kable0()
+
+omics2excel(
+  l_ora, 
+  file = file.path(path, "ora.xlsx"), 
+  func = function(x) print_enrich(x, method = "ora")
+)
+```
+
+#### GSEA
+```{r, eval = FALSE}
+var <- "gene_name"
+
+l_deg_ranked <- list.map(
+    l_dea_proc,
+    f(x) ~ {
+        metric <- "log2FoldChange"
+        de_genes_ranked <- top_genes(x, 0.01, 1, n = Inf) %>% #, rank = TRUE) %>%
+            # mutate(ranked_padj = sign(log2FoldChange) * (log10(padj))) %>%
+            pull(metric, name = var) %>%
+            sort(decreasing = TRUE) %>%
+            .[!is.na(names(.))] %>%
+            .[is.finite(.)] %>%
+            .[!duplicated(.)]
+    }
+)
+
+l_gsea <- list.map(
+    l_deg_ranked,
+    f(x) ~ {
+        gseGO(
+            x,
+            ont = "ALL",
+            OrgDb = get(org_lib),
+            keyType = "ALIAS",
+            verbose = FALSE
+        ) %>%
+            # setReadable(org_lib, 'ENSEMBL') %>%
+            suppressWarnings() %>%
+            invisible()
+    }
+)
+```
+
+```{r, eval = FALSE}
+list.map(
+    l_gsea,
+    f(x, y, z) ~ {
+      plot_enrich(
+        x,
+        cex = 0.65,
+        label_x = "NES",
+        method = "gsea",
+        # regex = pathway_keywords()$immunity_additional,
+        n = 15,
+        title = z
+      )
+    }
+) %>%
+  compact() %>%
+  plot_grid(plotlist = ., ncol = 2, nrow = 2, align = "hv")
+
+list.map(l_gsea, f(i) ~print_enrich(i, method = "gsea") %>% nrow()) %>%
+    list.cbind() %>%
+    set_rownames("# Pathway GO") %>%
+    kable0()
+
+omics2excel(
+  l_gsea, 
+  file = file.path(path, "gsea.xlsx"), 
+  func = function(x) print_enrich(x, method = "gsea")
+)
+```
+
 ### Dotplots
 ```{r}
 l_dea <- list.map(

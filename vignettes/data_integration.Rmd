@@ -124,6 +124,8 @@ tab <- tab[
     as.character(0:(ncol(tab)-1))
 ]
 
+tab <- prop.table(tab, margin = 1) * 100
+
 breaks <- seq(
     min(log10(tab + 10)),
     max(log10(tab + 10)),

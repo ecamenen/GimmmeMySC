@@ -230,6 +230,7 @@ calc_other_cluster_avg <- function(avg_matrix) {
     return(avg_matrix)
 }
 
+#' @export
 pct_by_ident_type <- function(
         seurat,
         clusters = Idents(seurat),
