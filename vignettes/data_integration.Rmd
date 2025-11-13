@@ -145,76 +145,59 @@ na_col = "white"
 
 ## Misclassified
 ```{r}
-res <- c(0.01, 1e-5, 0.6, 1e-5, 1e-5, 1e-5, 0.1, 0.01, 0.05, 1e-5, 1e-5)
 l_seurat <- list.map(
-    levels(seurat$predicted.labels),
+    unique(seurat$SCT_snn_res.0.35) %>% sort(),
     f(x, y) ~{
-    tmp <- subset(
+    subset(
         seurat, 
-        subset = predicted.labels == x
-    ) %>%
-    FindNeighbors(
-      reduction = "ref.umap", 
-      dims = seq(2)
-    ) %>%
-    FindClusters(
-        verbose = FALSE,
-        algorithm = 3,
-        resolution = res,
-        graph.name = tail(names(.@graphs), 1)
+        subset = SCT_snn_res.0.35 == x
+    )
+    }
+)
+
+list.map(
+    l_seurat,
+    f(x, y, z) ~
+        plot_dim(
+            x, 
+            reduction = 'ref.umap'
+        ) + 
+        ggtitle(z)
+) %>% plot_grid(plotlist = ., nrow = 3, align = "hv")
+```
+
+```{r}
+l_seurat <- list.map(
+    l_seurat,
+    f(x) ~{
+      idents <- Idents(x)
+      cluster_counts <- table(idents)
+      idents <- case_when(
+        cluster_counts[as.character(idents)] < 50 ~ NA_character_,
+        TRUE ~ idents
       )
-    res_name <- paste0("SCT_snn_res.", res[y])
-    Idents(tmp) <- tmp[[]][, res_name]
-    tmp$misclassified <- Idents(tmp)
-    return(tmp)
+      Idents(x) <- idents
+      return(x)
     }
 )
 ```
 
 ```{r}
-plot_dim(
-    l_seurat$`2`, 
-    reduction = 'ref.umap', 
-    # group.by = res_name
-) +
-    geom_hline(yintercept = -2.5)
+l_seurat <- keep(l_seurat, ~ nlevels(Idents(.x)) > 0)
 
-umap_coords <- Embeddings(object = l_seurat$`2`, reduction = "ref.umap")
-Idents(l_seurat$`2`) <- ifelse(
-  test = umap_coords[, 2] > -2.5,
-  "0",
-  "1"
-)
-
-l_seurat$`6` <- RenameIdents(
-  object = l_seurat$`6`,
-  "1" = "0",
-  "2" = "1"
-)
-
-idents <- Idents(l_seurat$`8`)
-idents <- case_when(
-  idents %in% c(1:3) ~ "0",
-  idents == "4" ~ "1",
-  TRUE ~ idents
-)
-Idents(l_seurat$`8`) <- idents
-
-l_seurat <- keep(l_seurat, ~ nlevels(Idents(.x)) == 2)
-```
-
-```{r}
 list.map(
     l_seurat,
     f(x, y, z) ~
 plot_dim(
     x, 
-    reduction = 'ref.umap', 
-    label = FALSE
-    # group.by = res_name
+    reduction = 'ref.umap'
 ) + 
     ggtitle(z)
-) %>% plot_grid(plotlist = ., ncol = 3)
+) %>% plot_grid(plotlist = ., nrow = 3, align = "hv")
+
+
+l_seurat <- keep(l_seurat, ~ nlevels(Idents(.x)) > 1)
+seurat <- l_seurat$`5`
 ```
 
 ```{r}
@@ -261,7 +244,6 @@ cluster_marker_genes0 <- list.map(
     FindConservedMarkers(
      x,
     ident.1 = "1",
-    ident.2 = "0",
     grouping.var = "Patient",
     assay = assay,
     # grouping.var = "Type",

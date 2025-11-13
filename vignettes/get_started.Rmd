@@ -995,7 +995,7 @@ p <- list.map(
 
 ## Cell markers
 ```{r}
-p2 <- plot_mfeature(seurat, l_bcell_markers)
+p2 <- plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 p3 <- plot_mviolin(seurat, l_bcell_markers)
 
 p <- list.map(
@@ -1134,7 +1134,7 @@ l_dea_proc <- l_dea_raw %>%
         select(., -cluster) %>%
             mutate(
               Expression = ifelse(
-                (pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold) | (exp.1 > exp_threshold),
+                pct.1 > pct_threshold | exp.1 > exp_threshold,
                 Expression, 
                 "ns"
                 )
@@ -1179,13 +1179,28 @@ p <- list.map(
 
 plot_grid(plotlist = p, align = "hv", ncol = 4, nrow = 2)
 ```
+```{r}
+list.map(
+    l_dea_proc, f(x, xx, xxx) ~
+        fct_count(x$Expression) %>%
+        filter(f!="ns") %>%
+        set_colnames(c("Nb DEG", xxx))) %>%
+    Reduce(function(x, y) left_join(x, y, by = "Nb DEG"), .) %>%
+    bind_rows(summarise(., `Nb DEG` = "Total", across(-`Nb DEG`, sum, na.rm = TRUE))) %>%
+    kable0()
+```
+
+```{r, eval = FALSE}
+gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
+custom_upset_barplot(gene_lists, ratio = 1)
+```
 
 ### Dotplots
 ```{r}
 l_dea <- list.map(
     unique(l_dea_raw$cluster),
     f(x) ~ filter(l_dea_raw, cluster == x) %>%
-    filter(pct.1 > pct_threshold & (pct.1 - pct.2) > pct_threshold) %>%
+    filter(pct.1 > pct_threshold) %>%
   # filter((pct.1 > pct_threshold | pct.2 > pct_threshold) & abs(pct.1 - pct.2) > pct_threshold) %>%
     filter(exp.1 > exp_threshold) %>%
       top_genes(return_rank = TRUE, fc_threshold = fc_threshold, p_threshold = p_threshold)
