@@ -620,7 +620,7 @@ pull(x0, label_type) %>%
 pull(x0, label_type) %>%
     cluster_size() %>% 
   select(n) %>%
-  GimmeMyPlot::plot_bar(
+  plot_bar(
     label_x = "none",
     label_y = "percent",
     sample_size = nrow(x0),
@@ -691,7 +691,7 @@ p <- list.map(
   compact(cell_list),
   f(x, y, z) ~ cluster_size(x) %>% 
     select(n) %>%
-    GimmeMyPlot::plot_bar(
+    plot_bar(
         label_x = "none",
         label_y = "percent",
         sample_size = length(x),
@@ -1239,13 +1239,35 @@ list.map(
         name_id = "GeneRatio"
       )
     }
-) %>% compact() %>%
+) %>% 
+  compact() %>%
   plot_grid(plotlist = ., ncol = 2, nrow = 2, align = "hv")
 
 list.map(l_ora, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
     list.cbind() %>%
     set_rownames("# Pathway GO") %>%
     kable0()
+
+list.map(
+  l_ora,
+  f(i, j, k) ~ {
+    tmp <- print_enrich(
+      i, 
+      regex = pathway_keywords()$immunity_additional
+    )
+    if (nrow(tmp) > 1)
+  heatmap_enrich_full(
+    l_ora[[j]],
+    l_dea[[j]],
+    regex = pathway_keywords()$immunity_additional,
+    width_text = 100
+  ) + labs( title = paste("Cluster", k), y = NULL, x = NULL) +
+     theme_custom()
+  }
+) %>%
+  compact() %>%
+  plot_grid(plotlist = ., ncol = 2, nrow = NULL, align = "hv")
+ 
 
 omics2excel(
   l_ora, 
@@ -1317,6 +1339,30 @@ omics2excel(
   file = file.path(path, "gsea.xlsx"), 
   func = function(x) print_enrich(x, method = "gsea")
 )
+```
+
+```{r, eval = FALSE}
+list.map(
+    l_gsea,
+    f(i, j, k) ~ {
+        tmp <- print_enrich(
+            i,
+            method = "gsea",
+            regex = pathway_keywords()$immunity_additional
+        )
+        if (nrow(tmp) > 1)
+            heatmap_enrich_full(
+                l_gsea[[j]],
+                l_dea[[j]],
+                method = "gsea",
+                regex = pathway_keywords()$immunity_additional,
+                width_text = 100
+            ) + labs( title = paste("Cluster", k), y = NULL, x = NULL) +
+            theme_custom()
+    }
+)  %>%
+    compact() %>%
+    plot_grid(plotlist = ., ncol = 2, nrow = NULL, align = "hv")
 ```
 
 ### Dotplots
