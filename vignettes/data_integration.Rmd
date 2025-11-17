@@ -325,6 +325,170 @@ p2 <- list.rbind(top50) %>%
  plot_grid(plotlist = p2, ncol = 4, nrow = 3)
 ```
 
+## Pseudo-bulk
+```{r}
+# seurat$cell_type <- Idents(seurat) %>% 
+  # fct_relevel(as.character(0:9))
+cts <- AggregateExpression(
+  seurat,
+  group.by = c("predicted.labels", "Patient"),
+  assay = "RNA",
+  slot = "counts",
+  return.seurat = FALSE
+)
+
+cts <- as.data.frame(cts$RNA)
+cts <- list.map(
+  levels(seurat@meta.data[, "predicted.labels"]),
+  f(x) ~{
+    select(cts, starts_with(paste0("g", x, "_"))) %>% 
+      set_colnames(colnames(.) %>% str_remove_all(paste0("g", x, "_")))
+  }
+) %>% set_names(levels(seurat@meta.data[, "predicted.labels"]))
+
+cell_pct <- pct_by_ident_type(seurat) %>%
+    rownames_to_column("gene_name")
+```
+
+### Differential analysis
+```{r}
+library(DESeq2)
+
+metadata_samples <- colnames(cts[[1]]) %>%
+    data.frame(id = ., condition = str_remove_all(., "\\d*$") %>% str_remove_all(., "_$")) %>%
+    mutate(across(everything(), as.factor)) %>%
+    column_to_rownames("id")
+metadata_samples$condition <- relevel(metadata_samples$condition, ref = "KO")
+
+genome_version <- 113
+if (species == "human") {
+    genome_species <- "hsapiens"
+} else {
+  genome_species <- "mmusculus"
+}
+
+data("biomart_annotation", package = "GimmeMyOmics")
+annotation <- biomart_annotation[[paste(genome_species, genome_version, sep = "_")]]
+
+l_dea_proc <- list.map(
+    names(cts),
+    f(name_cl) ~{
+        gene_count_raw  <- pluck(cts, name_cl) %>%
+            rownames_to_column("gene_name")
+        
+        metadata_genes <- filter(annotation, !duplicated(ensembl_gene_id)) %>%
+            left_join(gene_count_raw, ., by = "gene_name") %>%
+            select(colnames(annotation))
+        
+        gene_count <- pluck(cts, name_cl) %>%
+            round()
+        
+        dea_df <- DESeqDataSetFromMatrix(
+            countData = gene_count,
+            colData = metadata_samples,
+            design = ~ condition
+        ) %>%
+            .[rowSums(counts(.) >= 10) >= 3, ]
+        
+        dea <- DESeq(dea_df, quiet = TRUE)
+        
+        dea_raw <- lfcShrink(
+            dea,
+            contrast = c(colnames(metadata_samples)[1], levels(pull(metadata_samples, 1))),
+            type = "ashr",
+            quiet = TRUE
+        )
+        
+        dea_pretty <- format_dea(
+            dea_raw,
+            metadata_genes,
+            fc_threshold = fc_threshold,
+            p_threshold = p_threshold,
+            name_id = "gene_name"
+        ) %>%
+            mutate(
+                Expression = ifelse(
+                    gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".WT")]] > pct_threshold] |
+                        gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".KO")]] > pct_threshold],
+                    Expression,
+                    "ns"
+                )
+            )
+    }
+)
+```
+
+### Dotplot
+```{r}
+l_deg0 <- list.map(
+    l_dea_proc, 
+    f(x) ~x %>% 
+        mutate(description = "") %>%
+        print_dea() %>%
+        select(-`Full name`)
+)
+l_deg <- l_deg0 %>% discard(~ nrow(.x) == 0)
+top10 <- list.map(
+    l_deg,  
+    f(x, xx, xxx) ~head(x, 10) %>%
+        mutate(cluster = xxx)) %>%
+    list.rbind() %>%
+    rename(gene = "Gene") %>%
+    filter(!duplicated(gene))
+
+last_row_numbers <- top10 %>%
+    mutate(row_num = row_number()) %>%
+    group_by(cluster) %>%
+    slice_tail(n = 1) %>%
+    pull(row_num) %>%
+    sort()
+plot_dot(
+    seurat, 
+    features = pull(top10, "gene"),
+    # group.by = "cell_type",
+    split.by = "Type"
+) +
+    geom_vline(xintercept = last_row_numbers + 0.5) +
+    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5)
+```
+
+### Marker plots
+```{r}
+l_bcell_markers <- list.map(l_deg, pull(., Gene) %>% unique())
+
+p <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ plot_dot(
+    seurat,
+    head(x, 50),
+    split.by = "Type"
+  ) +
+    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5) +
+    ggtitle(z)
+)
+
+p2 <- list.map(
+  l_bcell_markers,
+  f(x, y, z) ~ {
+    head(x, 12) %>%
+      split(ceiling(seq_along(.)/4)) %>%
+  list.map(
+    f(i) ~ plot_feature(
+        seurat, 
+        features = i, 
+        split.by = "Type",
+        reduction = "ref.umap",
+        cols = brewer.pal(9, "Reds"),
+        pt.size = .5
+      ) %>%
+        theme_multiple(ncol = NULL, nrow = 2, title = z)
+    )
+  }
+)
+
+p3 <- plot_mviolin(seurat, l_bcell_markers, split.by = "Type")
+```
+
 ## Session information
 ```{r end, echo = FALSE}
 sessionInfo()
