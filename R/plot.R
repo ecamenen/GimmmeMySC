@@ -5,7 +5,7 @@ plot_sc_violin <- function(
         normalize = NULL,
         nrow = 3,
         ncol = 3,
-        cols = brewer.pal(9, "Set1"),
+        cols = palette_discrete(),
         width = 15,
         breaks = NULL,
         metadata = TRUE,
@@ -21,7 +21,6 @@ plot_sc_violin <- function(
                 x,
                 features = i,
                 pt.size = 0,
-                # group.by = "Patient",
                 cols = cols,
                 # cols = cols[j],
                 ncol = ncol,
@@ -120,7 +119,12 @@ plot_eig <- function(x) {
             y = "Standard deviation"
         ) +
         xlim(1, NA) +
-        theme_custom()
+        theme_custom() +
+        theme(
+            panel.background = element_rect(fill = "white"),
+            panel.grid.major = element_line(color = "grey80", linewidth = 0.3),
+            panel.grid.minor = element_line(color = "grey80", linewidth = 0.15)
+        )
 }
 
 #' @export
@@ -273,8 +277,8 @@ plot_feature <- function(
             ~theme_sc_dim(.) +
                 labs(x = NULL, y = NULL) +
                 scale_color_gradientn(colors = cols)
-        ) %>%
-        set_names(features)
+        ) #%>%
+        # set_names(features)
 }
 
 #' @export
@@ -324,7 +328,7 @@ plot_dot <- function(
         object = object,
         features = features,
         dot.scale = 8,
-        assay = assay,
+        # assay = assay,
         cols = cols,
         split.by = split.by,
         # scale = FALSE,
@@ -391,14 +395,16 @@ plot_dim <- function(
         label = TRUE,
         title = FALSE,
         axis = FALSE,
+        pt.size = .5,
+        alpha = .25,
         ...
     ) {
         p <- DimPlot(
             object = object,
             reduction = reduction,
             cols = cols,
-            pt.size = .5,
-            alpha = .25,
+            pt.size = pt.size,
+            alpha = alpha,
             repel = TRUE,
             label = label,
             na.value = "white",
@@ -412,4 +418,48 @@ plot_dim <- function(
             p <- p + labs(x = NULL, y = NULL)
         }
         return(p)
+}
+
+#' @export
+plot_bar_sc <- function(x, title = NULL, ratio = 3, label_y = "percent", ...) {
+    if (is(x, "Seurat")) {
+        res <- Idents(x)
+        sample_size <- ncol(x)
+    } else {
+        res <- x
+        sample_size <- length(x)
+    }
+    res %>%
+        cluster_size() %>%
+        select(n) %>%
+        plot_bar_sc0(
+            label_y = label_y,
+            sample_size = ncol(x),
+            ratio = ratio,
+            title = title,
+            ...
+        )
+}
+
+#' @export
+plot_bar_sc0 <- function(x, title = NULL, ratio = 3, label_y = "percent", ...) {
+    plot_bar(
+        x,
+        label_x = "none",
+        label_y = label_y,
+        digits = 1,
+        n_max = 15,
+        ratio = ratio,
+        ...
+    ) + labs(title = title)
+}
+
+#' @export
+clustree_sc <- function(x, prefix, clusters) {
+    clustree(x, prefix = prefix) +
+    scale_color_discrete(type = palette_continuous(gray = FALSE)(length(clusters))) +
+    theme(
+        legend.title = element_text(face = "italic", size = 15),
+        legend.text = element_text(size = 10)
+    )
 }
