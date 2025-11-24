@@ -7,14 +7,7 @@ pal_sc <- c(
 )
 
 #' @export
-kable_sc <- function(x, func = str_clean, digits = getOption("digits")) {
-    x %>%
-        set_colnames(colnames(.) %>% func()) %>%
-        kable0(digits = digits)
-}
-
-#' @export
-str_clean <- function(x) {
+str_clean <- function(x, assay = "RNA") {
     str_replace_all(x, "[_\\.]", " ") %>%
         str_replace_all("^n(Count|Feature)", "# \\1") %>%
         str_replace_all("# Feature RNA", "# Gene RNA") %>%

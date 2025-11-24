@@ -12,79 +12,53 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
   fig.path = "figures/differential_expression/",
-  fig.width = 6,
-  fig.height = 3,
+  fig.width = 12,
+  fig.height = 6,
   dpi = 300
 )
 ```
 
-```{r setup}
+```{r setup, message = FALSE}
+library(GimmeMyOmics)
 library(GimmmeMySC)
-```
+library(GimmeMyPlot)
+library(magrittr)
+library(rlist)
+library(Seurat)
+library(cowplot)
+library(kableExtra)
 
-## Differentially Expressed Genes
-```{r}
-cts0 <- AverageExpression(
-    seurat,
-    group.by = "ident",
-    # group.by = c(snn_cluster, "Type"),
-    assay = assay,
-    layer = "data",
-    return.seurat = FALSE
-) %>% 
-  pluck(assay) %>%
-  as.data.frame() %>% 
-  rename_with(~ str_remove(., "^g")) %>%
-  mutate(gene = rownames(.))
-
-cts <- calc_other_cluster_avg(cts0)
-
-# ids <- data.frame(
-#     id.1 = c(6, 3, 3, 3, 0, 0, 4, 5, 5),
-#     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
-# )
-
-cluster_marker_genes0 <- list.map(
-  levels(Idents(seurat)),
-  # seq(nrow(ids)),
-  f(x) ~ FindConservedMarkers(
-    ident.1 = x,
-    # ident.1 = ids[x, 1],
-    # ident.2 = ids[x, 2],
-    grouping.var = "Patient",
-    assay = assay,
-    # grouping.var = "Type",
-    seurat,
-    logfc.threshold = .Machine$double.xmin
-  ) %>%
-    mutate(
-      cluster = x,
-      # cluster = paste(ids[x, 2], ids[x, 1], sep = " vs "),
-      gene = rownames(.),
-      log2FoldChange = rowMeans(select(., ends_with("avg_log2FC")), na.rm = TRUE),
-      padj = rowMeans(select(., ends_with("p_val_adj")), na.rm = TRUE),
-      `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
-      `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
-    ) %>%
-  # left_join(select(cts, all_of(c("gene", ids[x, 1], ids[x, 2]))) %>% set_colnames(c("gene", "exp.1", "exp.2")), by = "gene")
-  left_join(select(cts, all_of(c("gene", x, paste0("except_", x)))) %>% set_colnames(c("gene", "exp.1", "exp.2")), by = "gene")
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
 )
-cluster_marker_genes <- list.rbind(cluster_marker_genes0)
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
 
-min_p <- cluster_marker_genes %>%
-  filter(padj > 0) %>%
-  summarise(min_padj = min(padj)) %>%
-  pull(min_padj)
-
-cluster_marker_genes$padj[which(cluster_marker_genes$padj == 0)] <- min_p
-```
-
-```{r}
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
+load(file.path(path, "wt_bcell_cycle.rda"))
+```
+
+## Differentially Expressed Genes
+```{r}
+# ids <- data.frame(
+#     id.1 = c(6, 3, 3, 3, 0, 0, 4, 5, 5),
+#     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
+# )
+
+ids <- data.frame(
+    id.1 = c(0),
+    id.2 = c(2)
+)
+
+cluster_marker_genes <- dea_sc(seurat, ids)
+```
+
+```{r}
 l_dea_raw <- cluster_marker_genes %>%
   mutate(gene_name = gene) %>%
   format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
@@ -92,29 +66,9 @@ l_dea_raw <- cluster_marker_genes %>%
 
 ## Volcano plots
 ```{r}
-l_dea_proc <- l_dea_raw %>%
-    mutate(cluster = factor(cluster, levels = as.character(sort(as.numeric(unique(cluster)))))) %>%
-    group_split(cluster, .keep = TRUE) %>%
-    set_names(map_chr(., ~as.character(first(.x$cluster)))) %>%
-    list.map(
-        select(., -cluster) %>%
-            mutate(
-              Expression = ifelse(
-                pct.1 > pct_threshold | exp.1 > exp_threshold,
-                Expression, 
-                "ns"
-                )
-              )
-    )
+l_dea_proc <- dea2deseq(l_dea_raw)
 
-list.map(
-    l_dea_proc, f(x, xx, xxx) ~
-        fct_count(x$Expression) %>%
-        filter(f!="ns") %>%
-        set_colnames(c("Nb DEG", xxx))) %>%
-    Reduce(function(x, y) left_join(x, y, by = "Nb DEG"), .) %>%
-    bind_rows(summarise(., `Nb DEG` = "Total", across(-`Nb DEG`, sum, na.rm = TRUE))) %>%
-    kable0()
+kable_dea(l_dea_proc, file = file.path(path_fig, "table_dea.png"))
 
 l_deg_top <- list.map(
   l_dea_proc,
@@ -126,37 +80,18 @@ l_deg_top <- list.map(
   )
 )
 
-p <- list.map(
-    discard(l_dea_proc, function(x) nrow(x) == 0),
-    f(x, y, z) ~ {
-        volcano_plot(
-            x,
-            title = z,
-            top_genes = l_deg_top[[y]],
-            fc_threshold = fc_threshold,
-            cex = 1,
-            cex_genes = 3.5,
-            p_threshold = p_threshold,
-            max.overlaps = 1e3,
-            force = 1e2
-        ) + labs(x = NULL, y = NULL, title = z) +
-            theme(legend.position = "none")
-    })
+p <- volcano_sc(
+  l_dea_proc,
+  top_genes = l_deg_top,
+  fc_threshold = fc_threshold,
+  p_threshold = p_threshold
+  )
 
 plot_grid(plotlist = p, align = "hv", ncol = 4, nrow = 2)
 ```
-```{r}
-list.map(
-    l_dea_proc, f(x, xx, xxx) ~
-        fct_count(x$Expression) %>%
-        filter(f!="ns") %>%
-        set_colnames(c("Nb DEG", xxx))) %>%
-    Reduce(function(x, y) left_join(x, y, by = "Nb DEG"), .) %>%
-    bind_rows(summarise(., `Nb DEG` = "Total", across(-`Nb DEG`, sum, na.rm = TRUE))) %>%
-    kable0()
-```
 
-```{r, eval = FALSE}
+
+```{r}
 gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
 ```
@@ -333,15 +268,12 @@ list.map(
 
 ## Dotplots
 ```{r}
-l_dea <- list.map(
-    unique(l_dea_raw$cluster),
-    f(x) ~ filter(l_dea_raw, cluster == x) %>%
-    filter(pct.1 > pct_threshold) %>%
-  # filter((pct.1 > pct_threshold | pct.2 > pct_threshold) & abs(pct.1 - pct.2) > pct_threshold) %>%
-    filter(exp.1 > exp_threshold) %>%
-      top_genes(return_rank = TRUE, fc_threshold = fc_threshold, p_threshold = p_threshold)
-    ) %>%
-    discard(~ nrow(.x) == 0)
+l_dea <- format_dea_sc(
+  l_dea_raw,
+  pct_threshold, 
+  fc_threshold = fc_threshold,
+  p_threshold = p_threshold
+)
 ```
 
 ```{r}
@@ -387,7 +319,7 @@ DoHeatmap(
     geom_hline(yintercept = last_row_numbers[-1] - 0.5, color = "black", linetype = "solid", linewidth = 1)
 ```
 
-```{r}
+```{r, fig.height = 3.7, fig.width = 8}
 last_row_numbers <- top10 %>%
     # ungroup() %>%
     filter(!duplicated(gene)) %>%
@@ -404,7 +336,7 @@ plot_dot(
     geom_vline(xintercept = last_row_numbers + 0.5)
 
 cluster_marker_genes %>% 
-    filter(cluster == 0) %>%
+    filter(cluster == first(cluster)) %>%
   head(15) %>%
   mutate(padj = format(padj, digits = 1, scientific = TRUE)) %>%
   mutate(FC = 2^abs(log2FoldChange) * sign(log2FoldChange)) %>%
@@ -426,6 +358,7 @@ p <- top50 %>%
   ) +
     labs(title = x)
 )
+p
 ```
 
 ```{r}
@@ -434,12 +367,14 @@ p2 <- plot_mfeature(
     tops[["15"]],
     func = function(x) pull(x, gene_name) %>% head(12)
 )
+p2
 
 p3 <- plot_mviolin(
     seurat,
     tops[["15"]],
     func = function(x) pull(x, gene_name) %>% head(12)
 )
+p3
 ```
 
 ## Session information

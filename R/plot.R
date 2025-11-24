@@ -60,21 +60,6 @@ plot_sc_violin <- function(
 }
 
 #' @export
-print_sc_stats <- function(
-        x,
-        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
-        probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1)
-) {
-    sapply(
-        features,
-        function(i) quantile(
-            x[[i]],
-            probs = probs,
-            na.rm = TRUE)
-    )
-}
-
-#' @export
 plot_sc_cor <- function(
         x,
         col = palette_discrete()[seq_along(Idents(x))],
@@ -164,19 +149,6 @@ variable_plot <- function(x) {
 }
 
 #' @export
-cluster_size <- function(x, order = TRUE) {
-    res <- fct_count(x) %>%
-        filter(!is.na(f)) %>%
-        column_to_rownames("f") %>%
-        mutate(freq = round(n/sum(n) * 100, 1))
-
-    if(order)
-        arrange(res, desc(n))
-    else
-        res
-}
-
-#' @export
 density_plot <- function(x, feature = nFeature_RNA) {
     as.data.frame(x[[]]) %>%
         ggplot(aes(color=orig.ident, x=feature, fill= orig.ident)) +
@@ -185,71 +157,6 @@ density_plot <- function(x, feature = nFeature_RNA) {
         theme_custom() +
         # geom_vline(xintercept = 300) +
         ylab(str_clean(i))
-}
-
-#' @export
-print_filtered_cells <- function(before, after) {
-    before <- ncol(before)
-    after <- ncol(after)
-    pct <- ((after / before) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste0("%")
-    paste0("Before: ", before, " cells / After: ", after, " cells (", pct, " removed).")
-}
-
-#' @export
-integrate_multisamples <- function(
-        x,
-        labels = paste0(
-            types,
-            "_",
-            # str_remove_all(l_samples, types) %>% str_remove_all("_")
-            l_samples
-        )
-) {
-    seurat <- merge(
-        x = x[[1]],
-        y = x[-1],
-        add.cell.ids =labels
-    )
-
-    seurat$sample <- rownames(seurat[[]])
-    seurat[[]] <- separate(
-        seurat[[]],
-        col = "sample",
-        into = c("Type", "Patient", "Barcode"),
-        sep = "_"
-    )
-    return(seurat)
-}
-
-#' @export
-calc_other_cluster_avg <- function(avg_matrix) {
-    all_clusters <- colnames(select(avg_matrix, -c("gene", starts_with("except"))))
-
-    for (target_cluster in all_clusters) {
-        other_clusters <- setdiff(all_clusters, target_cluster)
-        col_name <- paste0("except_", target_cluster)
-        avg_matrix[[col_name]] <- rowMeans(avg_matrix[, other_clusters, drop = FALSE], na.rm = TRUE)
-    }
-
-    return(avg_matrix)
-}
-
-#' @export
-pct_by_ident_type <- function(
-        seurat,
-        clusters = Idents(seurat),
-        group.by = seurat$Type
-    ) {
-
-    expr_bin <- GetAssayData(seurat, layer = "data") > 0
-    group <- interaction(clusters, group.by, drop = TRUE)
-    percent_matrix <- sapply(
-        levels(group),
-        function(g) {
-            cells <- colnames(seurat)[group == g]
-            rowMeans(expr_bin[, cells, drop = FALSE])
-    })
-    as.matrix(percent_matrix) %>% as.data.frame()
 }
 
 #' @export
