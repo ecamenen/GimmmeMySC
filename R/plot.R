@@ -1,6 +1,7 @@
 #' @export
 plot_sc_violin <- function(
         x,
+        assay = "RNA",
         features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
         normalize = NULL,
         nrow = 3,
@@ -62,6 +63,7 @@ plot_sc_violin <- function(
 #' @export
 plot_sc_cor <- function(
         x,
+        assay = "RNA",
         col = palette_discrete()[seq_along(Idents(x))],
         features = c("percent_mitochondrial", paste0("nFeature", "_", assay))
 ) {

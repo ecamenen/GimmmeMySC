@@ -2,15 +2,19 @@
 title: "Get started"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Get started}
+  %\VignetteIndexEntry{get_started}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r config, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.path = "figures/get_started/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
 )
 ```
 
@@ -23,10 +27,7 @@ library(Seurat)
 library(cowplot)
 library(GimmeMyPlot)
 library(scDblFinder)
-
-set.seed(1234)
-options(future.globals.maxSize = 2000 * 1024^2)
-options(ggrepel.max.overlaps = 1000)
+library(ggraph)
 
 path <- file.path(
   dirname(getwd()),
@@ -34,28 +35,13 @@ path <- file.path(
   "extdata"
 )
 
+source(file.path(path, "conf.R"))
+assay <- "SCT"
 SCT <- TRUE
-max_dim <- 100
-n_dim <- 30
-assay <- "RNA"
-species <- "human"
 
 l_samples <- list.files(path) %>%  
   .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
   .[str_detect(., "KO")]
-
-if (species == "human") {
-    func_format <- identity
-} else {
-    func_format <- str_to_sentence
-}
-
-pal_sc <- c(
-  rev(brewer.pal(9, "Blues")[-c(1, 3, 5, 7, 9)]),
-  # "white",
-  "grey90",
-  brewer.pal(9, "Reds")[-c(1, 3, 5, 7, 9)]
-)
 ```
 
 # Load data
@@ -68,8 +54,8 @@ list_seurat <-  list.map(
         .[str_detect(., "filtered_feature_bc_matrix.h5")]
       tmp <- Read10X_h5(count_matrix) %>%
       CreateSeuratObject()
-    tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
-    tmp
+      tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
+      tmp
     }
 )
 ```
@@ -108,32 +94,7 @@ seurat[[]] <- separate(
 # QC
 ## Filter cells with low or too high genes
 ```{r qc_plot}
-print_sc_stats(seurat, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
-  kable_sc(digits = 3)
-
-# plot_sc_cor(seurat)
-
-list.map(
-  c(paste0("nFeature", "_", assay), "percent_mitochondrial"),
-  f(i, j) ~ {
-    density_scatter(
-      seurat,
-      x = i,
-      y = paste0("nCount", "_", assay),
-      log_x = TRUE,
-      log_y = TRUE
-  )
-  }
-    
-) %>% plot_grid(plotlist = ., align = "hv")
-
-Idents(seurat) <- "Patient"
-plot_sc_violin(
-    seurat,
-    cols = col_inds,
-    nrow = 1,
-    normalize = c(10, 10, 10)
-)
+plot_mqc(seurat)
 ```
 
 ```{r}
@@ -214,8 +175,7 @@ plot_sc_violin(
     seurat,
     cols = col_inds,
     nrow = 1,
-    normalize = c(10, 10, 10),
-    cols = palette_discrete()
+    normalize = c(10, 10, 10)
 )
 Idents(seurat) <- "Patient"
 seurat <- subset(seurat, subset = doublets == "singlet")
@@ -223,30 +183,7 @@ seurat <- subset(seurat, subset = doublets == "singlet")
 
 ## QC after
 ```{r}
-print_sc_stats(seurat, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
-  kable_sc(digits = 3)
-
-list.map(
-  c(paste0("nFeature", "_", assay), "percent_mitochondrial"),
-  f(i, j) ~ {
-    density_scatter(
-      seurat,
-      x = i,
-      y = paste0("nCount", "_", assay),
-      log_x = TRUE,
-      log_y = TRUE
-  )
-  }
-    
-) %>% plot_grid(plotlist = ., align = "hv")
-
-Idents(seurat) <- "Patient"
-plot_sc_violin(
-    seurat,
-    cols = col_inds,
-    nrow = 1,
-    normalize = c(10, 10, 10)
-)
+plot_mqc(seurat)
 ```
 
 ```{r qc_sub}
@@ -321,14 +258,13 @@ if (!SCT) {
     DefaultAssay(seurat) <- "sketch"
   }
 }
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim, assay = assay)
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 
 # Dimension visualisation
 plot_dim(
     seurat, 
     # cells = seq(3.2e5),
     reduction = 'pca',
-    group.by = "Patient", 
     split.by = "Type", 
     cols = col_inds,
     label = FALSE
@@ -336,7 +272,6 @@ plot_dim(
 plot_dim(
   seurat, 
   reduction = 'pca',
-  group.by = "Patient", 
   split.by = "Type", 
   cols = color_types,
   label = FALSE
@@ -351,22 +286,13 @@ plot_dim(
 ## Dimension selection
 ```{r}
 eig <- seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100
-p1 <- plot_eig(eig) + 
-  geom_hline(yintercept = mean(eig), col = "gray50", lwd = 1, lty = 2) +
-  ylab("% Explained\n variance")
+plot_pca_qc(eig)
 
-p2 <- cumsum(eig) %>% 
-  plot_eig()+ 
-  ylim(0, NA) +
-  ylab("% Cumulated\n explained variance") + 
-  geom_hline(yintercept = 80, color = "gray50", lwd =1, lty = 2)
-
-p1 + p2
-
-cumsum(eig) %>% .[. < 80] %>% last()
+cumsum(eig) %>% .[n_dim] %>% round(1)
+cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
 ```
 
-```{r}
+```{r, fig.height = 6, fig.width = 12}
 DimHeatmap(seurat, dims = seq(15), cells = 500, balanced = TRUE)
 DimHeatmap(seurat, dims = 16:30, cells = 500, balanced = TRUE)
 DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
@@ -376,13 +302,11 @@ DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
 plot_dim(
     seurat,
     reduction = "pca",
-    group.by = "Patient",
     label = FALSE
 )
 plot_dim(
     seurat,
     reduction = "pca",
-    group.by = "Patient",
     split.by = 'Patient',
     label = FALSE
 ) + NoLegend()
@@ -439,15 +363,13 @@ seurat <- RunUMAP(
   )
 ```
 
-```{r umap}
+```{r}
 plot_dim(
   seurat,
-  group.by = 'Patient',
   label = FALSE
 )
 plot_dim(
   seurat,
-  group.by = 'Patient',
   split.by = 'Patient',
   label = FALSE
 ) + NoLegend()
@@ -515,22 +437,7 @@ seurat <- CellCycleScoring(
 )
 seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
 
-p1 <- plot_feature(
-    seurat,
-    features = "CC.Difference"
-) %>% pluck(1) + 
-    labs(title = NULL, color = "S to G2/M")
-
-
-p2 <- plot_dim(
-    object = seurat,
-    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat))))
-    group.by = "Phase",
-    label = FALSE,
-    title = TRUE
-) +  labs(x = NULL, y = NULL)
-
-p1 + p2
+plot_dim_cycle(seurat)
 
 RidgePlot(seurat, features = c("PCNA", "TOP2A", "MCM6", "MKI67") %>% func_format(), ncol = 2)
 ```
@@ -618,15 +525,7 @@ pull(x0, label_type) %>%
     cluster_size() %>% 
     kable_sc()
 pull(x0, label_type) %>%
-    cluster_size() %>% 
-  select(n) %>%
-  plot_bar(
-    label_x = "none",
-    label_y = "percent",
-    sample_size = nrow(x0),
-    digits = 1,
-    n_max = 15
-  ) + ggtitle(NULL)
+    plot_bar_sc()
 if (x1 == "singleR_main") {
 seurat$cell_type <- 
   x0[match(rownames(seurat[[]]), rownames(x0)), label_type]
@@ -646,11 +545,11 @@ seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
 ```
 
 ```{r}
-plot_dim(
-    seurat,
-    group.by = "cell_type"
-)
+Idents(seurat) <- "cell_type"
+plot_dim(seurat)
+```
 
+```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
     split.by = "cell_type",
@@ -659,11 +558,11 @@ plot_dim(
 ) + NoLegend()
 ```
 
-```{r}
+```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
-    group.by = "cell_subtype",
-    cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype) %>% length())
+    group.by = "cell_subtype_formatted",
+    cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype_formatted) %>% length())
 )
 
 #x11()
@@ -689,16 +588,7 @@ cell_list <- map(cell_categories, ~ {
 
 p <- list.map(
   compact(cell_list),
-  f(x, y, z) ~ cluster_size(x) %>% 
-    select(n) %>%
-    plot_bar(
-        label_x = "none",
-        label_y = "percent",
-        sample_size = length(x),
-        digits = 1,
-        n_max = 15,
-        ratio = 1
-    ) + ggtitle(z)
+  f(x, y, z) ~ plot_bar_sc(x, z)
 )
 
 plot_grid(plotlist = p, align = "hv", ncol = 3, nrow = 2)
@@ -711,7 +601,9 @@ plot_dim(
     group.by = "b_cell"
 ) %>%
     zoom_coord()
+```
 
+```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
     split.by = "b_cell",
@@ -734,8 +626,7 @@ plotDeltaDistribution(x)
 ```{r clus_int}
 resolution2 <- seq(.1, .4, 0.05)
 resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
-resolution_tot <-c(resolution2, resolution)
-DefaultAssay(seurat) <- assay
+resolution_tot <- c(resolution2, resolution)
 seurat <- FindNeighbors(
   seurat,
   reduction = integration_method, 
@@ -769,49 +660,34 @@ select(seurat@meta.data, contains(prefix_cl)) %>%
 
 ```{r}
 clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
-clusters2 <- paste0(prefix_cl, resolution2)
-list.mapv(clusters, f(i) ~length(unique(seurat@meta.data[, i])))
-cl_size <- map_dfr(
-    clusters,
-    ~ cluster_size(seurat@meta.data[, .x]) %>% 
-        pull(1) %>% 
-        tibble(
-            Clusters = .x,
-            cluster = seq_along(.),
-            inertia = .
-        )
-) %>% pivot_wider(names_from = cluster, values_from = inertia, names_prefix = "") %>%
-  as.data.frame() %>%
-  mutate(Clusters = str_remove_all(Clusters, paste0(assay, "_snn_res.")))
-  
-cl_size[is.na(cl_size)] <- ""
-kable0(cl_size)
-```
-
-```{r}
-clustree(seurat, prefix = prefix_cl) +
-    # scale_color_discrete(type = brewer.pal(length(clusters), "Reds")) +
-    scale_color_discrete(type = palette_continuous(gray = FALSE)(length(clusters))) +
-    theme(
-        legend.title = element_text(face = "italic", size = 15),
-        legend.text = element_text(size = 10)
-    )
-```
-
-```{r}
-p_cl <- list.map(
-    clusters,
-    f(x, y, z) ~
-        plot_dim(
-            seurat,
-            group.by = x,
-            cols = palette_continuous()(seurat@meta.data[, x] %>% unique() %>% length())
-        ) + 
-      NoLegend() + 
-      labs(title = str_remove(x, ".*_snn_res."))
+kable_cluster(
+  seurat,
+  clusters, 
+  file = file.path(path_fig, "clusters.png")
 )
-plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = 4, nrow = 2)
-plot_grid(plotlist = p_cl[8:15], align = "hv", ncol = 4, nrow = 2)
+grep(prefix_cl, colnames(seurat2[[]]), value = TRUE) %>% sort() %>%
+  kable_cluster(
+    seurat,
+    ., 
+    file = file.path(path_fig, "clusters2.png")
+)
+```
+
+```{r, fig.width = 20, fig.height = 10}
+clustree_sc(seurat, prefix_cl, clusters)
+```
+
+```{r, fig.width = 16, fig.height = 8}
+clustree_sc(seurat2, prefix_cl, clusters)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_res(seurat, clusters)
+plot_res(
+  seurat,
+  clusters,
+  cols = scales::hue_pal()
+)
 ```
 
 ```{r clus_int_res}
@@ -831,23 +707,19 @@ Idents(seurat) <- seurat[[]][, snn_cluster] #%>%
 
 Idents(seurat) %>% 
     cluster_size() %>%
-    kable_sc()
+    kable_sc(file = file.path(path_fig, "table_cell_cluster.png"))
 
-# names(cell_type) <- levels(seurat_integrated)
-# seurat_integrated <- RenameIdents(seurat_integrated, cell_type)
+plot_bar_sc(seurat)
 ```
 
-
 ```{r}
-plot_dim(
-  seurat, 
-  cols = palette_continuous()(length(levels(Idents(seurat))))
-  )
+pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
+plot_dim(seurat, cols = pal_discrete_sc)
 
 plot_dim(
     seurat,
     split.by = snn_cluster,
-    cols = palette_continuous()(length(levels(Idents(seurat)))),
+    cols = pal_discrete_sc,
     label = FALSE,
     ncol = 4
 ) + NoLegend()
@@ -868,7 +740,9 @@ table(Idents(seurat), seurat$cell_subtype_formatted) %>%
 
 tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = Idents(seurat))
 pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
+```
 
+```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
     split.by = "cell_type",
@@ -909,7 +783,6 @@ plot_dim(
     split.by = "Patient"
 )
 
-
 df_cl <- list.map(
     unique(seurat_subset$Patient),
     f(x) ~ filter(seurat_subset[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
@@ -922,7 +795,6 @@ df_cl %>%
     plot_bar_2cat(
         count = TRUE,
         stats = FALSE,
-        colour = col_inds,
         pct  = FALSE,
         digits = 1
     ) + labs(y = "% Cells") +
@@ -950,10 +822,24 @@ df_cl %>%
     ) + labs(y = "% Cells")
 ```
 
+```{r}
+plot_dim(
+  seurat,
+  label = FALSE
+)
+plot_dim(
+  seurat,
+  split.by = 'Patient',
+  label = FALSE
+) + NoLegend()
+```
+
 # Markers
 
 ## Predictions from dataset
 ```{r}
+DefaultAssay(seurat) <- assay
+
 library(readxl)
 # fileIn <- file.path(path, "41467_2021_27232_MOESM4_ESM.xlsx")
 # name <- "symbol"
@@ -965,33 +851,31 @@ l_bcell_markers <- list.map(
     f(i) ~ read_excel(fileIn, sheet = i) %>%
         pull(!!sym(name)) %>%
         na.omit() %>%
-        func_format()
-) 
-
-p <- list.map(
-    l_bcell_markers,
-  f(i, j, k) ~ {
-      tmp <- list(i) %>%
-          AddModuleScore(seurat, features = .)
-      stats <- quantile(tmp$Cluster1, probs = c(0.01, 0.99))
-      tmp <- subset(tmp, subset = Cluster1 >= stats[1] & Cluster1 <= stats[2])
-      plot_violin_sc(
-        object = tmp,
-        features = "Cluster1",
-        # idents = c(0:3),
-        cols = palette_continuous(gray = FALSE)(length(unique(Idents(tmp))))
-      ) %>% 
-          pluck(1) +
-        labs(title = str_remove_all(k, " ?vs_all"))
-      }
+        func_format() %>%
+        .[. %in% Features(seurat)]
 )
 
- plot_grid(
-    plotlist = p,
-    ncol  = 3,
-    align = "hv"
-)
+plot_module(seurat, l_bcell_markers)
 ```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_markers(seurat, l_bcell_markers)
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_markers2(seurat, l_bcell_markers)
+```
+
+## Cell markers
+```{r, fig.height = 6, fig.width = 12}
+data("l_bcell_markers")
+plot_markers(seurat, l_bcell_markers)
+```
+
+```{r, message = FALSE}
+plot_markers2(seurat, l_bcell_markers)
+```
+
 ## Condition markers
 ```{r feature.heatmaps, eval = FALSE}
 FeaturePlot(

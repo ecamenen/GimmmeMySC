@@ -34,10 +34,15 @@ plot_pca_qc <- function(x) {
 }
 
 #' @export
-kable_cluster <-  function(seurat, clusters, file = NULL) {
+kable_cluster <-  function(
+        seurat,
+        clusters,
+        file = NULL,
+        assay = "RNA"
+    ) {
     cl_size <- map_dfr(
         clusters,
-        ~ cluster_size(seurat@meta.data[, .x]) %>%
+        ~ cluster_size(x@meta.data[, .x]) %>%
             pull(1) %>%
             tibble(
                 Clusters = .x,
@@ -161,6 +166,7 @@ cluster_size <- function(x, order = TRUE) {
 #' @export
 print_sc_stats <- function(
         x,
+        assay = "RNA",
         features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
         probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1)
 ) {
@@ -239,7 +245,13 @@ pct_by_ident_type <- function(
 }
 
 #' @export
-dea_sc <- function(seurat, ids = NULL, group.by = "ident", grouping.var = "Patient", assay = "RNA") {
+dea_sc <- function(
+        seurat,
+        ids = NULL,
+        group.by = "ident",
+        grouping.var = "Patient",
+        assay = "RNA"
+    ) {
     cts <- AverageExpression(
         seurat,
         group.by = group.by,
@@ -441,4 +453,43 @@ format_dea_sc <- function(
         }
     ) %>%
         discard(~ nrow(.x) == 0)
+}
+
+#' @export
+plot_mqc <- function(
+        x,
+        features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial"),
+        file = NULL
+    ) {
+    p <- print_sc_stats(x, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
+        kable_sc(digits = 3)
+    if (!is.null(file))
+        save_kable(
+            p,
+            file = file,
+            zoom = 2
+        )
+    print(p)
+
+    p <- list.map(
+        features[c(1, 3)],
+        f(i, j) ~ {
+            density_scatter(
+                x,
+                x = i,
+                y = features[2],
+                log_x = TRUE,
+                log_y = TRUE
+            )
+        }
+    ) %>% plot_grid(plotlist = ., align = "hv")
+    print(p)
+
+    Idents(x) <- "Patient"
+    plot_sc_violin(
+        x,
+        cols = col_inds,
+        nrow = 1,
+        normalize = c(10, 10, 10)
+    )
 }
