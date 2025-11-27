@@ -1,5 +1,5 @@
 ---
-title: "data_integration"
+title: "Data integration"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{data_integration}
@@ -7,23 +7,46 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r config, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.path = "figures/data_integration/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
 )
 ```
 
-```{r setup}
-library(GimmmeMySC)
-library(Seurat)
+```{r setup, message = FALSE}
+library("GimmmeMySC")
+library("Seurat")
+library("rlist")
+library("RColorBrewer")
+library("pheatmap")
+
+n_dim <- 30
+pal_discrete_sc <- palette_discrete()[-7]
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+```
+
+```{r}
+load(file.path(path, "wt_bcell_cycle.rda"))
+wt <- seurat
+load(file.path(path, "ko_bcell_cycle.rda"))
+ko <- seurat
 ```
 
 # Transfer learning
 ```{r}
 wt@meta.data[, "labels"] <- Idents(wt)
-# wt@assays$SCT@scale.data <- matrix()
-# ko@assays$SCT@scale.data <- matrix()
+wt@assays$SCT@scale.data <- matrix()
+ko@assays$SCT@scale.data <- matrix()
 seurat <- merge(wt, y = ko)
 ```
 
@@ -39,17 +62,7 @@ anchors <- FindTransferAnchors(
 )
 ```
 
-```{r, eval = FALSE}
-cl_trans <- TransferData(
-    anchorset = anchors,
-    dims = seq(n_dim),
-    # weight.reduction = KO[[integration_method]],
-    refdata = Idents(wt)
-  )
-seurat <- AddMetaData(seurat, metadata = cl_trans)
-```
-
-```{r, eval = FALSE}
+```{r}
 wt2 <- RunUMAP(
   wt,
   dims = seq(n_dim),
@@ -64,21 +77,23 @@ wt2 <- RunUMAP(
 seurat <- MapQuery(
     anchorset = anchors,
     query = seurat,
-    reference = wt,
+    reference = wt2,
     refdata = list(labels = "labels"),
     # reference.reduction = integration_method,
     reduction.model = "umap"
 )
 ```
 
-## Scores
 ```{r}
-plot_sc_violin(
-    seurat,
-    features = paste0("prediction.score.", levels(Idents(wt))),
-    cols = GimmeMyPlot:::palette_discrete(),
-    nrow = 3
-)
+cl_trans <- TransferData(
+    anchorset = anchors,
+    dims = seq(n_dim),
+    # weight.reduction = KO[[integration_method]],
+    refdata = Idents(wt)
+  )
+seurat <- AddMetaData(seurat, metadata = cl_trans)
+
+save(seurat, file = file.path(path, "integr_bcell_cycle.rda"))
 ```
 
 ## UMAP per Type
@@ -88,35 +103,99 @@ seurat$predicted.labels <- factor(
     levels = 0:(length(unique(seurat$predicted.labels)) - 1)
 )
 Idents(seurat) <- "predicted.labels"
+```
+```{r}
+table(seurat$Type)
+meta <- seurat@meta.data
+meta$cell_id <- rownames(meta)
+
+cells_to_keep <- meta %>%
+    group_by(Type) %>%
+    sample_n(size = min(table(seurat$Type), n()), replace = FALSE) %>%
+    pull(cell_id)
+
+seurat_subset <- subset(seurat, cells = cells_to_keep)
+
 plot_dim(
-    object = seurat,
-    # cols = palette_continuous(gray = FALSE)(length(levels(Idents(seurat)))),
-    split.by = "Type",
-    reduction = "ref.umap"
+  object = seurat_subset,
+  split.by = 'Type',
+  col = pal_discrete_sc
 ) + NoLegend()
+
+
+df_cl <- list.map(
+    unique(seurat_subset$Type),
+    f(x) ~ filter(seurat_subset[[]], Type == x) %>% pull("predicted.labels") %>% fct_drop() %>% table()
+) %>%
+    list.rbind() %>%
+    as.data.frame()
+    
+df_cl %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        pct  = FALSE,
+        digits = 1
+    ) + labs(y = "% Cells") +
+    geom_hline(yintercept = 50, color = "gray")
+
+df_cl <- list.map(
+    unique(seurat$Type),
+    f(x) ~ filter(seurat[[]], Type == x) %>% pull("predicted.labels") %>% fct_drop() %>% table()
+) %>%
+    list.rbind() %>%
+    as.data.frame()
+    
+df_cl %>%
+    t() %>%
+    as.data.frame() %>%
+    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        # colour = palette_discrete(),
+        colour = pal_discrete_sc,
+        pct  = FALSE,
+        digits = 1
+    ) + labs(y = "% Cells")
 ```
 
 ## Cell per cluster
 ```{r}
 seurat_old <- seurat
+Idents(seurat) <- "cell_type"
+seurat <- seurat[, !is.na(Idents(seurat))]
+Idents(seurat) <- droplevels(Idents(seurat))
+
 seurat <- subset(
     seurat, 
     subset = Type == "KO"
 )
+
+Idents(seurat) <- "predicted.labels"
 plot_dim(
     seurat, 
-    reduction = 'ref.umap', 
     split.by = "predicted.labels",
-    cols = palette_continuous()(length(levels(Idents(seurat)))),
+    col = pal_discrete_sc,
     ncol = 4,
     label = FALSE
-)+ NoLegend()
+) + NoLegend()
+```
+
+## Scores
+```{r, message = FALSE}
+plot_sc_violin(
+    seurat,
+    features = paste0("prediction.score.", levels(Idents(wt))),
+    nrow = 3
+)
 ```
 
 ## Confusing table
 ```{r}
 tab <- table(
-    Assigned = seurat[[]][, "SCT_snn_res.0.35"], 
+    Assigned = seurat[[]][, "RNA_snn_res.0.35"], 
     Clusters = seurat[[]][, "predicted.labels"]
 )
 tab <- tab[
@@ -145,14 +224,24 @@ na_col = "white"
 )
 ```
 
+## Cell markers
+```{r, fig.height = 6, fig.width = 12}
+data("l_bcell_markers")
+plot_markers(seurat, l_bcell_markers)
+```
+
+```{r, message = FALSE}
+plot_markers2(seurat, l_bcell_markers)
+```
+
 ## Misclassified
 ```{r}
 l_seurat <- list.map(
-    unique(seurat$SCT_snn_res.0.35) %>% sort(),
+    unique(seurat$RNA_snn_res.0.35) %>% sort(),
     f(x, y) ~{
     subset(
         seurat, 
-        subset = SCT_snn_res.0.35 == x
+        subset = RNA_snn_res.0.35 == x
     )
     }
 )
@@ -160,12 +249,10 @@ l_seurat <- list.map(
 list.map(
     l_seurat,
     f(x, y, z) ~
-        plot_dim(
-            x, 
-            reduction = 'ref.umap'
-        ) + 
+        plot_dim(x) + 
         ggtitle(z)
-) %>% plot_grid(plotlist = ., nrow = 3, align = "hv")
+) %>% 
+  plot_grid(plotlist = ., nrow = 3, align = "hv")
 ```
 
 ```{r}
