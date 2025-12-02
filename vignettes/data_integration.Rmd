@@ -20,10 +20,14 @@ knitr::opts_chunk$set(
 
 ```{r setup, message = FALSE}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
 library("rlist")
 library("RColorBrewer")
 library("pheatmap")
+library("cowplot")
+library("kableExtra")
+library("readxl")
 
 n_dim <- 30
 pal_discrete_sc <- palette_discrete()[-7]
@@ -104,6 +108,7 @@ seurat$predicted.labels <- factor(
 )
 Idents(seurat) <- "predicted.labels"
 ```
+
 ```{r}
 table(seurat$Type)
 meta <- seurat@meta.data
@@ -163,11 +168,6 @@ df_cl %>%
 
 ## Cell per cluster
 ```{r}
-seurat_old <- seurat
-Idents(seurat) <- "cell_type"
-seurat <- seurat[, !is.na(Idents(seurat))]
-Idents(seurat) <- droplevels(Idents(seurat))
-
 seurat <- subset(
     seurat, 
     subset = Type == "KO"
@@ -178,22 +178,24 @@ plot_dim(
     seurat, 
     split.by = "predicted.labels",
     col = pal_discrete_sc,
+    pt.size = .25,
     ncol = 4,
     label = FALSE
 ) + NoLegend()
 ```
 
 ## Scores
-```{r, message = FALSE}
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
 plot_sc_violin(
     seurat,
-    features = paste0("prediction.score.", levels(Idents(wt))),
-    nrow = 3
+    features = paste0("prediction.score.", levels(Idents(seurat))),
+    nrow = 2,
+    ncol = 5
 )
 ```
 
 ## Confusing table
-```{r}
+```{r, fig.width = 3.7}
 tab <- table(
     Assigned = seurat[[]][, "RNA_snn_res.0.35"], 
     Clusters = seurat[[]][, "predicted.labels"]
@@ -205,54 +207,81 @@ tab <- tab[
 
 tab <- prop.table(tab, margin = 1) * 100
 
-breaks <- seq(
-    min(log10(tab + 10)),
-    max(log10(tab + 10)),
-    length.out = 12
-)
-labels <- round(10^breaks - 10)
+library("pheatmap")
+
+breaks <- seq(0, 100, by = 10)
+labels <- round(breaks)
+palette_custom <- colorRampPalette(c("white", brewer.pal(9, "Reds")))(length(breaks) - 1)
+
 pheatmap(
-    log10(tab + 10),
-    # color = c("white", rev(brewer.pal(11, "Spectral"))),
-    color = c("white", brewer.pal(9, "Reds")),
-    # color = pal_sc,
+    tab,
+    color = palette_custom,
+    breaks = breaks,
     legend_breaks = breaks,
-  cluster_rows = FALSE,
-  cluster_cols = FALSE,
     legend_labels = labels,
-na_col = "white"
+    cluster_rows = FALSE,
+    cluster_cols = FALSE,
+    display_numbers = TRUE,
+    na_col = "white",
+    number_color = "white",
+    fontsize_number = 10,
+    number_format = "%.1f"
 )
 ```
 
 ## Cell markers
-```{r, fig.height = 6, fig.width = 12}
+### From microarray
+```{r, message = FALSE}
+fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
+name <- "Gene name"
+
+l_bcell_markers <- list.map(
+    excel_sheets(fileIn),
+    f(i) ~ read_excel(fileIn, sheet = i) %>%
+        pull(!!sym(name)) %>%
+        na.omit() %>%
+        func_format() %>%
+        .[. %in% Features(seurat)]
+)
+
+plot_module(seurat, l_bcell_markers)
+```
+
+### From knowledge
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
 plot_markers(seurat, l_bcell_markers)
 ```
 
-```{r, message = FALSE}
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
 plot_markers2(seurat, l_bcell_markers)
 ```
 
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_ident_celltype(seurat)
+```
+
 ## Misclassified
-```{r}
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
 l_seurat <- list.map(
-    unique(seurat$RNA_snn_res.0.35) %>% sort(),
-    f(x, y) ~{
-    subset(
-        seurat, 
-        subset = RNA_snn_res.0.35 == x
-    )
+    levels(Idents(seurat)),
+    f(x) ~ {
+      res <- subset(seurat, idents = x)
+      Idents(res) <- "RNA_snn_res.0.35"
+      return(res)
     }
 )
 
-list.map(
+plots <- list.map(
     l_seurat,
-    f(x, y, z) ~
-        plot_dim(x) + 
-        ggtitle(z)
-) %>% 
-  plot_grid(plotlist = ., nrow = 3, align = "hv")
+    f(x,y,z) ~ {
+        p <- plot_dim(x)
+        p <- p + ggtitle(z)
+        p
+    }
+)
+
+plot_grid(plotlist = plots, nrow = 3, align = "hv")
 ```
 
 ```{r}
@@ -306,13 +335,19 @@ cluster_counts <- tmp %>%
 
 group_names <- paste("Cluster", unique(tmp$Cluster))
 
-tmp %>% 
+p <- tmp %>% 
     select(-Cluster) %>%
     kable_sc()  %>%
   pack_rows(
     index = setNames(cluster_counts, group_names),
     label_row_css = "background-color: #666; color: #fff;"
   )
+save_kable(
+    p,
+    file = file.path(path_fig, "table_cells.png"),
+    zoom = 2
+)
+p
 ```
 
 ```{r}

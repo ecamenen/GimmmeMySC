@@ -166,7 +166,6 @@ plot_feature <- function(
      object = object,
      features =  features,
      cols = pal_sc,
-     reduction = "umap",
      pt.size = 1,
      alpha = .5,
      ...
@@ -174,7 +173,6 @@ plot_feature <- function(
     FeaturePlot(
         object = object,
         features =  features,
-        reduction = reduction,
         pt.size = pt.size,
         alpha = alpha,
         combine = FALSE,
@@ -299,7 +297,6 @@ plot_mviolin <- function(
 #' @export
 plot_dim <- function(
         object = object,
-        reduction = "umap",
         cols = palette_discrete(),
         label = TRUE,
         title = FALSE,
@@ -310,7 +307,6 @@ plot_dim <- function(
     ) {
         p <- DimPlot(
             object = object,
-            reduction = reduction,
             cols = cols,
             pt.size = pt.size,
             alpha = alpha,
