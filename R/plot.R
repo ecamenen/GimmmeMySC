@@ -15,7 +15,7 @@ plot_sc_violin <- function(
     if(is.null(normalize)) {
         normalize <- rep(TRUE, length(features))
     }
-    list.map(
+    plot_list <- list.map(
         features,
         f(i, j) ~{
             p <- VlnPlot(
@@ -57,7 +57,17 @@ plot_sc_violin <- function(
                 # theme(axis.text.x = element_blank()) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
         }
-    ) %>% wrap_plots(nrow = nrow)
+    )
+
+    if (ncol * nrow < length(plot_list)) {
+        ncol <- round(length(plot_list) / nrow)
+    }
+    grid.arrange(
+        grobs = plot_list,
+        nrow = nrow,
+        ncol = ncol,
+        padding = unit(0, "cm")
+    )
 }
 
 #' @export
@@ -366,5 +376,129 @@ clustree_sc <- function(x, prefix, clusters) {
     theme(
         legend.title = element_text(face = "italic", size = 15),
         legend.text = element_text(size = 10)
+    )
+}
+
+
+#' @export
+plot_ident_celltype <- function(x) {
+    table(Idents(x), x$cell_subtype_formatted) %>%
+        as.data.frame.matrix() %>%
+        t() %>%
+        as.data.frame() %>%
+        mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+        plot_bar_2cat(
+            count = TRUE,
+            stats = FALSE,
+            colour =  palette_continuous(gray = FALSE)(length(unique(x[[]][, "cell_subtype_formatted"]))),
+            pct  = FALSE,
+            threshold = 1,
+            digits = 1
+        ) +
+        labs(y = "% Cells")
+}
+
+table_ident_group <- function(
+        x,
+        group.by = "Patient",
+        idents = "RNA__snn_res.0.35"
+    ) {
+    list.map(
+        unique(x[[]][, group.by]),
+        f(i) ~ filter(x[[]], !!sym(group.by) == i) %>%
+            pull(idents) %>%
+            fct_drop() %>%
+            table()
+    ) %>%
+        list.rbind() %>%
+        as.data.frame()
+}
+
+
+bar_ident_group0 <- function(
+        x,
+        group.by = "Patient",
+        idents = "RNA__snn_res.0.35",
+        ...
+    ) {
+    x %>%
+        mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+        plot_bar_2cat(
+            count = TRUE,
+            stats = FALSE,
+            pct  = FALSE,
+            digits = 1,
+            ...
+        ) +
+        labs(y = "% Cells")
+}
+
+#' @export
+bar_ident_group <- function(
+        x,
+        group.by = "Patient",
+        idents = "RNA__snn_res.0.35"
+    ) {
+    table_ident_group(x, group.by, idents) %>%
+        bar_ident_group0() +
+        geom_hline(yintercept = 50, color = "gray")
+}
+
+#' @export
+bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35", colour = palette_discrete()) {
+    table_ident_group(x, group.by, idents) %>%
+        t() %>%
+        as.data.frame() %>%
+        bar_ident_group0(colour = colour)
+}
+
+#' @export
+confusing_table <- function(
+        x,
+        new_ident = "predicted.labels",
+        old_ident = "RNA_snn_res.0.35",
+        as_percent = TRUE,
+        margin = 1
+) {
+    tab_raw <- table(
+        x[[]][, old_ident],
+        x[[]][, new_ident]
+    )
+
+    # tab_raw <- tab_raw[
+    #     as.character(0:(nrow(tab_raw) - 1)),
+    #     as.character(0:(ncol(tab_raw) - 1))
+    # ]
+
+    if (as_percent) {
+        breaks <- seq(0, 100, by = 10)
+        display_matrix <- prop.table(tab_raw, margin = margin) * 100
+        tab <- round(display_matrix, 1)
+        legend_labels <- breaks
+    } else {
+        tab <- tab_raw
+        tab_log <- log10(tab_raw + 1)
+        breaks <- seq(min(tab_log), max(tab_log), length.out = 12)
+        raw_range <- seq(min(tab_raw), max(tab_raw), length.out = length(breaks))
+        display_matrix <- tab_log
+        legend_labels <- round(raw_range)
+    }
+
+
+    legend_breaks <- breaks
+    palette_custom <- colorRampPalette(c("white", brewer.pal(9, "Reds")))(length(breaks) - 1)
+
+    pheatmap(
+        display_matrix,
+        color = palette_custom,
+        breaks = breaks,
+        legend_breaks = legend_breaks,
+        legend_labels = legend_labels,
+        cluster_rows = FALSE,
+        cluster_cols = FALSE,
+        display_numbers = tab,
+        na_col = "white",
+        number_color = "white",
+        fontsize_number = 10
     )
 }

@@ -493,3 +493,85 @@ plot_mqc <- function(
         normalize = c(10, 10, 10)
     )
 }
+
+#' @export
+subsampling_sc <- function(x, group.by = "Patient") {
+    meta <- seurat@meta.data
+    meta$cell_id <- rownames(meta)
+
+    cells_to_keep <- meta %>%
+        group_by(!!sym(group.by)) %>%
+        sample_n(size = min(table(meta[, group.by]), n()), replace = FALSE) %>%
+        pull(cell_id)
+
+    seurat_subset <- subset(seurat, cells = cells_to_keep)
+}
+
+
+#' @export
+reorder_idents <- function(x, y = "predicted.labels") {
+    x@meta.data[, y] <- factor(
+        x@meta.data[, y],
+        levels = 0:(length(unique(x@meta.data[, y])) - 1)
+    )
+    Idents(x) <- x@meta.data[, y]
+    return(x)
+}
+
+#' @export
+organise_plots <- function(x, i = 2) {
+    n <- length(x)
+
+    if (n == 4*i) return(x)
+
+    bloc <- n / i
+    missing <- 4 - bloc
+
+    c(
+        x[seq_len(bloc)],
+        rep(list(NULL), missing),
+        x[seq_len(bloc) + bloc],
+        rep(list(NULL), missing)
+    )
+}
+
+
+
+#' @export
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type") {
+    p1 <- list.map(
+        markers,
+        f(i, j, k) ~ plot_dot(x, head(i, 50), split.by = split.by) +
+            geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5) +
+            ggtitle(k)
+    )
+    print(p1)
+
+    p2 <- list.map(
+        markers,
+        f(i, j, k) ~ {
+            head(i, 12) %>%
+                split(ceiling(seq_along(.)/4)) %>%
+                list.map(
+                    f(it) ~ {
+                        plot_feature(
+                            x,
+                            features = it,
+                            split.by = split.by,
+                            cols = brewer.pal(9, "Reds"),
+                            pt.size = .5
+                        ) %>%
+                            organise_plots() %>%
+                            theme_multiple(
+                                ncol = NULL,
+                                nrow = 2,
+                                title = k
+                            )
+                    }
+                )
+        }
+    )
+    print(p2)
+
+    plot_mviolin(x, markers, split.by = split.by)
+}
