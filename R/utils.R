@@ -42,7 +42,7 @@ kable_cluster <-  function(
     ) {
     cl_size <- map_dfr(
         clusters,
-        ~ cluster_size(x@meta.data[, .x]) %>%
+        ~ cluster_size(seurat@meta.data[, .x]) %>%
             pull(1) %>%
             tibble(
                 Clusters = .x,
@@ -200,7 +200,7 @@ integrate_multisamples <- function(
     seurat <- merge(
         x = x[[1]],
         y = x[-1],
-        add.cell.ids =labels
+        add.cell.ids = labels
     )
 
     seurat$sample <- rownames(seurat[[]])

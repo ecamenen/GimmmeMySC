@@ -148,6 +148,11 @@ data("l_bcell_markers")
 plot_marker_split(seurat, l_bcell_markers)
 ```
 
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+data("jcb_markers")
+plot_marker_split(seurat, jcb_markers)
+```
+
 ## Cell per cluster
 ```{r}
 seurat <- subset(
@@ -204,19 +209,7 @@ confusing_table(seurat, margin = 2)
 ## Cell markers
 ### From microarray
 ```{r, message = FALSE}
-fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
-name <- "Gene name"
-
-l_bcell_markers <- list.map(
-    excel_sheets(fileIn),
-    f(i) ~ read_excel(fileIn, sheet = i) %>%
-        pull(!!sym(name)) %>%
-        na.omit() %>%
-        func_format() %>%
-        .[. %in% Features(seurat)]
-)
-
-plot_module(seurat, l_bcell_markers)
+plot_module(seurat, jcb_markers)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}

@@ -281,7 +281,11 @@ clustree_sc(seurat2, prefix_cl, clusters)
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_res(seurat, clusters)
-plot_res(seurat, clusters[c(3, 5, 6, 8)])
+plot_res(
+  seurat, 
+  clusters[c(3, 5, 6, 8)],
+  ncol = 2
+  )
 plot_res(
   seurat,
   clusters,
@@ -311,14 +315,14 @@ Idents(seurat) %>%
 plot_bar_sc(seurat)
 ```
 
-```{r, fig.height = 1, fig.width = 2}
-plot_dim(seurat, cols = pal_discrete_sc) + 
-  NoLegend() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),
-    axis.text = element_blank(),
-    axis.ticks = element_blank()
-  )
+```{r, fig.height = 2, fig.width = 2}
+plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+    NoLegend() +
+    theme(
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    )
 ```
 
 ```{r}
@@ -335,19 +339,7 @@ plot_dim(
     ncol = 4
 ) + NoLegend()
 
-table(Idents(seurat), seurat$cell_subtype_formatted) %>%
-    as.data.frame.matrix() %>%
-    t() %>%
-    as.data.frame() %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        colour =  palette_continuous(gray = FALSE)(length(unique(seurat[[]][, "cell_subtype_formatted"]))),
-        pct  = FALSE,
-        threshold = 1,
-        digits = 1
-    ) + labs(y = "% Cells")
+plot_ident_celltype(seurat)
 
 tab <- table(
   Assigned = seurat[[]][, "cell_subtype_formatted"],
@@ -370,60 +362,23 @@ plot_dim(
 
 ## Batch effect 2
 ```{r}
-table(seurat$Patient)
-meta <- seurat@meta.data
-meta$cell_id <- rownames(meta)
-
-cells_to_keep <- meta %>%
-    group_by(Patient) %>%
-    sample_n(size = min(table(seurat$Patient), n()), replace = FALSE) %>%
-    pull(cell_id)
-
-seurat_subset <- subset(seurat, cells = cells_to_keep)
+seurat_subset <- subsampling_sc(seurat)
 
 plot_dim(
   object = seurat_subset,
-  split.by = 'Patient',
-  label = FALSE
+  col = pal_discrete_sc
 ) + NoLegend()
 
+bar_ident_group(
+  seurat_subset,
+  idents = snn_cluster
+)
 
-df_cl <- list.map(
-    unique(seurat_subset$Patient),
-    f(x) ~ filter(seurat_subset[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
-) %>%
-    list.rbind() %>%
-    as.data.frame()
-    
-df_cl %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        pct  = FALSE,
-        digits = 1
-    ) + labs(y = "% Cells") +
-    geom_hline(yintercept = 50, color = "gray")
-
-df_cl <- list.map(
-    unique(seurat$Patient),
-    f(x) ~ filter(seurat[[]], Patient == x) %>% pull(all_of(snn_cluster)) %>% fct_drop() %>% table()
-) %>%
-    list.rbind() %>%
-    as.data.frame()
-    
-df_cl %>%
-    t() %>%
-    as.data.frame() %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        # colour = palette_discrete(),
-        colour = pal_discrete_sc,
-        pct  = FALSE,
-        digits = 1
-    ) + labs(y = "% Cells")
+bar_group_ident(
+  seurat_subset,
+  idents = snn_cluster,
+  colour = pal_discrete_sc
+)
 ```
 
 ## QC
@@ -439,29 +394,16 @@ plot_sc_violin(
 ## Markers
 ### From dataset
 ```{r, message = FALSE}
-# fileIn <- file.path(path, "41467_2021_27232_MOESM4_ESM.xlsx")
-# name <- "symbol"
-fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
-name <- "Gene name"
-
-l_bcell_markers <- list.map(
-    excel_sheets(fileIn),
-    f(i) ~ read_excel(fileIn, sheet = i) %>%
-        pull(!!sym(name)) %>%
-        na.omit() %>%
-        func_format() %>%
-        .[. %in% Features(seurat)]
-)
-
-plot_module(seurat, l_bcell_markers)
+data("jcb_markers")
+plot_module(seurat, jcb_markers)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-plot_markers(seurat, l_bcell_markers)
+plot_markers(seurat, jcb_markers)
 ```
 
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-plot_markers2(seurat, l_bcell_markers)
+```{r, message = FALSE}
+plot_markers2(seurat, jcb_markers)
 ```
 
 ## Cell markers
