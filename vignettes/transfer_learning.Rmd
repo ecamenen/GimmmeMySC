@@ -10,23 +10,13 @@ vignette: >
 ```{r config, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  fig.path = "figures/data_integration/",
-  fig.width = 8,
-  fig.height = 3.7,
-  dpi = 300
+  comment = "#>"
 )
 ```
 
 ```{r setup, message = FALSE}
 library("GimmmeMySC")
-library("GimmeMyPlot")
 library("Seurat")
-library("rlist")
-library("RColorBrewer")
-library("cowplot")
-library("kableExtra")
-library("readxl")
 
 n_dim <- 30
 pal_discrete_sc <- palette_discrete()[-7]
@@ -103,213 +93,7 @@ save(seurat, file = file.path(path, "integr_bcell_cycle.rda"))
 ```
 
 ```{r}
-load(file.path(path, "integr_bcell_cycle.rda"))
-seurat <- reorder_idents(seurat)
-seurat_old <- seurat
-plot_dim(seurat, cols = pal_discrete_sc)
-```
-
-```{r, fig.height = 2, fig.width = 2}
-plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
-  NoLegend() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),
-    axis.text = element_blank(),
-    axis.ticks = element_blank()
-  )
-```
-
-## UMAP per Type
-```{r}
-seurat_subset <- subsampling_sc(seurat, group.by = "Type")
-
-plot_dim(
-  object = seurat_subset,
-  split.by = 'Type',
-  col = pal_discrete_sc
-) + NoLegend()
-
-bar_ident_group(
-  seurat_subset, 
-  group.by = "Type", 
-  idents = "predicted.labels"
-)
-
-bar_group_ident(
-  seurat_subset,
-  group.by = "Type",
-  idents = "predicted.labels",
-  colour = pal_discrete_sc
-)
-```
-
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-data("l_bcell_markers")
-plot_marker_split(seurat, l_bcell_markers)
-```
-
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-data("jcb_markers")
-plot_marker_split(seurat, jcb_markers)
-```
-
-## Cell per cluster
-```{r}
-seurat <- subset(
-    seurat_old, 
-    subset = Type == "KO"
-)
-
-seurat <- reorder_idents(seurat, "RNA_snn_res.0.35")
-plot_dim(
-    seurat, 
-    split.by = "RNA_snn_res.0.35",
-    col = pal_discrete_sc,
-    pt.size = .25,
-    ncol = 4,
-    label = FALSE
-) + NoLegend()
-
-Idents(seurat) <- "predicted.labels"
-plot_dim(
-    seurat, 
-    split.by = "predicted.labels",
-    col = pal_discrete_sc,
-    pt.size = .25,
-    ncol = 4,
-    label = FALSE
-) + NoLegend()
-```
-
-```{r}
-reorder_idents(seurat, y = "RNA_snn_res.0.35") %>%
-  plot_dim(cols = pal_discrete_sc)
-seurat <- reorder_idents(seurat)
-seurat_old <- seurat
-plot_dim(seurat, cols = pal_discrete_sc)
-```
-
-## Scores
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-plot_sc_violin(
-    seurat,
-    features = paste0("prediction.score.", levels(Idents(seurat))),
-    nrow = 2,
-    ncol = 5
-)
-```
-
-## Confusing table
-```{r, fig.width = 3.7}
-confusing_table(seurat, as_percent = FALSE)
-confusing_table(seurat)
-confusing_table(seurat, margin = 2)
-```
-
-## Cell markers
-### From microarray
-```{r, message = FALSE}
-plot_module(seurat, jcb_markers)
-```
-
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-plot_ident_celltype(seurat)
-```
-
-## Misclassified
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
-l_seurat <- list.map(
-    levels(Idents(seurat)),
-    f(x) ~ {
-      res <- subset(seurat, idents = x)
-      Idents(res) <- "RNA_snn_res.0.35"
-      return(res)
-    }
-)
-
-p <- list.map(
-    l_seurat,
-    f(x, y, z) ~ plot_dim(x, pt.size = 1) +
-      ggtitle(z)
-)
-
-plot_grid(plotlist = p, ncol = 3, nrow = 2, align = "hv")
-plot_grid(plotlist = p[8:length(p)], ncol = 3, nrow = 2, align = "hv")
-```
-
-```{r}
-tmp <- list.map(
-    l_seurat,
-    f(x, y, z) ~cluster_size(Idents(x))  %>%
-     rbind("Total" = c(n = colSums(.[, "n", drop = FALSE]), freq = "")) %>% 
-        rownames_to_column(var = "Group") %>%
-        mutate(Cluster = z)
-    ) %>%
-     list_rbind()
-
-
-cluster_counts <- tmp %>% 
-  count(Cluster) %>% 
-  pull(n)
-
-group_names <- paste("Cluster", unique(tmp$Cluster))
-
-p <- tmp %>% 
-    select(-Cluster) %>%
-    kable_sc()  %>%
-  pack_rows(
-    index = setNames(cluster_counts, group_names),
-    label_row_css = "background-color: #666; color: #fff;"
-  )
-save_kable(
-    p,
-    file = file.path(path_fig, "table_cells.png"),
-    zoom = 2
-)
-p
-```
-
-```{r}
-cluster_marker_genes0 <- list.map(
-  l_seurat,
-  f(x, y, z) ~ {
-      cts <- AverageExpression(
-            x,
-            assay = assay,
-            slot = "data",
-            return.seurat = FALSE
-        ) %>% 
-          pluck(assay) %>%
-          as.data.frame() %>% 
-          rename_with(~ str_remove(., "^g")) %>%
-          mutate(gene = rownames(.))
-
-    FindConservedMarkers(
-     x,
-    ident.1 = "1",
-    grouping.var = "Patient",
-    assay = assay,
-    # grouping.var = "Type",
-    logfc.threshold = .Machine$double.xmin
-  ) %>%
-    mutate(
-      cluster = z,
-      gene = rownames(.),
-      log2FoldChange = rowMeans(select(., ends_with("avg_log2FC")), na.rm = TRUE),
-      padj = rowMeans(select(., ends_with("p_val_adj")), na.rm = TRUE),
-      `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
-      `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
-    ) %>%
-  left_join(set_colnames(cts, c("exp.1", "exp.2", "gene")), by = "gene")
-  }
-)
-cluster_marker_genes <- list.rbind(cluster_marker_genes0)
-min_p <- cluster_marker_genes %>%
-  filter(padj > 0) %>%
-  summarise(min_padj = min(padj)) %>%
-  pull(min_padj)
-
-cluster_marker_genes$padj[which(cluster_marker_genes$padj == 0)] <- min_p
+cluster_marker_genes <- dea_sc(seurat, ids)
 ```
 
 ```{r}
@@ -353,6 +137,7 @@ p3 <- list.map(
         theme_multiple(ncol = 3, nrow = 2, title = z)
 )
 ```
+
 ```{r}
 p2 <- list.rbind(top50) %>% 
     pull("gene") %>% 
@@ -494,7 +279,7 @@ plot_dot(
 ```
 
 ### Marker plots
-```{r}
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
 l_bcell_markers <- list.map(l_deg, pull(., Gene) %>% unique())
 plot_marker_split(seurat, l_bcell_markers, n_lines = length(l_deg0))
 ```
