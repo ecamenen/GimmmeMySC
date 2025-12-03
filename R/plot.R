@@ -458,7 +458,9 @@ confusing_table <- function(
         new_ident = "predicted.labels",
         old_ident = "RNA_snn_res.0.35",
         as_percent = TRUE,
-        margin = 1
+        margin = 1,
+        cluster_rows = FALSE,
+        cluster_cols = FALSE
 ) {
     tab_raw <- table(
         x[[]][, old_ident],
@@ -479,9 +481,10 @@ confusing_table <- function(
         tab <- tab_raw
         tab_log <- log10(tab_raw + 1)
         breaks <- seq(min(tab_log), max(tab_log), length.out = 12)
-        raw_range <- seq(min(tab_raw), max(tab_raw), length.out = length(breaks))
         display_matrix <- tab_log
-        legend_labels <- round(raw_range)
+        legend_labels <- 10^breaks - 1
+        legend_labels <- round(legend_labels)
+        legend_labels[legend_labels < 0] <- 0
     }
 
 
@@ -494,11 +497,28 @@ confusing_table <- function(
         breaks = breaks,
         legend_breaks = legend_breaks,
         legend_labels = legend_labels,
-        cluster_rows = FALSE,
-        cluster_cols = FALSE,
         display_numbers = tab,
         na_col = "white",
         number_color = "white",
-        fontsize_number = 10
+        fontsize_number = 10,
+        cluster_rows = cluster_rows,
+        cluster_cols = cluster_cols
+    )
+}
+
+heatmap_celltype <- function(
+        x,
+        new_ident = "predicted.labels",
+        as_percent = FALSE,
+        ...
+    ) {
+    confusing_table(
+        x,
+        new_ident = new_ident,
+        old_ident = "cell_subtype_formatted",
+        cluster_rows = TRUE,
+        cluster_cols = TRUE,
+        as_percent = as_percent,
+        ...
     )
 }

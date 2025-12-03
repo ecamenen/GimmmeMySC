@@ -39,7 +39,6 @@ library(kableExtra)
 SCT <- FALSE
 assay <- "RNA"
 
-
 path <- file.path(
   dirname(getwd()),
   "inst",
@@ -285,7 +284,6 @@ plot_res(
 save(seurat, file = file.path(path, "type_integrated.rda"))
 ```
 
-
 ```{r clus_int_res}
 best_resolution <- 0.35
 snn_cluster <- paste0(
@@ -334,14 +332,9 @@ plot_dim(
 
 plot_ident_celltype(seurat)
 
-tab <- table(
-  Assigned = seurat[[]][, "cell_subtype_formatted"],
-  Clusters = Idents(seurat)
-)
-pheatmap(
-  log10(tab + 10), 
-  color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10)
-)
+heatmap_celltype(seurat, snn_cluster, as_percent = FALSE)
+heatmap_celltype(seurat, snn_cluster)
+heatmap_celltype(seurat, snn_cluster, margin = 2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}

@@ -341,14 +341,7 @@ plot_dim(
 
 plot_ident_celltype(seurat)
 
-tab <- table(
-  Assigned = seurat[[]][, "cell_subtype_formatted"],
-  Clusters = Idents(seurat)
-)
-pheatmap(
-  log10(tab + 10), 
-  color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10)
-)
+heatmap_celltype(seurat, snn_cluster)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}

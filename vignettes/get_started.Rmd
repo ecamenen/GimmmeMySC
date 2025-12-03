@@ -724,22 +724,9 @@ plot_dim(
     ncol = 4
 ) + NoLegend()
 
-table(Idents(seurat), seurat$cell_subtype_formatted) %>%
-    as.data.frame.matrix() %>%
-    t() %>%
-    as.data.frame() %>%
-    mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
-    plot_bar_2cat(
-        count = TRUE,
-        stats = FALSE,
-        colour =  palette_continuous(gray = FALSE)(length(unique(seurat[[]][, "cell_subtype_formatted"]))),
-        pct  = FALSE,
-        threshold = 1,
-        digits = 1
-    ) + labs(y = "% Cells")
+plot_ident_celltype(seurat)
 
-tab <- table(Assigned = seurat[[]][, "cell_type"], Clusters = Idents(seurat))
-pheatmap(log10(tab + 10), color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10))
+heatmap_celltype(seurat, snn_cluster)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
