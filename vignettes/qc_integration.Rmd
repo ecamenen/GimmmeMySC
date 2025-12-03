@@ -37,11 +37,15 @@ path <- file.path(
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_integration")
 
 source(file.path(path, "conf.R"))
+# new_ident <- "predicted.labels"
+# old_ident <- "RNA_snn_res.0.35"
+new_ident <- "RNA_snn_res.0.35"
+old_ident <- "old_labels"
 ```
 
 ```{r}
-load(file.path(path, "integr_bcell_cycle.rda"))
-seurat <- reorder_idents(seurat)
+load(file.path(path, "type_integrated.rda"))
+seurat <- reorder_idents(seurat, new_ident)
 seurat_old <- seurat
 plot_dim(seurat, cols = pal_discrete_sc)
 ```
@@ -69,13 +73,13 @@ plot_dim(
 bar_ident_group(
   seurat_subset, 
   group.by = "Type", 
-  idents = "predicted.labels"
+  idents = new_ident
 )
 
 bar_group_ident(
   seurat_subset,
   group.by = "Type",
-  idents = "predicted.labels",
+  idents = new_ident,
   colour = pal_discrete_sc
 )
 ```
@@ -97,20 +101,20 @@ seurat <- subset(
     subset = Type == "WT"
 )
 
-seurat <- reorder_idents(seurat, "RNA_snn_res.0.35")
+seurat <- reorder_idents(seurat, old_ident)
 plot_dim(
     seurat, 
-    split.by = "RNA_snn_res.0.35",
+    split.by = old_ident,
     col = pal_discrete_sc,
     pt.size = .25,
     ncol = 4,
     label = FALSE
 ) + NoLegend()
 
-Idents(seurat) <- "predicted.labels"
+Idents(seurat) <- new_ident
 plot_dim(
     seurat, 
-    split.by = "predicted.labels",
+    split.by = new_ident,
     col = pal_discrete_sc,
     pt.size = .25,
     ncol = 4,
@@ -119,15 +123,15 @@ plot_dim(
 ```
 
 ```{r}
-reorder_idents(seurat, y = "RNA_snn_res.0.35") %>%
+reorder_idents(seurat, y = old_ident) %>%
   plot_dim(cols = pal_discrete_sc)
-seurat <- reorder_idents(seurat)
+seurat <- reorder_idents(seurat, new_ident)
 seurat_old <- seurat
 plot_dim(seurat, cols = pal_discrete_sc)
 ```
 
 ## Scores
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
+```{r, eval = FALSE, message = FALSE, fig.height = 6, fig.width = 12}
 plot_sc_violin(
     seurat,
     features = paste0("prediction.score.", levels(Idents(seurat))),
@@ -137,10 +141,10 @@ plot_sc_violin(
 ```
 
 ## Confusing table
-```{r, fig.width = 3.7}
-confusing_table(seurat, as_percent = FALSE)
-confusing_table(seurat)
-confusing_table(seurat, margin = 2)
+```{r, fig.width = 4.5}
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, as_percent = FALSE)
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, )
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, margin = 2)
 ```
 
 ## Cell markers
@@ -159,7 +163,7 @@ l_seurat <- list.map(
     levels(Idents(seurat)),
     f(x) ~ {
       res <- subset(seurat, idents = x)
-      Idents(res) <- "RNA_snn_res.0.35"
+      Idents(res) <- old_ident
       return(res)
     }
 )
