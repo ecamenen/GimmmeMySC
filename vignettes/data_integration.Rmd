@@ -1,0 +1,341 @@
+---
+title: "data_integration"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{data_integration}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/data_integration/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Load data
+```{r setup, message = FALSE}
+library(GimmmeMySC)
+library(ggraph)
+library(pheatmap)
+library(readxl)
+library("slingshot")
+library(SeuratWrappers)
+library(monocle3)
+library(RColorBrewer)
+library(rlist)
+library(Seurat)
+library(cowplot)
+library(GimmeMyPlot)
+library(scDblFinder)
+library(clustree)
+library(kableExtra)
+
+SCT <- TRUE
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+source(file.path(path, "conf.R"))
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "data_subset")
+pal_discrete_sc <- palette_discrete()[-7]
+```
+
+```{r}
+load(file.path(path, "wt_bcell_cycle.rda"))
+wt <- seurat
+wt$old_labels <- Idents(wt)
+
+load(file.path(path, "ko_bcell_cycle.rda"))
+ko <- seurat
+ko$old_labels <- Idents(ko)
+
+wt@assays$SCT@scale.data <- matrix()
+ko@assays$SCT@scale.data <- matrix()
+
+seurat <- merge(wt, ko)
+DefaultAssay(seurat) <- "RNA"
+```
+
+## Normalization
+```{r}
+if (!SCT) {
+      seurat <- NormalizeData(seurat) %>%
+        FindVariableFeatures() %>%
+        ScaleData()
+      assay <- "RNA"
+} else {
+  seurat <- SCTransform(seurat)
+  assay <- "SCT"
+}
+```
+
+## Dimension reduction
+```{r}
+seurat <- RunPCA(
+  seurat,
+  reduction_key = "Dim. ",
+  npcs = max_dim
+)
+```
+
+```{r}
+eig <- seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100
+plot_pca_qc(eig)
+
+cumsum(eig) %>% .[n_dim] %>% round(1)
+cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
+```
+
+```{r, fig.height = 6, fig.width = 12}
+DimHeatmap(seurat, dims = seq(15), cells = 500, balanced = TRUE)
+DimHeatmap(seurat, dims = 16:30, cells = 500, balanced = TRUE)
+DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
+```
+
+## UMAP before
+```{r}
+seurat <- RunUMAP(
+  seurat, 
+  dims = seq(n_dim)
+)
+Idents(seurat) <- "Type"
+plot_dim(
+  seurat,
+  label = FALSE
+)
+plot_dim(
+  seurat,
+  split.by = 'Type',
+  label = FALSE
+) + NoLegend()
+```
+
+## Integration
+```{r}
+integration_method <- "RPCA"
+seurat <- IntegrateLayers(
+    object = seurat, 
+    method = get(paste0(integration_method, "Integration")),
+    new.reduction = integration_method,
+    # reduction.key = "Dim. ",
+    orig.reduction = "pca",
+    dims.to.integrate = seq(n_dim),
+    normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+    verbose = TRUE
+)
+
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+```
+
+## UMAP
+```{r}
+seurat <- RunUMAP(
+  seurat, 
+  dims = seq(n_dim),
+  reduction = integration_method
+)
+plot_dim_cycle(seurat)
+```
+
+## Annotation
+```{r}
+Idents(seurat) <- "cell_subtype_formatted"
+plot_bar_sc(seurat)
+
+Idents(seurat) %>% 
+    cluster_size() %>% 
+    kable_sc(file = file.path(path_fig, "table_cells.png"))
+
+p1 <- plot_dim(seurat)
+p1
+```
+
+```{r, fig.height = 5, fig.width = 10}
+list.map(
+    unique(seurat$cell_type_formatted) %>% na.omit(),
+    f(x) ~subset(seurat, cell_type_formatted == x)
+    ) %>%
+list.map(
+    f(x, y, z) ~
+        plot_dim(
+          x,
+          cols = rep(pal_discrete_sc, 5),
+          pt.size = .25
+          ) +
+        labs(title = z, x = NULL) 
+) %>%
+  plot_grid(plotlist = ., align = "hv", nrow = 2)
+```
+
+```{r}
+b_cell <- subset(seurat, cell_type_formatted == "B cell")
+
+plot_dim(
+  b_cell,
+  cols = rep(palette_discrete()[-7], 5)
+  ) +
+labs(title = "B cell", x = NULL)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_dim(
+    b_cell,
+    split.by = "cell_subtype_formatted",
+    label = FALSE,
+    ncol = 3
+) +
+    NoLegend()
+```
+
+## Clustering
+```{r clus_int}
+resolution2 <- seq(.1, .4, 0.05)
+resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
+resolution_tot <- c(resolution2, resolution)
+seurat <- FindNeighbors(
+  seurat,
+  reduction = integration_method, 
+  dims = seq(n_dim)
+)
+
+seurat <- FindClusters(
+  seurat,
+  verbose = FALSE,
+  algorithm = 3,
+  resolution = resolution_tot,
+  graph.name = tail(names(seurat@graphs), 1)
+)
+
+prefix_cl <- paste0(assay, "_snn_res.")
+
+seurat2 <- seurat
+cols_to_remove <- paste0(prefix_cl, resolution[-1])
+seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
+
+select(seurat@meta.data, contains(prefix_cl)) %>%
+     list.mapv(f(x) ~ levels(x) %>% length()) %>% 
+    set_names(names(.) %>% str_remove(prefix_cl)) %>%
+  plot_bar_sc0(label_y = "value", sort = "desc")
+```
+
+```{r}
+clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
+kable_cluster(
+  seurat,
+  clusters, 
+  file = file.path(path_fig, "clusters.png")
+)
+grep(prefix_cl, colnames(seurat2[[]]), value = TRUE) %>% sort() %>%
+  kable_cluster(
+    seurat,
+    ., 
+    file = file.path(path_fig, "clusters2.png")
+)
+```
+
+```{r, fig.width = 20, fig.height = 10}
+clustree_sc(seurat, prefix_cl, clusters)
+```
+
+```{r, fig.width = 16, fig.height = 8}
+clustree_sc(seurat2, prefix_cl, clusters)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_res(seurat, clusters)
+plot_res(
+  seurat, 
+  clusters[c(3, 5, 6, 8)],
+  ncol = 2
+  )
+plot_res(
+  seurat,
+  clusters,
+  cols = scales::hue_pal()
+)
+```
+
+```{r clus_int_res}
+best_resolution <- 0.35
+snn_cluster <- paste0(
+  assay,
+  "_snn_res.",
+  best_resolution
+)
+
+Idents(seurat) <- seurat[[]][, snn_cluster] #%>%
+  # as.character() %>% 
+  # as.numeric() %>% 
+  # `+`(1) %>%
+  # str_replace_all("^(\\d)$", "0\\1") %>%
+  # paste("G", .)
+
+Idents(seurat) %>% 
+    cluster_size() %>%
+    kable_sc(file = file.path(path_fig, "table_cell_cluster.png"))
+
+plot_bar_sc(seurat)
+```
+
+```{r, fig.height = 2, fig.width = 2}
+plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+    NoLegend() +
+    theme(
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    )
+```
+
+```{r}
+p2 <- plot_dim(seurat, cols = pal_discrete_sc)
+p2
+
+p2 + p1
+
+plot_dim(
+    seurat,
+    split.by = snn_cluster,
+    cols = pal_discrete_sc,
+    label = FALSE,
+    ncol = 4
+) + NoLegend()
+
+plot_ident_celltype(seurat)
+
+tab <- table(
+  Assigned = seurat[[]][, "cell_subtype_formatted"],
+  Clusters = Idents(seurat)
+)
+pheatmap(
+  log10(tab + 10), 
+  color = colorRampPalette(c('white', brewer.pal(9, "Reds")))(10)
+)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_dim(
+    seurat,
+    split.by = "cell_subtype_formatted",
+    cols = pal_discrete_sc,
+    ncol = 3
+)
+```
+
+```{r}
+save(seurat, file = file.path(path, "type_integrated.rda"))
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
