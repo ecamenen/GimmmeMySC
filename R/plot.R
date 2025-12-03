@@ -2,7 +2,7 @@
 plot_sc_violin <- function(
         x,
         assay = "RNA",
-        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
+        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial", "percent_ribosomal"),
         normalize = NULL,
         nrow = 3,
         ncol = 3,

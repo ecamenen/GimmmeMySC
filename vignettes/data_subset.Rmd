@@ -379,8 +379,9 @@ bar_group_ident(
 plot_sc_violin(
     seurat,
     nrow = 2,
+    ncol = 2,
     cols = pal_discrete_sc,
-    normalize = c(10, 10, 10)
+    normalize = c(10, 10, 10, 10)
 )
 ```
 
@@ -502,6 +503,10 @@ plot(
 )
 # lines(SlingshotDataSet(sce), lwd = 4, col = "black")
 lines(SlingshotDataSet(sce), lwd = 4, type = 'lineages', col = "black",  show.constraints = TRUE)
+```
+
+```{r, eval = FALSE}
+save(seurat, file = file.path(path, "wt_bcell_cycle.rda"))
 ```
 
 ## Session information

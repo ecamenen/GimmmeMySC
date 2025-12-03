@@ -458,7 +458,7 @@ format_dea_sc <- function(
 #' @export
 plot_mqc <- function(
         x,
-        features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial"),
+        features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal"),
         file = NULL
     ) {
     p <- print_sc_stats(x, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
@@ -490,7 +490,7 @@ plot_mqc <- function(
         x,
         cols = col_inds,
         nrow = 1,
-        normalize = c(10, 10, 10)
+        normalize = c(10, 10, 10, 10)
     )
 }
 

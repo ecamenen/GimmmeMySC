@@ -55,6 +55,7 @@ list_seurat <-  list.map(
       tmp <- Read10X_h5(count_matrix) %>%
       CreateSeuratObject()
       tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
+      tmp[["percent_ribosomal"]] <- PercentageFeatureSet(tmp, pattern = "^((RP[LS])|(Rp[ls]))")
       tmp
     }
 )
