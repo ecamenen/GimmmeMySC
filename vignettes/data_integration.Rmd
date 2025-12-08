@@ -179,6 +179,22 @@ plot_dim(
   split.by = 'Type',
   label = FALSE
 ) + NoLegend()
+
+p <- plot_feature(seurat, pt.size = .25, c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")) %>%
+        list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
+plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
+```
+
+```{r}
+Idents(seurat) <- "Patient"
+plot_sc_violin(
+    seurat,
+    nrow = 2,
+    ncol = 2,
+    cols = pal_discrete_sc,
+    group.by = "Patient",
+    normalize = c(10, 10, 10, 10)
+)
 ```
 
 ## Annotation
@@ -353,7 +369,7 @@ plot_dim(
 
 plot_ident_celltype(seurat)
 
-heatmap_celltype(seurat, snn_cluster, as_percent = TRUE)
+heatmap_celltype(seurat, snn_cluster, as_percent = FALSE)
 heatmap_celltype(seurat, snn_cluster)
 heatmap_celltype(seurat, snn_cluster, margin = 2)
 ```

@@ -106,21 +106,26 @@ plot_res <- function(seurat, clusters, cols = palette_continuous(), ncol = 4, ..
 
 #' @export
 plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
+
+    res <- AddModuleScore(
+        object = x,
+        features = markers,
+        name = names(markers)
+    )
+
+    score_cols <- paste0(names(markers), seq_along(names(markers)))
+
     list.map(
-        markers,
-        f(i, j, k) ~ {
-            tmp <- list(i) %>%
-                AddModuleScore(x, features = .)
-            stats <- quantile(tmp$Cluster1, probs = c(0.01, 0.99))
-            tmp <- subset(tmp, subset = Cluster1 >= stats[1] & Cluster1 <= stats[2])
+        score_cols,
+        f(i, j) ~ {
             plot_violin_sc(
-                object = tmp,
-                features = "Cluster1",
+                object = res,
+                features = i,
                 cols = cols,
                 ...
             ) %>%
                 pluck(1) +
-                labs(title = str_remove_all(k, " ?vs_all"))
+                labs(title = names(markers)[j])
         }
     ) %>%
     plot_grid(
@@ -576,4 +581,24 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
     print(p2)
 
     plot_mviolin(x, markers, split.by = split.by)
+}
+
+#' @export
+reorder_celltype <- function(seurat) {
+    b_cell <- c("B.FRF", "B.FRE", "preB.FRD", "preB.FRC", "proB.FRBC", "proB.FRA", "proB.CLP")
+
+    all_levels <- unique(seurat$cell_subtype_formatted)
+    other_levels <- setdiff(all_levels, b_cell)
+
+    sc <- grep("^SC\\.", other_levels, value = TRUE)
+    dc <- grep("^DC\\.", other_levels, value = TRUE)
+
+    other <- setdiff(other_levels, c(sc, dc))
+
+    c(
+        b_cell,
+        sort(sc),
+        sort(dc),
+        sort(other)
+    )
 }

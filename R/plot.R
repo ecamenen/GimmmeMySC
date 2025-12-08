@@ -180,6 +180,7 @@ plot_feature <- function(
      alpha = .5,
      ...
     ) {
+    features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
     FeaturePlot(
         object = object,
         features =  features,
@@ -194,8 +195,8 @@ plot_feature <- function(
             ~theme_sc_dim(.) +
                 labs(x = NULL, y = NULL) +
                 scale_color_gradientn(colors = cols)
-        ) #%>%
-        # set_names(features)
+        ) %>%
+         set_names(features)
 }
 
 #' @export
@@ -393,7 +394,8 @@ plot_ident_celltype <- function(x) {
             colour =  palette_continuous(gray = FALSE)(length(unique(x[[]][, "cell_subtype_formatted"]))),
             pct  = FALSE,
             threshold = 1,
-            digits = 1
+            digits = 1,
+            legend = reorder_celltype(seurat)
         ) +
         labs(y = "% Cells")
 }
