@@ -506,10 +506,10 @@ confusing_table <- function(
     )
 }
 
+#' @export
 heatmap_celltype <- function(
         x,
         new_ident = "predicted.labels",
-        as_percent = FALSE,
         ...
     ) {
     confusing_table(
@@ -518,7 +518,6 @@ heatmap_celltype <- function(
         old_ident = "cell_subtype_formatted",
         cluster_rows = TRUE,
         cluster_cols = TRUE,
-        as_percent = as_percent,
         ...
     )
 }
