@@ -1,0 +1,373 @@
+---
+title: "QC before"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{qc_before}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/qc_before/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r init, message = FALSE}
+library("GimmmeMySC")
+library("Seurat")
+library("scDblFinder")
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+
+source(file.path(path, "conf.R"))
+assay <- "SCT"
+SCT <- TRUE
+
+l_samples <- list.files(path) %>%  
+  .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
+  .[str_detect(., "KO")]
+```
+
+## Load data
+```{r data}
+list_seurat <-  list.map(
+    l_samples,
+    f(x) ~{
+      count_matrix <- file.path(path, x, "outs") %>%
+        list.files(full.names =TRUE) %>% 
+        .[str_detect(., "filtered_feature_bc_matrix.h5")]
+      tmp <- Read10X_h5(count_matrix) %>%
+      CreateSeuratObject()
+      tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
+      tmp[["percent_ribosomal"]] <- PercentageFeatureSet(tmp, pattern = "^((RP[LS])|(Rp[ls]))")
+      tmp
+    }
+)
+```
+
+```{r data}
+seurat <- merge(
+  x = list_seurat[[1]],
+  y = list_seurat[-1],
+  add.cell.ids = paste0(
+      types,
+      "_",
+      # str_remove_all(l_samples, types) %>% str_remove_all("_")
+      l_samples
+    )
+)
+
+seurat$sample <- rownames(seurat[[]])
+seurat[[]] <- separate(
+  seurat[[]], 
+  col = "sample", 
+  into = c("Type", "Patient", "Barcode"),
+  sep = "_"
+)
+```
+
+## QC
+### Filter cells with low or too high genes
+```{r qc_plot}
+plot_mqc(seurat)
+```
+
+```{r}
+seurat_old <- seurat
+list_seurat0 <- list_seurat
+features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial")
+list_seurat <- list.map(
+    list_seurat,
+    f(i) ~{
+      stats_qc <- sapply(
+        features,
+        function(x) quantile(
+            i[[x]], 
+            probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1), 
+            na.rm = TRUE)
+    )
+    subset(
+      i, 
+      subset = 
+        nFeature_RNA > stats_qc["10%", "nFeature_RNA"] &
+        nFeature_RNA < stats_qc["90%", "nFeature_RNA"] & 
+        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"] & 
+        nCount_RNA < stats_qc["90%", "nCount_RNA"]
+  )
+  }
+)
+
+list.mapv(
+  seq_along(list_seurat0),
+  f(i) ~ print_filtered_cells(list_seurat0[[i]], list_seurat[[i]])
+)
+
+seurat <- integrate_multisamples(list_seurat, paste0(types, "_", l_samples))
+```
+
+### Doublets
+```{r}
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+sce <- scDblFinder(
+  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  samples = seurat@active.ident,
+  aggregateFeatures = FALSE,
+  k = NULL,
+  processing = "normFeatures",
+  dims = 20
+)
+table(sce$scDblFinder.class)
+
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+
+df_doublets <- list.map(
+    unique(seurat$Patient),
+    f(x) ~ filter(seurat[[]], Patient == x) %>% pull(doublets) %>% table()
+) %>% 
+    list.rbind() %>%
+    as.data.frame() %>%
+    rbind(".Total" = colSums(.))
+
+t(df_doublets) %>% 
+  plot_bar_2cat(
+    count = TRUE,
+    stats = FALSE,
+    colour = brewer.pal(3, "Set1")[c(1, 3)],
+    colour_text = "black"
+  )
+```
+
+```{r}
+# visualize doublets
+# plot_dim(
+#    seurat, 
+#   group.by = "doubletFinder"
+# )
+
+# number of singlets and doublets
+Idents(seurat) <- "doublets"
+plot_sc_violin(
+    seurat,
+    cols = col_inds,
+    nrow = 1,
+    normalize = c(10, 10, 10)
+)
+Idents(seurat) <- "Patient"
+seurat <- subset(seurat, subset = doublets == "singlet")
+```
+
+### QC after
+```{r}
+plot_mqc(seurat)
+```
+
+```{r qc_sub}
+(ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
+
+list.map(
+    l_samples,
+    f(x) ~ list.map(
+      c(seurat_old, seurat),
+      f(i) ~ filter(i[[]], Patient == x) %>% nrow()
+      ) %>% 
+    list.rbind()
+) %>% 
+    list.cbind() %>%
+    as.data.frame() %>% 
+    set_colnames(l_samples) %>%
+    t() %>%
+    as.data.frame() %>%
+    rbind(`.Total` = colSums(.)) %>%
+    mutate(V3 = V1 - V2) %>%
+    select(-V1) %>%
+    t() %>%
+    as.data.frame() %>%
+    set_rownames(c("Kept", "Removed"))  %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE
+    )
+```
+
+### Negative / positive control genes
+```{r}
+g_neg <- c("DRD1", "ALB", "MYL1", "NPPA") %>% sort()
+g_pos <- c("GAPDH", "ACTB", "TMSB4X", "B2M") %>% sort()
+g_ctr <- c(g_neg, g_pos)
+g_sex <- c("XIST", "DDX3Y")
+list.map(
+    list(g_sex, g_ctr),
+    ~plot_dot(seurat, features = func_format(.), group.by = "Patient")
+) %>%
+    plot_grid(plotlist = ., ncol = 2, align = "hv")
+```
+
+## Gene filtering
+```{r filter_mark}
+# seurat[["RNA"]] <- split(seurat[["RNA"]], f = seurat$Patient)
+if (!SCT) {
+      seurat <- NormalizeData(seurat) %>%
+      FindVariableFeatures()
+}
+    variable_plot(seurat)
+```
+
+## PCA
+```{r pca}
+if (!SCT) {
+  if (assay == "sketch") {
+    seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+  seurat <- ScaleData(seurat)
+} else {
+  seurat <- SCTransform(seurat, method = "glmGamPoi", assay = "RNA")
+  assay <- "SCT"
+  DefaultAssay(seurat) <- "SCT"
+  if (assay == "sketch") {
+     seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+}
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+```
+
+## Cell cycle
+```{r}
+seurat <- CellCycleScoring(
+  seurat,
+  s.features = s.genes, 
+  g2m.features = g2m.genes, 
+  set.ident = TRUE
+)
+seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
+```
+
+
+
+## Automatic annotation
+### Database processing
+```{r}
+if (species == "human") {
+    hpca <- celldex::HumanPrimaryCellAtlasData()
+    dice <- celldex::DatabaseImmuneCellExpressionData()
+} else {
+    hpca <- celldex::ImmGenData()
+    dice <- celldex::MouseRNAseqData()
+}
+
+hpca$label.main <- format_annot(hpca$label.main)
+dice$label.main <- format_annot(dice$label.main)
+hpca$label.fine <- format_annot(hpca$label.fine)
+dice$label.fine <- format_annot(dice$label.fine)
+
+bcell_subtypes <- unique(hpca$label.fine) %>%
+  .[str_detect(., "FR[A-F]|CLP")] %>%
+  sort() %>%
+  rev()
+is_bcell <- str_starts(hpca$label.fine, "B cell")
+keep_cells <- (!is_bcell) | (hpca$label.fine %in% bcell_subtypes)
+
+hpca2 <- hpca[, keep_cells]
+
+cts <- GetAssayData(seurat, layer = 'counts')
+```
+
+### Modelling
+```{r}
+singleR_main <- SingleR(
+  test = cts,
+  ref = hpca,
+  labels = hpca$label.main
+)
+
+singleR_fine <- SingleR(
+  test = cts,
+  ref = hpca2,
+  labels = hpca2$label.fine
+)
+
+annotation <- list(singleR_main = singleR_main, singleR_fine = singleR_fine)
+saveRDS(annotation, file = file.path(path, paste(project,  "_annotation.rds")))
+```
+
+### Visualization
+```{r}
+label_type <- "labels"
+x1 <- "singleR_fine"
+x <- get(x1)
+# x$pruned.labels
+# x$scores
+x0 <- as.data.frame(x) %>% select(all_of(label_type))
+seurat[[]][, x1] <- x0
+
+if (pull(x0, label_type) %>% str_detect("CL\\:\\d*") %>% any()) {
+  x0 <- rbind(as.data.frame(colData(hpca.ont)), as.data.frame(colData(dice.ont))) %>%
+      filter(str_detect(label.ont, paste0("^", unique(pull(x0, "labels")), "$", collapse = "|"))) %>% 
+      filter(!duplicated(label.ont)) %>%
+      mutate(labels = label.ont) %>%
+      mutate(label.main = label.main %>% 
+        str_replace_all("(cell)s", "\\1") %>%
+        str_replace_all("_", " ") %>%
+        str_replace_all("(Monocyte)s", "\\1")) %>%
+    mutate(label.main = label.fine %>% 
+        str_replace_all("(cell)s", "\\1") %>%
+        str_replace_all("_", " ") %>%
+        str_replace_all("\\:", ", ") %>%
+        str_replace_all("(Monocyte)s", "\\1")) %>%
+      left_join(x0) %>%
+      column_to_rownames()
+  label_type <- "label.fine"
+}
+
+to_remove <- table(pull(x0, label_type)) %>%
+    .[. < lim] %>%
+    names()
+x0[pull(x0, label_type) %in% to_remove, label_type] <- NA
+pull(x0, label_type) %>% 
+    cluster_size() %>% 
+    kable_sc()
+pull(x0, label_type) %>%
+    plot_bar_sc()
+if (x1 == "singleR_main") {
+seurat$cell_type <- 
+  x0[match(rownames(seurat[[]]), rownames(x0)), label_type]
+}
+
+to_keep <- paste(paste(unique(seurat$cell_type) %>% na.omit(),  "\\("), collapse = "|")
+x0[[label_type]][!str_detect(x0[[label_type]], to_keep)] <- NA
+
+seurat$b_cell <- seurat$cell_subtype
+seurat$b_cell[!str_detect(seurat$b_cell, "B cell")] <- NA
+seurat$b_cell <- keep_parenthesis(seurat$b_cell)
+
+x0 <- data.frame(labels = seurat$singleR_main)
+
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
+```
+
+```{r}
+plotDeltaDistribution(x)
+```
+
+## Save data
+```{r}
+usethis::use_data()
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```

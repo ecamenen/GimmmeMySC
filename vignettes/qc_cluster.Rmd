@@ -1,0 +1,189 @@
+---
+title: "qc_cluster"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{qc_cluster}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/qc_cluster/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+```{r setup}
+library(GimmmeMySC)
+library(Seurat)
+
+project <- "KO"
+data()
+
+pal_discrete_sc <- palette_discrete()[-7]
+# pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
+
+assay <- "RNA"
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+source(file.path(path, "conf.R"))
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
+```
+
+## Load data
+```{r data}
+load("C:/Users/etien/bin/GimmmeMySC/inst/extdata/ko_bcell_cycle.rda")
+seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+```
+
+## Clustering
+```{r, clus_int_res}
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+
+Idents(seurat) <- seurat[[]][, snn_cluster]
+
+Idents(seurat) %>% 
+    cluster_size() %>%
+    kable_sc(file = file.path(path_fig, "table_cell_cluster.png"))
+
+plot_bar_sc(seurat)
+```
+
+```{r, fig.height = 2, fig.width = 2}
+plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+    NoLegend() +
+    theme(
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    )
+```
+
+```{r}
+p2 <- plot_dim(seurat, cols = pal_discrete_sc)
+p2
+
+p2 + p1
+
+plot_dim(
+    seurat,
+    split.by = snn_cluster,
+    cols = pal_discrete_sc,
+    label = FALSE,
+    ncol = 4
+) + NoLegend()
+
+plot_ident_celltype(seurat)
+
+heatmap_celltype(seurat, snn_cluster, as_percent = FALSE)
+heatmap_celltype(seurat, snn_cluster)
+heatmap_celltype(seurat, snn_cluster, margin = 2)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_dim(
+    seurat,
+    split.by = "cell_subtype_formatted",
+    cols = pal_discrete_sc,
+    ncol = 3,
+    combine = FALSE
+)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_dim(
+    seurat,
+    split.by = "cell_type_formatted",
+    ncol = 3
+)
+```
+
+## Condition effect
+```{r}
+seurat_subset <- subsampling_sc(seurat)
+
+plot_dim(
+  object = seurat_subset,
+  group.by = split.by,
+  col = pal_discrete_sc
+) + NoLegend()
+
+bar_ident_group(
+  seurat_subset,
+  idents = snn_cluster
+)
+
+bar_group_ident(
+  seurat_subset,
+  idents = snn_cluster,
+  colour = pal_discrete_sc
+)
+```
+
+## QC
+```{r, message = FALSE}
+plot_sc_violin(
+    seurat,
+    nrow = 2,
+    ncol = 2,
+    normalize = c(10, 10, 10, 10)
+)
+```
+
+## Annotation
+```{r, eval = FALSE, fig.height = 12}
+singleR_fine <- readRDS(file.path(path, "singleR_fin_bcell.rds"))
+for (x in unique(Idents(seurat)))
+  plotScoreHeatmap(
+    singleR_fine,
+    labels.use = unique(seurat$cell_subtype_formatted),
+    # annotation_legend = FALSE,
+    cells.use = WhichCells(seurat, idents = x),
+    color = colorRampPalette(brewer.pal(9, "Reds"))(100),
+    # normalize = FALSE,
+    max.labels = 10,
+    # show.pruned = TRUE
+  )
+```
+
+## Markers
+### From dataset
+```{r, message = FALSE}
+data("jcb_markers")
+plot_module(seurat, jcb_markers)
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_markers(seurat, jcb_markers)
+```
+
+### B cell markers
+```{r, fig.height = 6, fig.width = 12}
+data("l_bcell_markers")
+plot_markers(seurat, l_bcell_markers)
+```
+
+## Save data
+```{r}
+usethis::use_data()
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```

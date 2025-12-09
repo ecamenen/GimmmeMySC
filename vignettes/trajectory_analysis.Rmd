@@ -1,0 +1,116 @@
+---
+title: "trajectory_analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{trajectory_analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library("GimmmeMySC")
+library("monocle3")
+library("slingshot")
+library("SeuratWrappers")
+
+data()
+```
+
+# Trajectory analysis
+## Monocle
+```{r}
+cds <- as.cell_data_set(seurat)
+```
+
+```{r}
+start_cluster <- 6
+names(cds@clusters$UMAP$partitions) <- colnames(cds)
+root_cells <- colnames(cds)[cds@clusters$UMAP$clusters == start_cluster]
+
+cds <- learn_graph(cds, use_partition = FALSE) %>%
+  order_cells(root_cells = root_cells)
+
+cds@principal_graph_aux@listData$UMAP$pseudotime <- max(pseudotime(cds), na.rm = TRUE) - pseudotime(cds)
+```
+
+```{r}
+plot_cells(
+    cds,
+    color_cells_by = "pseudotime",
+    label_root = FALSE,
+    label_leaves = FALSE,
+    label_branch_points = FALSE,
+    trajectory_graph_color = "black",
+    trajectory_graph_segment_size = 1.5,
+    cell_size = 1,
+    alpha = .15
+) %>% theme_sc_dim() + 
+    scale_color_gradientn(
+      colors = pal_sc, 
+      name = "Pseudotime"
+    )
+
+# seurat <- as.Seurat(cds, assay = "integrated")
+```
+
+## Slingshot
+```{r}
+sce <- as.SingleCellExperiment(seurat)
+reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") -> reduc_coords
+
+sce <- slingshot(
+  sce,
+  start.clus = start_cluster,
+  clusterLabels = "cell_type",
+  reducedDim = "UMAP"
+)
+
+curves <- slingCurves(sce)
+lineage_probs <- list.map(curves, .$w) %>%
+  list.cbind() %>%
+  max.col(ties.method = "first")
+
+pseudotime <- slingPseudotime(sce) %>%
+  .[cbind(seq_len(nrow(.)), lineage_probs)]
+
+p <- as.data.frame(reduc_coords) %>%
+  mutate(pseudotime = pseudotime) %>%
+  ggplot(aes(x = umap_1, y = umap_2, colour = pseudotime)) +
+  geom_point(alpha = 0.8)
+
+p <- purrr::reduce(
+  names(curves),
+  .f = function(plot, lineage_name) {
+    plot + geom_path(
+      data = as.data.frame(curves[[lineage_name]]$s),
+      aes(x = umap_1, y = umap_2),
+      size = 1.2,
+      color = "black",
+      inherit.aes = FALSE
+    )
+  },
+  .init = p
+)
+theme_sc_dim(p)  + 
+    scale_color_gradientn(
+      colors = rev(pal_sc), 
+      name = "Pseudotime"
+    )
+```
+
+## Save data
+```{r}
+usethis::use_data()
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```

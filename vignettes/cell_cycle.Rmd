@@ -1,0 +1,76 @@
+---
+title: "cell_cycle"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{cell_cycle}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library("GimmmeMySC")
+library("Seurat")
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+source(file.path(path, "conf.R"))
+data()
+```
+
+## Data normalization
+```{r}
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData() %>%
+  RunPCA(features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
+
+plot_dim_cycle(seurat, reduction = "pca")
+```
+
+## Cell cycle regression
+```{r, eval = FALSE}
+seurat <- ScaleData(
+  seurat,
+  vars.to.regress = c("S.Score", "G2M.Score"),
+  features = rownames(seurat)
+)
+```
+
+```{r}
+seurat <- RunPCA(
+  seurat,
+  features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>%
+    func_format()
+)
+plot_dim_cycle(seurat, reduction = "pca")
+```
+
+```{r}
+seurat <- RunPCA(
+  seurat,
+  features = VariableFeatures(seurat),
+  reduction_key = "Dim. ",
+  npcs = max_dim
+)
+```
+
+## Save data
+```{r}
+usethis::use_data()
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
