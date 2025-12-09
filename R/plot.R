@@ -382,7 +382,7 @@ clustree_sc <- function(x, prefix, clusters) {
 
 
 #' @export
-plot_ident_celltype <- function(x) {
+plot_ident_celltype <- function(x, cols = palette_discrete()) {
     table(Idents(x), x$cell_subtype_formatted) %>%
         as.data.frame.matrix() %>%
         t() %>%
@@ -391,11 +391,11 @@ plot_ident_celltype <- function(x) {
         plot_bar_2cat(
             count = TRUE,
             stats = FALSE,
-            colour =  palette_continuous(gray = FALSE)(length(unique(x[[]][, "cell_subtype_formatted"]))),
+            colour =  cols,
             pct  = FALSE,
             threshold = 1,
             digits = 1,
-            legend = reorder_celltype(seurat)
+            legend = reorder_celltype(x)
         ) +
         labs(y = "% Cells")
 }

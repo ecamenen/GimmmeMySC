@@ -494,7 +494,8 @@ plot_mqc <- function(
     plot_sc_violin(
         x,
         cols = col_inds,
-        nrow = 1,
+        nrow = 2,
+        ncol = 2,
         normalize = c(10, 10, 10, 10)
     )
 }

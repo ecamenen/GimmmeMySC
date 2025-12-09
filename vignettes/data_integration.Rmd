@@ -387,6 +387,7 @@ plot_dim(
 ```{r, eval = FALSE}
 save(seurat, file = file.path(path, "type_integrated.rda"))
 ```
+
 ## Markers
 ### From dataset
 ```{r, message = FALSE}

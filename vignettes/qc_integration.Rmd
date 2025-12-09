@@ -122,9 +122,19 @@ plot_dim(
 ) + NoLegend()
 ```
 
+```{r, fig.height = 2, fig.width = 2}
+tmp <- reorder_idents(seurat, y = old_ident)
+plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+    NoLegend() +
+    theme(
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    )
+```
+  
 ```{r}
-reorder_idents(seurat, y = old_ident) %>%
-  plot_dim(cols = pal_discrete_sc)
+plot_dim(tmp, cols = pal_discrete_sc)
 seurat <- reorder_idents(seurat, new_ident)
 seurat_old <- seurat
 plot_dim(seurat, cols = pal_discrete_sc)
