@@ -14,7 +14,7 @@ plot_dim_cycle <- function(x, ...) {
         label = FALSE,
         title = TRUE,
         ...
-    ) +  labs(x = NULL, y = NULL)
+    ) + labs(x = NULL, y = NULL)
     p1 + p2
 }
 
@@ -84,6 +84,13 @@ kable_sc <- function(x, func = str_clean, digits = getOption("digits"), file = N
 }
 
 #' @export
+kable_ncell <- function(x, label_type = "pruned.labels", digits = 2, ...) {
+    pull(x, label_type) %>%
+        cluster_size(digits = digits) %>%
+        kable_sc(digits = digits, ...)
+}
+
+#' @export
 plot_res <- function(seurat, clusters, cols = palette_continuous(), ncol = 4, ...) {
     p_cl <- list.map(
         clusters,
@@ -136,15 +143,9 @@ plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
 }
 
 #' @export
-plot_markers <- function(x, markers) {
-    p1 <- plot_mfeature(x, markers, nrow = 3)
+plot_markers <- function(x, markers, cols = pal_discrete_sc) {
+    p1 <- plot_mviolin(x, markers, cols = cols)
     print(p1)
-    p2 <- plot_mviolin(x, markers, cols = pal_discrete_sc)
-    print(p2)
-}
-
-#' @export
-plot_markers2 <- function(x, markers) {
     list.map(
         markers,
         f(i, j, k) ~ plot_dot(
@@ -156,13 +157,13 @@ plot_markers2 <- function(x, markers) {
 }
 
 #' @export
-cluster_size <- function(x, order = TRUE) {
+cluster_size <- function(x, order = TRUE, digits = 1) {
     res <- fct_count(x) %>%
+        mutate(freq = round(n/sum(n) * 100, digits)) %>%
         filter(!is.na(f)) %>%
-        column_to_rownames("f") %>%
-        mutate(freq = round(n/sum(n) * 100, 1))
+        column_to_rownames("f")
 
-    if(order)
+    if (order)
         arrange(res, desc(n))
     else
         res
@@ -172,7 +173,7 @@ cluster_size <- function(x, order = TRUE) {
 print_sc_stats <- function(
         x,
         assay = "RNA",
-        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial"),
+        features = c(paste0("nFeature", "_", assay), paste0("nCount", "_", assay), "percent_mitochondrial", "percent_ribosomal"),
         probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1)
 ) {
     sapply(
@@ -464,9 +465,10 @@ format_dea_sc <- function(
 plot_mqc <- function(
         x,
         features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal"),
-        file = NULL
+        file = NULL,
+        ...
     ) {
-    p <- print_sc_stats(x, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
+    p <- print_sc_stats(x, features = features, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
         kable_sc(digits = 3)
     if (!is.null(file))
         save_kable(
@@ -493,10 +495,11 @@ plot_mqc <- function(
     Idents(x) <- "Patient"
     plot_sc_violin(
         x,
-        cols = col_inds,
+        features = features,
         nrow = 2,
         ncol = 2,
-        normalize = c(10, 10, 10, 10)
+        normalize = rep(10, length(features)),
+        ...
     )
 }
 
@@ -602,4 +605,45 @@ reorder_celltype <- function(seurat) {
         sort(dc),
         sort(other)
     )
+}
+
+#' @export
+format_celltype <- function(
+        seurat,
+        annotation,
+        type = "cell_type",
+        label_type = "pruned.labels",
+        lim = 50,
+        path_fig = path_fig
+    ) {
+    table_annotation <- annotation[[type]] %>%
+        as.data.frame()
+    seurat@meta.data[, paste0(type, "_raw")] <- pull(table_annotation, label_type)
+
+    kable_ncell(
+        table_annotation,
+        label_type,
+        digits = 2,
+        file =  file.path(path_fig, paste0("table", type, "before.png", sep = "_"))
+    )
+    p2 <- pull(table_annotation, label_type) %>%
+        plot_bar_sc()
+    print(p2)
+
+    to_remove <- table(pull(table_annotation, label_type)) %>%
+        .[. < lim] %>%
+        names()
+    table_annotation[pull(table_annotation, label_type) %in% to_remove, label_type] <- NA
+
+    kable_ncell(
+        table_annotation,
+        label_type,
+        digits = 2,
+        file =  file.path(path_fig, paste0("table", type, "after.png", sep = "_"))
+    )
+
+    seurat@meta.data[, type] <-
+        table_annotation[match(rownames(seurat[[]]), rownames(table_annotation)), label_type]
+
+    return(seurat)
 }

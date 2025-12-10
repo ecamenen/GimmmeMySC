@@ -31,12 +31,14 @@ path <- file.path(
 )
 
 source(file.path(path, "conf.R"))
-assay <- "SCT"
-SCT <- TRUE
+project <- "KO"
 
 l_samples <- list.files(path) %>%  
   .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
   .[str_detect(., "KO")]
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
+path_data <- file.path(dirname(getwd()), "data")
 ```
 
 ## Load data
@@ -57,15 +59,11 @@ list_seurat <-  list.map(
 ```
 
 ```{r data}
+cell_id <- paste0(project, "_", l_samples)
 seurat <- merge(
   x = list_seurat[[1]],
   y = list_seurat[-1],
-  add.cell.ids = paste0(
-      types,
-      "_",
-      # str_remove_all(l_samples, types) %>% str_remove_all("_")
-      l_samples
-    )
+  add.cell.ids = cell_id
 )
 
 seurat$sample <- rownames(seurat[[]])
@@ -113,7 +111,7 @@ list.mapv(
   f(i) ~ print_filtered_cells(list_seurat0[[i]], list_seurat[[i]])
 )
 
-seurat <- integrate_multisamples(list_seurat, paste0(types, "_", l_samples))
+seurat <- integrate_multisamples(list_seurat, cell_id)
 ```
 
 ### Doublets
@@ -149,19 +147,11 @@ t(df_doublets) %>%
 ```
 
 ```{r}
-# visualize doublets
-# plot_dim(
-#    seurat, 
-#   group.by = "doubletFinder"
-# )
-
-# number of singlets and doublets
 Idents(seurat) <- "doublets"
 plot_sc_violin(
     seurat,
-    cols = col_inds,
     nrow = 1,
-    normalize = c(10, 10, 10)
+    normalize = c(10, 10, 10, 10)
 )
 Idents(seurat) <- "Patient"
 seurat <- subset(seurat, subset = doublets == "singlet")
@@ -216,11 +206,11 @@ list.map(
 ## Gene filtering
 ```{r filter_mark}
 # seurat[["RNA"]] <- split(seurat[["RNA"]], f = seurat$Patient)
-if (!SCT) {
+if (isFALSE(SCT)) {
       seurat <- NormalizeData(seurat) %>%
       FindVariableFeatures()
-}
     variable_plot(seurat)
+}
 ```
 
 ## PCA
@@ -247,30 +237,24 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 ```{r}
 seurat <- CellCycleScoring(
   seurat,
-  s.features = s.genes, 
-  g2m.features = g2m.genes, 
+  s.features = func_format(cc.genes$s.genes), 
+  g2m.features = func_format(cc.genes$g2m.genes), 
   set.ident = TRUE
 )
 seurat$CC.Difference <- seurat$S.Score - seurat$G2M.Score
 ```
-
-
 
 ## Automatic annotation
 ### Database processing
 ```{r}
 if (species == "human") {
     hpca <- celldex::HumanPrimaryCellAtlasData()
-    dice <- celldex::DatabaseImmuneCellExpressionData()
 } else {
     hpca <- celldex::ImmGenData()
-    dice <- celldex::MouseRNAseqData()
 }
 
 hpca$label.main <- format_annot(hpca$label.main)
-dice$label.main <- format_annot(dice$label.main)
 hpca$label.fine <- format_annot(hpca$label.fine)
-dice$label.fine <- format_annot(dice$label.fine)
 
 bcell_subtypes <- unique(hpca$label.fine) %>%
   .[str_detect(., "FR[A-F]|CLP")] %>%
@@ -286,85 +270,77 @@ cts <- GetAssayData(seurat, layer = 'counts')
 
 ### Modelling
 ```{r}
-singleR_main <- SingleR(
+cell_type <- SingleR(
   test = cts,
   ref = hpca,
   labels = hpca$label.main
 )
 
-singleR_fine <- SingleR(
+cell_subtype <- SingleR(
   test = cts,
   ref = hpca2,
   labels = hpca2$label.fine
 )
 
-annotation <- list(singleR_main = singleR_main, singleR_fine = singleR_fine)
-saveRDS(annotation, file = file.path(path, paste(project,  "_annotation.rds")))
+annotation <- list(cell_type = cell_type, cell_subtype = cell_subtype)
+save(annotation, file = file.path(path_data, paste0(projet, "_annotation")))
 ```
 
 ### Visualization
 ```{r}
-label_type <- "labels"
-x1 <- "singleR_fine"
-x <- get(x1)
-# x$pruned.labels
-# x$scores
-x0 <- as.data.frame(x) %>% select(all_of(label_type))
-seurat[[]][, x1] <- x0
+seurat <- format_celltype(seurat, annotation)
+```
+```{r}
+plotScoreHeatmap(
+  annotation[["cell_type"]],
+  color = colorRampPalette(brewer.pal(9, "Reds"))(100)
+)
+```
 
-if (pull(x0, label_type) %>% str_detect("CL\\:\\d*") %>% any()) {
-  x0 <- rbind(as.data.frame(colData(hpca.ont)), as.data.frame(colData(dice.ont))) %>%
-      filter(str_detect(label.ont, paste0("^", unique(pull(x0, "labels")), "$", collapse = "|"))) %>% 
-      filter(!duplicated(label.ont)) %>%
-      mutate(labels = label.ont) %>%
-      mutate(label.main = label.main %>% 
-        str_replace_all("(cell)s", "\\1") %>%
-        str_replace_all("_", " ") %>%
-        str_replace_all("(Monocyte)s", "\\1")) %>%
-    mutate(label.main = label.fine %>% 
-        str_replace_all("(cell)s", "\\1") %>%
-        str_replace_all("_", " ") %>%
-        str_replace_all("\\:", ", ") %>%
-        str_replace_all("(Monocyte)s", "\\1")) %>%
-      left_join(x0) %>%
-      column_to_rownames()
-  label_type <- "label.fine"
-}
-
-to_remove <- table(pull(x0, label_type)) %>%
-    .[. < lim] %>%
-    names()
-x0[pull(x0, label_type) %in% to_remove, label_type] <- NA
-pull(x0, label_type) %>% 
-    cluster_size() %>% 
-    kable_sc()
-pull(x0, label_type) %>%
-    plot_bar_sc()
-if (x1 == "singleR_main") {
-seurat$cell_type <- 
-  x0[match(rownames(seurat[[]]), rownames(x0)), label_type]
-}
-
-to_keep <- paste(paste(unique(seurat$cell_type) %>% na.omit(),  "\\("), collapse = "|")
-x0[[label_type]][!str_detect(x0[[label_type]], to_keep)] <- NA
-
-seurat$b_cell <- seurat$cell_subtype
-seurat$b_cell[!str_detect(seurat$b_cell, "B cell")] <- NA
-seurat$b_cell <- keep_parenthesis(seurat$b_cell)
-
-x0 <- data.frame(labels = seurat$singleR_main)
+```{r}
+seurat <- format_celltype(seurat, annotation, type = "cell_subtype")
 
 seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
 ```
+```{r}
+plotDeltaDistribution(
+    annotation[["cell_type"]],
+    labels.use = remove_parenthesis(seurat$cell_subtype_raw),
+    size = .5,
+    pruned.color = "red"
+)
+```
 
 ```{r}
-plotDeltaDistribution(x)
+plotDeltaDistribution(
+    annotation[["cell_subtype"]],
+    ncol = 10,
+    size = .5,
+    pruned.color = "red"
+)
+```
+
+## PCA
+```{r}
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData() %>%
+  RunPCA(
+    reduction_key = "Dim. ",
+  npcs = max_dim
+)
 ```
 
 ## Save data
 ```{r}
-usethis::use_data()
+save(seurat, file = file.path(path_data, paste0(projet, "_all_cells.rda")))
+seurat <- subset(
+  seurat,
+  str_detect(cell_type, "B cell")
+)
+save(seurat, file = file.path(path_data, paste0(projet, "_bcells.rda")))
+seurat$cell_type_formatted %>% cluster_size()
 ```
 
 ## Session information

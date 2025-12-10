@@ -1,3 +1,4 @@
+#### B cell markers
 l_bcell_markers <- list(
     General = c(
         "Pax5", "Ebf1", "Spi1", "Ikzf1", "Ikzf3", # facteurs de transcription clés
@@ -45,3 +46,42 @@ l_bcell_markers <- list(
 )
 
 usethis::use_data(l_bcell_markers, overwrite = TRUE)
+
+
+##### Microarray markers
+
+fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
+name <- "Gene name"
+
+jcb_markers <- list.map(
+    excel_sheets(fileIn),
+    f(i) ~ read_excel(fileIn, sheet = i) %>%
+        pull(!!sym(name)) %>%
+        na.omit() %>%
+        func_format() %>%
+        .[. %in% Features(seurat)]
+)
+usethis::use_data(jcb_markers, overwrite = TRUE)
+
+#### Data integration
+
+path <- file.path(
+    golem::get_golem_wd(),
+    "inst",
+    "extdata"
+)
+
+load(file.path(path, "wt_bcell_cycle.rda"))
+wt <- seurat
+wt$old_labels <- Idents(wt)
+
+load(file.path(path, "ko_bcell_cycle.rda"))
+ko <- seurat
+ko$old_labels <- Idents(ko)
+
+wt@assays$SCT@scale.data <- matrix()
+ko@assays$SCT@scale.data <- matrix()
+
+seurat <- merge(wt, ko)
+# usethis::use_data(bcell_integrated, overwrite = TRUE)
+save(seurat, file = file.path(path, "integrated_bcells.rda"))

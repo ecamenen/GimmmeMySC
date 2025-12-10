@@ -350,7 +350,7 @@ plot_bar_sc <- function(x, title = NULL, ratio = 3, label_y = "percent", ...) {
         select(n) %>%
         plot_bar_sc0(
             label_y = label_y,
-            sample_size = ncol(x),
+            sample_size = sample_size,
             ratio = ratio,
             title = title,
             ...

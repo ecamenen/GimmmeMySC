@@ -19,16 +19,12 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(GimmmeMySC)
-library(Seurat)
-
-project <- "KO"
-data()
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
 
 pal_discrete_sc <- palette_discrete()[-7]
 # pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
-
-assay <- "RNA"
 
 path <- file.path(
   dirname(getwd()),
@@ -42,7 +38,7 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
 
 ## Load data
 ```{r data}
-load("C:/Users/etien/bin/GimmmeMySC/inst/extdata/ko_bcell_cycle.rda")
+load(file.path(path, "ko_bcell_cycle.rda"))
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
 ```
 
@@ -179,7 +175,7 @@ plot_markers(seurat, l_bcell_markers)
 ```
 
 ## Save data
-```{r}
+```{r, eval = FALSE}
 usethis::use_data()
 ```
 

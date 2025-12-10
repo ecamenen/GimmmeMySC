@@ -20,13 +20,11 @@ knitr::opts_chunk$set(
 
 ## Setup
 ```{r init, message = FALSE}
-library(GimmmeMySC)
-library(RColorBrewer)
-library(rlist)
-library(Seurat)
-library(cowplot)
-library(GimmeMyPlot)
-library(ggraph)
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("rlist")
+library("cowplot")
 
 path <- file.path(
   dirname(getwd()),
@@ -35,19 +33,32 @@ path <- file.path(
 )
 
 source(file.path(path, "conf.R"))
-assay <- "RNA"
-SCT <- FALSE
-split.by = 'Patient'
-cell_label <- "cell_subtype_formatted"
-# cell_label <- "cell_subtype_formatted"
-project <- "KO"
+
+split.by = 'Type'
+# cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
 ```
 
 ## Load data
-```{r data}
-data(file.path(path, "ko_all_cell.rda"))
+```{r data, eval = FALSE}
+seurat <- readRDS(file.path(path, "all_cell_ko.rds"))
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
+
+seurat@assays$SCT@scale.data <- matrix()
+
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData() %>%
+  RunPCA(
+    reduction_key = "Dim. ",
+  npcs = max_dim
+)
+```
+
+```{r}
+load(file.path(path, "type_integrated.rda"))
 ```
 
 ## PCA
@@ -61,15 +72,13 @@ cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
 ```
 
 ```{r, fig.height = 6, fig.width = 12}
-DimHeatmap(seurat, dims = seq(15), cells = 500, balanced = TRUE)
-DimHeatmap(seurat, dims = 16:30, cells = 500, balanced = TRUE)
-DimHeatmap(seurat, dims = 31:45, cells = 500, balanced = TRUE)
+list.map(
+  list(seq(15), 16:30, 31:45),
+  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE)
+)
 ```
 
 ```{r}
-s.genes <- cc.genes$s.genes %>% func_format()
-g2m.genes <- cc.genes$g2m.genes %>% func_format()
-
 comp_genes <- list.map(
     seq(max_dim),
     f(x) ~ Loadings(seurat, reduction = "pca") %>%
@@ -81,18 +90,13 @@ comp_genes <- list.map(
 ) %>% set_names(seq(max_dim))
 
 list.map(
-  list(g2m.genes, s.genes),
+  lapply(cc.genes, func_format),
   f(i) ~lapply(comp_genes, function(x) x[x %in% func_format(i)]) %>% compact()
 ) %>% set_names(c("G2/M", "S"))
-
-# n_dim <- 20
-round(cumsum(eig)[n_dim], 1)
 ```
 
 ### Component markers
 ```{r pca_plot}
-# DimHeatmap(seurat, dims = 1)
-
 # Markers
 print(seurat[['pca']], dims = 1:5, nfeatures = 5)
 VizDimLoadings(seurat, dims = 1:2, reduction = 'pca')
@@ -108,6 +112,7 @@ seurat <- RunUMAP(
 ```
 
 ```{r}
+Idents(seurat) <- split.by
 plot_dim(
   seurat,
   label = FALSE
@@ -121,14 +126,17 @@ plot_dim(
 
 ## Integration
 ```{r}
-seurat[["RNA"]] <- split(
-    seurat[["RNA"]],
-    f = seurat[[]][, split.by],
-    layers = c("counts", "data")
-)
+if (is.null(seurat[["RNA"]]@layers$data.1)) {
+  seurat[["RNA"]] <- split(
+      seurat[["RNA"]],
+      f = seurat[[]][, split.by],
+      layers = c("counts", "data")
+  )
+}
 ```
 
 ```{r}
+DefaultAssay(seurat) <- "RNA"
 integration_method <- "RPCA"
 seurat <- IntegrateLayers(
     object = seurat, 
@@ -142,6 +150,8 @@ seurat <- IntegrateLayers(
 )
 
 seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+
+Idents(seurat) <- split.by
 ```
 
 ## UMAP
@@ -165,80 +175,93 @@ plot_dim(
 ) + NoLegend()
 ```
 
-```{r int}
+```{r, message = FALSE}
 p <- plot_feature(seurat, pt.size = .25, c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")) %>%
         list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
 plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
 ```
 
-```{r}
+```{r, message = FALSE}
 plot_dim_cycle(seurat)
 ```
 
 ## Annotation
+### Main cell types
 ```{r}
-Idents(seurat) <- cell_label
+Idents(seurat) <- "cell_type"
 plot_bar_sc(seurat)
 
 Idents(seurat) %>% 
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-p1 <- plot_dim(seurat)
-p1
+plot_dim(seurat)
 ```
 
-```{r, fig.height = 5, fig.width = 10}
+```{r, message = FALSE, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
+    group.by = "cell_type",
     split.by = "cell_type",
     ncol = 3,
     label = FALSE
 ) + NoLegend()
 ```
 
-```{r, eval = FALSE}
+### B cells
+```{r, message = FALSE}
 b_cell <- subset(seurat, cell_type_formatted == "B cell")
+Idents(b_cell) <- "cell_subtype_formatted"
 
-plot_dim(
-  b_cell,
-  cols = rep(palette_discrete()[-7], 5)
-  ) +
-labs(title = "B cell", x = NULL)
+plot_dim(b_cell) + labs(title = "B cell", x = NULL)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     b_cell,
-    split.by = cell_label,
+    split.by = "cell_subtype_formatted",
     label = FALSE,
     ncol = 3
 ) +
     NoLegend()
 ```
 
-```{r, fig.height = 5, fig.width = 10}
+### Cell subtypes
+```{r}
+Idents(seurat) <- "cell_subtype_formatted"
+plot_bar_sc(seurat)
+
+Idents(seurat) %>% 
+    cluster_size() %>% 
+    kable_sc(file = file.path(path_fig, "table_subcells.png"))
+
+plot_dim(seurat)
+```
+
+```{r, message = FALSE, fig.height = 5, fig.width = 10}
 Idents(seurat) <- "cell_subtype_formatted"
 plot_dim(
     seurat,
     cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype_formatted) %>% length())
 )
 
+cell_categories <- seurat$cell_type_formatted %>% unique() %>% na.omit()
+
 list.map(
-    Idents(seurat) %>% unique(),
-    f(x) ~subset(seurat, cell_type_formatted == x)
+    cell_categories,
+    f(x, y) ~ subset(seurat, cell_type_formatted == x)
     ) %>%
 list.map(
     f(x, y, z) ~
         plot_dim(
             x,
-            cols = rep(palette_discrete, 5),
+            group.by = "cell_subtype_formatted",
+            cols = rep(palette_discrete(), 5),
             pt.size = .25
         ) +
         labs(title = z, x = NULL) 
 ) %>% plot_grid(plotlist = ., align = "hv", nrow = 2)
 
-cell_categories <- Idents(seurat) %>% unique()
 cell_list <- map(cell_categories, ~ {
   seurat$cell_subtype[str_detect(seurat$cell_subtype, paste0("^", .x))] %>% na.omit() %>% keep_parenthesis()
 }) %>%
@@ -331,7 +354,7 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 ```
 
 ## Save data
-```{r}
+```{r, eval = FALSE}
 usethis::use_data()
 ```
 

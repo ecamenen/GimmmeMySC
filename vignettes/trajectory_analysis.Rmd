@@ -20,7 +20,15 @@ library("monocle3")
 library("slingshot")
 library("SeuratWrappers")
 
-data()
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+```
+
+```{r}
+load(file.path(path, "type_integrated.rda"))
 ```
 
 # Trajectory analysis
@@ -106,7 +114,7 @@ theme_sc_dim(p)  +
 ```
 
 ## Save data
-```{r}
+```{r, eval = FALSE}
 usethis::use_data()
 ```
 
