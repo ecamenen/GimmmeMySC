@@ -35,7 +35,7 @@ path <- file.path(
 source(file.path(path, "conf.R"))
 
 split.by = 'Type'
-# cell_label <- "cell_type_formatted"
+cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
 ```
@@ -188,7 +188,7 @@ plot_dim_cycle(seurat)
 ## Annotation
 ### Main cell types
 ```{r}
-Idents(seurat) <- "cell_type"
+Idents(seurat) <- cell_label
 plot_bar_sc(seurat)
 
 Idents(seurat) %>% 
@@ -201,8 +201,8 @@ plot_dim(seurat)
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
-    group.by = "cell_type",
-    split.by = "cell_type",
+    group.by = cell_label,
+    split.by = cell_label,
     ncol = 3,
     label = FALSE
 ) + NoLegend()
