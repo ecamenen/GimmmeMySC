@@ -382,8 +382,15 @@ clustree_sc <- function(x, prefix, clusters) {
 
 
 #' @export
-plot_ident_celltype <- function(x, cols = palette_discrete()) {
-    table(Idents(x), x$cell_subtype_formatted) %>%
+plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell_subtype_formatted") {
+
+    if ("0" %in% levels(Idents(x))) {
+        legend <- reorder_celltype(x[[]][, cell_label])
+    } else {
+        legend <- NULL
+    }
+
+    table(Idents(x), x[[]][, cell_label]) %>%
         as.data.frame.matrix() %>%
         t() %>%
         as.data.frame() %>%
@@ -395,7 +402,7 @@ plot_ident_celltype <- function(x, cols = palette_discrete()) {
             pct  = FALSE,
             threshold = 1,
             digits = 1,
-            legend = reorder_celltype(x)
+            legend = legend
         ) +
         labs(y = "% Cells")
 }
@@ -439,10 +446,11 @@ bar_ident_group0 <- function(
 bar_ident_group <- function(
         x,
         group.by = "Patient",
-        idents = "RNA__snn_res.0.35"
+        idents = "RNA__snn_res.0.35",
+        ...
     ) {
     table_ident_group(x, group.by, idents) %>%
-        bar_ident_group0() +
+        bar_ident_group0(...) +
         geom_hline(yintercept = 50, color = "gray")
 }
 
@@ -451,7 +459,10 @@ bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35
     table_ident_group(x, group.by, idents) %>%
         t() %>%
         as.data.frame() %>%
-        bar_ident_group0(colour = colour)
+        bar_ident_group0(
+            colour = colour,
+            legend = reorder_celltype(x[[]][, idents])
+            )
 }
 
 #' @export
@@ -512,14 +523,23 @@ confusing_table <- function(
 heatmap_celltype <- function(
         x,
         new_ident = "predicted.labels",
+        old_ident = "cell_subtype_formatted",
+        is_cluster = FALSE,
         ...
     ) {
     confusing_table(
         x,
         new_ident = new_ident,
-        old_ident = "cell_subtype_formatted",
-        cluster_rows = TRUE,
-        cluster_cols = TRUE,
+        old_ident = old_ident,
+        cluster_rows = is_cluster,
+        cluster_cols = is_cluster,
         ...
     )
+}
+
+#' @export
+plot_dim_cell <- function(x, cols = palette_discrete(), ...) {
+    Idents(x) <- factor(Idents(x), levels =  reorder_celltype(Idents(x)))
+    plot_dim(x, ...) +
+        scale_color_manual(na.translate = FALSE, values = cols)
 }

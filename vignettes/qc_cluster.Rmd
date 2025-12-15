@@ -36,6 +36,9 @@ path <- file.path(
 source(file.path(path, "conf.R"))
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
+
+split.by = 'Patient'
+cell_label <- "cell_subtype_formatted"
 ```
 
 ## Load data
@@ -76,7 +79,7 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 p2 <- plot_dim(seurat, cols = pal_discrete_sc)
 p2
 
-p2 + p1
+p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", col = pal_discrete_sc)
 
 plot_dim(
     seurat,
@@ -86,11 +89,14 @@ plot_dim(
     ncol = 4
 ) + NoLegend()
 
-plot_ident_celltype(seurat)
+plot_ident_celltype(seurat, cell_label = cell_label)
+Idents(seurat) <- "cell_subtype_formatted2"
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc)
+Idents(seurat) <- seurat[[]][, snn_cluster]
 
-heatmap_celltype(seurat, snn_cluster, as_percent = FALSE)
-heatmap_celltype(seurat, snn_cluster)
-heatmap_celltype(seurat, snn_cluster, margin = 2)
+heatmap_celltype(seurat, snn_cluster, cell_label, as_percent = FALSE)
+heatmap_celltype(seurat, snn_cluster, cell_label)
+heatmap_celltype(seurat, snn_cluster, cell_label, margin = 2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}

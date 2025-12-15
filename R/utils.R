@@ -588,10 +588,11 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
 }
 
 #' @export
-reorder_celltype <- function(seurat) {
+reorder_celltype <- function(x) {
     b_cell <- c("B.FRF", "B.FRE", "preB.FRD", "preB.FRC", "proB.FRBC", "proB.FRA", "proB.CLP")
 
-    all_levels <- unique(seurat$cell_subtype_formatted)
+    all_levels <- unique(x)
+    b_cell <- intersect(b_cell, all_levels)
     other_levels <- setdiff(all_levels, b_cell)
 
     sc <- grep("^SC\\.", other_levels, value = TRUE)

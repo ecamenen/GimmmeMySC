@@ -96,33 +96,36 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim(seurat)
+plot_dim_cell(seurat, col = pal_discrete_sc)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
-plot_dim(
+plot_dim_cell(
     seurat,
     group.by = cell_label,
     split.by = cell_label,
     ncol = 3,
-    label = FALSE
+    label = FALSE,
+    col = pal_discrete_sc
 ) + NoLegend()
 ```
 
 ### B cells
 ```{r, message = FALSE}
 b_cell <- subset(seurat, cell_type_formatted == "B cell")
-Idents(b_cell) <- "cell_subtype_formatted"
+Idents(b_cell) <- "cell_subtype_formatted2"
 
-plot_dim(b_cell) + labs(title = "B cell", x = NULL)
+plot_dim_cell(b_cell, cols = pal_discrete_sc)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
-plot_dim(
+plot_dim_cell(
     b_cell,
+    group.by = "cell_subtype_formatted",
     split.by = "cell_subtype_formatted",
     label = FALSE,
-    ncol = 3
+    ncol = 3, 
+    cols = pal_discrete_sc
 ) +
     NoLegend()
 ```
@@ -136,15 +139,23 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_subcells.png"))
 
-plot_dim(seurat)
+plot_dim_cell(seurat, cols = pal_discrete_sc)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+Idents(seurat) <- "cell_subtype_formatted2"
+plot_dim_cell(
+    seurat,
+    split.by = "cell_subtype_formatted2",
+    label = FALSE,
+    ncol = 3, 
+    cols = pal_discrete_sc
+) +
+    NoLegend()
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
-Idents(seurat) <- "cell_subtype_formatted"
-plot_dim(
-    seurat,
-    cols = palette_continuous(gray = FALSE)(unique(seurat$cell_subtype_formatted) %>% length())
-)
+plot_dim_cell(seurat, cols = pal_discrete_sc)
 
 cell_categories <- seurat$cell_type_formatted %>% unique() %>% na.omit()
 
