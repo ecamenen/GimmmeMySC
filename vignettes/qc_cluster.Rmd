@@ -22,6 +22,8 @@ knitr::opts_chunk$set(
 library("GimmmeMySC")
 library("GimmeMyPlot")
 library("Seurat")
+library("rlist")
+library("cowplot")
 
 pal_discrete_sc <- palette_discrete()[-7]
 # pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
@@ -94,7 +96,7 @@ heatmap_celltype(seurat, snn_cluster, margin = 2)
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim(
     seurat,
-    split.by = "cell_subtype_formatted",
+    split.by = "cell_subtype_formatted2",
     cols = pal_discrete_sc,
     ncol = 3,
     combine = FALSE
@@ -117,7 +119,7 @@ plot_dim(
   object = seurat_subset,
   group.by = split.by,
   col = pal_discrete_sc
-) + NoLegend()
+)
 
 bar_ident_group(
   seurat_subset,
@@ -137,7 +139,8 @@ plot_sc_violin(
     seurat,
     nrow = 2,
     ncol = 2,
-    normalize = c(10, 10, 10, 10)
+    normalize = c(10, 10, 10, 10),
+    col = pal_discrete_sc
 )
 ```
 
@@ -164,12 +167,12 @@ data("jcb_markers")
 plot_module(seurat, jcb_markers)
 ```
 
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
+```{r, eval = FALSE, message = FALSE, fig.height = 6, fig.width = 12}
 plot_markers(seurat, jcb_markers)
 ```
 
 ### B cell markers
-```{r, fig.height = 6, fig.width = 12}
+```{r, eval = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
 plot_markers(seurat, l_bcell_markers)
 ```

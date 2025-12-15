@@ -26,6 +26,8 @@ library("Seurat")
 library("rlist")
 library("cowplot")
 
+pal_discrete_sc <- palette_discrete()[-7]
+
 path <- file.path(
   dirname(getwd()),
   "inst",
@@ -42,11 +44,8 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 
 ```{r}
 load(file.path(path, "type_integrated.rda"))
+seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
 seurat <- subsampling_sc(seurat)
-seurat <- subset(
-    seurat_old, 
-    subset = Type == "WT"
-)
 ```
 
 ```{r}
@@ -75,12 +74,14 @@ plot_dim(
 ) + NoLegend()
 ```
 
+## QC
 ```{r, message = FALSE}
 p <- plot_feature(seurat, pt.size = .25, c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")) %>%
         list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
 plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
 ```
 
+## Cell cycle
 ```{r, message = FALSE}
 plot_dim_cycle(seurat)
 ```
@@ -161,7 +162,9 @@ list.map(
         ) +
         labs(title = z, x = NULL) 
 ) %>% plot_grid(plotlist = ., align = "hv", nrow = 2)
+```
 
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
 cell_list <- map(cell_categories, ~ {
   seurat$cell_subtype[str_detect(seurat$cell_subtype, paste0("^", .x))] %>% na.omit() %>% keep_parenthesis()
 }) %>%
@@ -172,7 +175,7 @@ p <- list.map(
   f(x, y, z) ~ plot_bar_sc(x, z)
 )
 
-plot_grid(plotlist = p, align = "hv", ncol = 3, nrow = 2)
+plot_grid(plotlist = p, align = "hv", nrow = 2)
 ```
 
 ## Session information

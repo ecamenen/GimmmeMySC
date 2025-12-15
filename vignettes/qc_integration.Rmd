@@ -46,6 +46,7 @@ old_ident <- "old_labels"
 ```{r}
 load(file.path(path, "type_integrated.rda"))
 seurat <- reorder_idents(seurat, new_ident)
+seurat <- subsampling_sc(seurat)
 seurat_old <- seurat
 plot_dim(seurat, cols = pal_discrete_sc)
 ```
@@ -62,22 +63,20 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 
 ## UMAP per Type
 ```{r}
-seurat_subset <- subsampling_sc(seurat, group.by = "Type")
-
 plot_dim(
-  object = seurat_subset,
+  object = seurat,
   split.by = 'Type',
   col = pal_discrete_sc
 ) + NoLegend()
 
 bar_ident_group(
-  seurat_subset, 
+  seurat, 
   group.by = "Type", 
   idents = new_ident
 )
 
 bar_group_ident(
-  seurat_subset,
+  seurat,
   group.by = "Type",
   idents = new_ident,
   colour = pal_discrete_sc
