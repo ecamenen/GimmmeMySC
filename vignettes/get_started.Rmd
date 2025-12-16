@@ -97,7 +97,6 @@ list.map(
 
 ### Component markers
 ```{r pca_plot, fig.height = 6}
-# Markers
 print(seurat[['pca']], dims = 1:5, nfeatures = 5)
 VizDimLoadings(seurat, dims = 1:2, reduction = 'pca')
 ```

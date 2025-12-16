@@ -43,8 +43,29 @@ cell_label <- "cell_subtype_formatted"
 
 ## Load data
 ```{r data}
-load(file.path(path, "ko_bcell_cycle.rda"))
+# load(file.path(path, "ko_bcell_cycle.rda"))
+load(file.path(path, "type_integrated.rda"))
+
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+
+seurat$cell_subtype_formatted <- seurat$cell_subtype_formatted %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+
+seurat <- subsampling_sc(seurat) %>%
+  subset(
+    subset = Type == "WT"
+)
+seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
+```
+
+```{r}
+lim <- 25
+tab <- table(seurat$cell_subtype_formatted)
+cell_types_low <- names(tab)[tab < lim]
+
+seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2%in% cell_types_low] <- NA
+
+seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 ```
 
 ## Clustering

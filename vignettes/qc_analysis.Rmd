@@ -36,7 +36,7 @@ path <- file.path(
 
 source(file.path(path, "conf.R"))
 
-split.by = 'Patient'
+split.by <- 'Patient'
 cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
@@ -45,20 +45,57 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 ```{r}
 load(file.path(path, "type_integrated.rda"))
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+
+seurat$cell_subtype_formatted <- seurat$cell_subtype_formatted %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+
 seurat <- subsampling_sc(seurat)
 ```
 
+## Annotation (1)
 ```{r}
-types  <- unique(seurat$Patient) %>%
-  str_remove_all("_?\\d+")
+lim <- 25
+tab <- table(seurat$cell_subtype_formatted, seurat$Type)
+cell_types_low <- rownames(tab)[apply(tab, 1, function(x) any(x < lim))]
 
-col_inds <- list(
-  c("#FB9A99", "#E31A1C"),
-  c("#B2DF8A", "#33A02C")
+seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2%in% cell_types_low] <- NA
+seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
+
+bar_group_ident(
+    seurat,
+    idents = "cell_subtype_formatted2",
+    group.by = "Type"
 )
-color_types <- sapply(col_inds, last)
 
-col_inds <- list.mapv(unique(types), f(i, j) ~colorRampPalette(col_inds[[j]])(length(types[types == i]))) %>% as.character()
+list.map(
+  unique(seurat$Type),
+  f(i) ~{
+  tmp <- seurat
+  tmp$Type[seurat$Type != i] <- NA
+  plot_dim(
+    tmp,
+    group.by = "Type",
+    label = FALSE, 
+    na.value = "grey"
+  ) +
+    NoLegend() +
+    ggtitle(i)
+  }
+)
+```
+
+```{r}
+bar_group_ident(
+    seurat,
+    idents = "cell_subtype_formatted2",
+    group.by = split.by
+)
+```
+
+```{r}
+seurat <- subset(seurat, subset = Type == "KO")
+seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
+seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 ```
 
 ## UMAP

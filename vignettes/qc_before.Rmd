@@ -290,6 +290,7 @@ save(annotation, file = file.path(path_data, paste0(projet, "_annotation")))
 ```{r}
 seurat <- format_celltype(seurat, annotation)
 ```
+
 ```{r}
 plotScoreHeatmap(
   annotation[["cell_type"]],
@@ -303,6 +304,7 @@ seurat <- format_celltype(seurat, annotation, type = "cell_subtype")
 seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
 ```
+
 ```{r}
 plotDeltaDistribution(
     annotation[["cell_type"]],
