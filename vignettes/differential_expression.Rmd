@@ -40,7 +40,19 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-load(file.path(path, "wt_bcell_cycle.rda"))
+assay <- "RNA"
+
+grouping.var <- "Type"
+cell_label <- paste0(
+    assay,
+    "_snn_res.",
+    0.35
+)
+# cell_label <- "predicted.labels"
+split.by <- NULL
+# split.by <- "Type"
+
+load(file.path(path, "type_integrated.rda"))
 ```
 
 ## Differentially Expressed Genes
@@ -50,24 +62,19 @@ load(file.path(path, "wt_bcell_cycle.rda"))
 #     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
 # )
 
-ids <- data.frame(
-    id.1 = c(0),
-    id.2 = c(2)
-)
+ids <- NULL
+cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var)
 
-cluster_marker_genes <- dea_sc(seurat, ids)
-```
-
-```{r}
 l_dea_raw <- cluster_marker_genes %>%
   mutate(gene_name = gene) %>%
   format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
+
+l_dea_proc <- dea2deseq(l_dea_raw)
+```
 ```
 
 ## Volcano plots
 ```{r}
-l_dea_proc <- dea2deseq(l_dea_raw)
-
 kable_dea(l_dea_proc, file = file.path(path_fig, "table_dea.png"))
 
 l_deg_top <- list.map(
@@ -87,13 +94,36 @@ p <- volcano_sc(
   p_threshold = p_threshold
   )
 
-plot_grid(plotlist = p, align = "hv", ncol = 4, nrow = 2)
+n <- length(p)
+plot_grid(plotlist = p[seq(ceiling(n/2))], align = "hv", nrow = 2)
+plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
 ```
 
+# Save DEG
+```{r}
+library("openxlsx")
+omics2excel(
+  l_dea_proc,
+  file = file.path(path, "deg.xlsx"),
+  function(x) mutate(x, description = "") %>%
+    print_dea(metadata = FALSE) %>%
+    select(-c("ensembl_gene_id", "Full name", "gene"))
+)
+```
 
 ```{r}
 gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
+
+list.map(
+  l_dea_proc,
+  f(x) ~ top_genes(
+    x,
+    fc_threshold = fc_threshold,
+    p_threshold = p_threshold
+  ) %>% pull(., "gene_name") %>% 
+    sort()
+) %>% custom_upset_barplot(ratio = 1, top_n  = 10)
 ```
 
 ## Enrichment
@@ -277,21 +307,14 @@ l_dea <- format_dea_sc(
 ```
 
 ```{r}
-n_tops <- c(10, 15, 50)
-tops <- list.map(
-  n_tops,
-    f(i) ~
-    list.map(
+top10 <- list.map(
     l_dea, 
     f(x) ~ x %>%
       # filter(log2FoldChange > 0) %>%
-    slice_head(n = i)
-  ) 
-) %>% set_names(n_tops)
-top10 <- tops[["10"]] %>%
+    slice_head(n = 10)
+) %>%
     list.rbind()
 ```
-
 
 ```{r, eval = FALSE}
 last_row_numbers <- top10 %>%
@@ -345,36 +368,14 @@ cluster_marker_genes %>%
   kable0()
 ```
 
-```{r}
-top50 <- tops[["50"]] %>%
-  list.rbind()
-p <- top50 %>%
-  pull(cluster) %>%
-  unique() %>%
-  list.map(
-  f(x) ~ plot_dot(
-    seurat,
-    features = filter(top50, cluster == x) %>% pull("gene") %>% unique()
-  ) +
-    labs(title = x)
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+markers <- list.map(
+    l_dea, 
+    f(x) ~ x %>%
+        pull("gene_name") %>% unique()
 )
-p
-```
-
-```{r}
-p2 <- plot_mfeature(
-    seurat,
-    tops[["15"]],
-    func = function(x) pull(x, gene_name) %>% head(12)
-)
-p2
-
-p3 <- plot_mviolin(
-    seurat,
-    tops[["15"]],
-    func = function(x) pull(x, gene_name) %>% head(12)
-)
-p3
+plot_mfeature(seurat, markers, nrow = 3)
+plot_markers(seurat, markers)
 ```
 
 ## Session information
