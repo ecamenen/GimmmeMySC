@@ -21,10 +21,8 @@ knitr::opts_chunk$set(
 ## Setup
 ```{r init, message = FALSE}
 library("GimmmeMySC")
-library("GimmeMyPlot")
 library("Seurat")
 library("rlist")
-library("cowplot")
 
 path <- file.path(
   dirname(getwd()),

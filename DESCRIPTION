@@ -23,8 +23,8 @@ Suggests:
     knitr,
     monocle3,
     presto,
+    readxl,
     rmarkdown,
-    scCustomize,
     SeuratWrappers,
     slingshot,
     testthat (>= 3.0.0)
@@ -32,14 +32,22 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 Imports:
     clustree,
-    scDblFinder,
+    cowplot,
+    ggraph,
     GimmeMyOmics,
     GimmeMyPlot,
+    gridExtra,
+    kableExtra,
     magrittr,
     patchwork,
+    pheatmap,
     RColorBrewer,
+    rlist,
+    scDblFinder,
     Seurat,
     Signac,
     SingleR
 Depends: 
+    R (>= 3.5),
     tidyverse
+LazyData: true

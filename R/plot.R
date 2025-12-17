@@ -88,7 +88,7 @@ plot_sc_cor <- function(
             ) +
                 geom_smooth(method  = "lm", se= TRUE, colour = "gray30") +
                 NoLegend() +
-                GimmeMyPlot:::theme_custom(cex = 1.5) +
+                theme_custom(cex = 1.5) +
                 theme(
                     axis.line = element_line(linewidth = 1),
                     panel.grid.major = element_line(colour = "grey", linetype = 2),

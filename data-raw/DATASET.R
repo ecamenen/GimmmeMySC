@@ -71,17 +71,14 @@ path <- file.path(
     "extdata"
 )
 
-load(file.path(path, "wt_bcell_cycle.rda"))
-wt <- seurat
-wt$old_labels <- Idents(wt)
-
-load(file.path(path, "ko_bcell_cycle.rda"))
-ko <- seurat
-ko$old_labels <- Idents(ko)
+wt <- readRDS(file.path(path, "all_cell_wt.rds"))
+ko <- readRDS(file.path(path, "all_cell_ko.rds"))
 
 wt@assays$SCT@scale.data <- matrix()
 ko@assays$SCT@scale.data <- matrix()
 
 seurat <- merge(wt, ko)
+# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 # usethis::use_data(bcell_integrated, overwrite = TRUE)
-save(seurat, file = file.path(path, "integrated_bcells.rda"))
+seurat <- subset(seurat, cell_type_formatted == "B cell")
+save(seurat, file = file.path(path, "integrated_bcells2.rda"))

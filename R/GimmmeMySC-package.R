@@ -1,5 +1,8 @@
-#' @import clustree scDblFinder GimmeMyOmics GimmeMyPlot magrittr
-#' @import patchwork RColorBrewer Seurat Signac SingleR tidyverse
+#' @rawNamespace import(cowplot, except = c(save_plot))
+#' @rawNamespace import(patchwork, except = c(align_plots))
+#' @import clustree GimmeMyOmics GimmeMyPlot ggraph gridExtra kableExtra
+#' @import magrittr pheatmap RColorBrewer rlist
+#' @import scDblFinder Seurat Signac SingleR tidyverse
 #' @importFrom magrittr %>%
 #' @keywords internal
 "_PACKAGE"
