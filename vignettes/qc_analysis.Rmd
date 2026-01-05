@@ -43,11 +43,21 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 ```
 
 ```{r}
-load(file.path(path, "type_integrated.rda"))
+load(file.path(path, "integrated_bcells2.rda"))
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
 
-seurat$cell_subtype_formatted <- seurat$cell_subtype_formatted %>% factor(levels = reorder_celltype(.))
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+
+Idents(seurat) <- seurat[[]][, snn_cluster]
 
 seurat <- subsampling_sc(seurat)
 ```

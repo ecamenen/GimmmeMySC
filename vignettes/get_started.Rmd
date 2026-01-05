@@ -56,7 +56,7 @@ seurat <- NormalizeData(seurat) %>%
 ```
 
 ```{r}
-load(file.path(path, "type_integrated.rda"))
+load(file.path(path, "integrated_bcells2.rda"))
 ```
 
 ## PCA
@@ -251,8 +251,8 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 ```
 
 ## Save data
-```{r, eval = FALSE}
-usethis::use_data()
+```{r}
+save(seurat, file = file.path(path, "integrated_bcells2.rda"))
 ```
 
 ## Session information

@@ -37,13 +37,17 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_integration"
 
 source(file.path(path, "conf.R"))
 # new_ident <- "predicted.labels"
-# old_ident <- "RNA_snn_res.0.35"
+old_ident <- "RNA_snn_res.0.35"
 new_ident <- "RNA_snn_res.0.35"
-old_ident <- "old_labels"
+# old_ident <- "old_labels"
 ```
 
 ```{r}
-load(file.path(path, "type_integrated.rda"))
+load(file.path(path, "integrated_bcells2.rda"))
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+
 seurat <- reorder_idents(seurat, new_ident)
 seurat <- subsampling_sc(seurat)
 seurat_old <- seurat

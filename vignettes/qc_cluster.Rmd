@@ -42,11 +42,12 @@ cell_label <- "cell_subtype_formatted"
 ## Load data
 ```{r data}
 # load(file.path(path, "ko_bcell_cycle.rda"))
-load(file.path(path, "type_integrated.rda"))
+load(file.path(path, "integrated_bcells2.rda"))
 
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
 
-seurat$cell_subtype_formatted <- seurat$cell_subtype_formatted %>% factor(levels = reorder_celltype(.))
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- subsampling_sc(seurat) %>%
