@@ -180,55 +180,14 @@ top10 <- list.map(
     rename(gene = "Gene") %>%
     filter(!duplicated(gene))
 
-last_row_numbers <- top10 %>%
-    mutate(row_num = row_number()) %>%
-    group_by(cluster) %>%
-    slice_tail(n = 1) %>%
-    pull(row_num) %>%
-    sort()
-plot_dot(
-    seurat, 
-    features = pull(top10, "gene"),
-    # group.by = "cell_type",
-    split.by = split.by
-) +
-    geom_vline(xintercept = last_row_numbers + 0.5) +
+
+plot_dot2(seurat, top10, split.by = "Type") +
     geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5)
 ```
 
 ```{r, eval = FALSE}
 l_bcell_markers <- list.map(l_deg, pull(., Gene) %>% unique())
-
-p <- list.map(
-  l_bcell_markers,
-  f(x, y, z) ~ plot_dot(
-    seurat,
-    head(x, 50),
-    split.by = "Type"
-  ) +
-    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5) +
-    ggtitle(z)
-)
-
-p2 <- list.map(
-  l_bcell_markers,
-  f(x, y, z) ~ {
-    head(x, 12) %>%
-      split(ceiling(seq_along(.)/4)) %>%
-  list.map(
-    f(i) ~ plot_feature(
-        seurat, 
-        features = i, 
-        split.by = "Type",
-        cols = brewer.pal(9, "Reds"),
-        pt.size = .5
-      ) %>%
-        theme_multiple(ncol = NULL, nrow = 2, title = z)
-    )
-  }
-)
-
-p3 <- plot_mviolin(seurat, l_bcell_markers, split.by = "Type")
+plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_deg0))
 ```
 
 ## Volcano plots
@@ -501,20 +460,7 @@ DoHeatmap(
 ```
 
 ```{r, fig.height = 3.7, fig.width = 8}
-last_row_numbers <- top10 %>%
-    # ungroup() %>%
-    filter(!duplicated(gene)) %>%
-    mutate(row_num = row_number()) %>%
-    group_by(cluster) %>%
-    slice_tail(n = 1) %>%
-    pull(row_num) %>%
-    sort()
-
-plot_dot(
-    seurat, 
-    features = unique(pull(top10, "gene"))
-) +
-    geom_vline(xintercept = last_row_numbers + 0.5)
+plot_dot2(seurat, top10)
 
 cluster_marker_genes %>% 
     filter(cluster == first(cluster)) %>%

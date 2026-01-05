@@ -565,7 +565,7 @@ organise_plots <- function(x, i = 2) {
 
 
 #' @export
-plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type") {
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", ...) {
     p1 <- list.map(
         markers,
         f(i, j, k) ~ {
@@ -588,7 +588,8 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
                             features = it,
                             split.by = split.by,
                             cols = brewer.pal(9, "Reds"),
-                            pt.size = .5
+                            pt.size = .5,
+                            ...
                         ) %>%
                             organise_plots() %>%
                             theme_multiple(

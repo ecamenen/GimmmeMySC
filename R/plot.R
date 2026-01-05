@@ -178,25 +178,42 @@ plot_feature <- function(
      cols = pal_sc,
      pt.size = 1,
      alpha = .5,
+     limits = NULL,
+     normalize = FALSE,
+     split.by = NULL,
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
+    if (isTRUE(normalize)) {
+        cts <- GetAssayData(object = object)
+        limits <- map(features, ~cts[., ] %>% quantile(c(0, 1)))
+    } else {
+        limits <- replicate(length(features), NULL, simplify = FALSE)
+    }
+
+    if(!is.null(split.by)) {
+        n_groups <- length(unique(object[[]][, split.by]))
+    } else {
+        n_groups <- 1
+    }
+
+    limits <- set_names(limits, features)
+
     FeaturePlot(
         object = object,
         features =  features,
         pt.size = pt.size,
         alpha = alpha,
         combine = FALSE,
-        # min.cutoff = "q10",
-        # max.cutoff = "q90",
+        split.by = split.by,
         ...
-    )  %>%
-        map(
-            ~theme_sc_dim(.) +
+    ) %>%
+        set_names(rep(features, n_groups)) %>%
+        list.map(
+            f(i, j, k) ~theme_sc_dim(i) +
                 labs(x = NULL, y = NULL) +
-                scale_color_gradientn(colors = cols)
-        ) %>%
-         set_names(features)
+                scale_color_gradientn(colors = cols, limits = limits[[k]])
+        )
 }
 
 #' @export
@@ -264,6 +281,25 @@ plot_dot <- function(
     }
 }
 
+
+plot_dot2 <- function(x, markers, ...) {
+    last_row_numbers <- markers %>%
+        filter(!duplicated(gene)) %>%
+        mutate(row_num = row_number()) %>%
+        group_by(cluster) %>%
+        slice_tail(n = 1) %>%
+        pull(row_num) %>%
+        sort()
+
+    plot_dot(
+        x,
+        features = unique(pull(markers, "gene")),
+        ...
+    ) +
+        geom_vline(xintercept = last_row_numbers + 0.5)
+}
+
+
 #' @export
 plot_violin_sc <- function(
         object = object,
@@ -314,6 +350,8 @@ plot_dim <- function(
         axis = FALSE,
         pt.size = .5,
         alpha = .25,
+        combine = TRUE,
+        na.value = "white",
         ...
     ) {
         p <- DimPlot(

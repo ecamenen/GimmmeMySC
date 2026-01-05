@@ -84,12 +84,12 @@ bar_group_ident(
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
-plot_marker_split(seurat, l_bcell_markers)
+plot_marker_split(seurat, l_bcell_markers, normalize = TRUE)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
-plot_marker_split(seurat, jcb_markers)
+plot_marker_split(seurat, jcb_markers, normalize = TRUE)
 ```
 
 ## Cell per cluster
