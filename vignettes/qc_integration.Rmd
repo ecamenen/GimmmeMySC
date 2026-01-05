@@ -22,7 +22,6 @@ knitr::opts_chunk$set(
 library("GimmmeMySC")
 library("GimmeMyPlot")
 library("rlist")
-library("RColorBrewer")
 library("cowplot")
 library("kableExtra")
 library("Seurat")

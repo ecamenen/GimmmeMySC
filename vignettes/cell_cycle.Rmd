@@ -10,7 +10,11 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.path = "figures/cell_cycle/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
 )
 ```
 
@@ -24,7 +28,10 @@ path <- file.path(
   "extdata"
 )
 source(file.path(path, "conf.R"))
-data()
+```
+
+```{r}
+load(file.path(path, "integrated_bcells2.rda"))
 ```
 
 ## Data normalization
@@ -35,7 +42,10 @@ seurat <- NormalizeData(seurat) %>%
     ScaleData() %>%
   RunPCA(features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
 
-plot_dim_cycle(seurat, reduction = "pca")
+plot_dim_cycle(seurat)
+seurat_subset <- subsampling_sc(seurat)
+plot_dim_cycle0(seurat_subset, split.by = "Type")
+plot_dim_cycle0(seurat_subset, split.by = "Patient")
 ```
 
 ## Cell cycle regression
@@ -53,7 +63,10 @@ seurat <- RunPCA(
   features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>%
     func_format()
 )
-plot_dim_cycle(seurat, reduction = "pca")
+plot_dim_cycle(seurat)
+seurat_subset <- subsampling_sc(seurat)
+plot_dim_cycle0(seurat_subset, split.by = "Type")
+plot_dim_cycle0(seurat_subset, split.by = "Patient")
 ```
 
 ```{r}
@@ -66,8 +79,8 @@ seurat <- RunPCA(
 ```
 
 ## Save data
-```{r}
-usethis::use_data()
+```{r, eval = FALSE}
+save(seurat, file = file.path(path, "integrated_bcells2.rda"))
 ```
 
 ## Session information
