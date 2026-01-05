@@ -251,17 +251,17 @@ calc_other_cluster_avg <- function(avg_matrix) {
 
 #' @export
 pct_by_ident_type <- function(
-        seurat,
-        clusters = Idents(seurat),
-        group.by = seurat$Type
+        x,
+        clusters = Idents(x),
+        group.by = x$Type
 ) {
 
-    expr_bin <- GetAssayData(seurat, layer = "data") > 0
+    expr_bin <- GetAssayData(x, layer = "data") > 0
     group <- interaction(clusters, group.by, drop = TRUE)
     percent_matrix <- sapply(
         levels(group),
         function(g) {
-            cells <- colnames(seurat)[group == g]
+            cells <- colnames(x)[group == g]
             rowMeans(expr_bin[, cells, drop = FALSE])
         })
     as.matrix(percent_matrix) %>% as.data.frame()
@@ -379,7 +379,7 @@ dea2deseq <- function(
         exp_threshold = .1
     ) {
     cls <- pull(x, "cluster") %>% unique()
-    is_id2 <- str_detect(cls, " vs ")
+    is_id2 <- str_detect(cls, " vs ") %>% any()
     if (is_id2) {
         func <- identity
     } else {
@@ -434,7 +434,7 @@ volcano_sc <- function(x, top_genes, fc_threshold = log2(1.5), p_threshold = .05
                 max.overlaps = 1e3,
                 force = 1e2,
                 ...
-            ) + labs(x = NULL, y = NULL) +
+            ) + labs(x = NULL, y = NULL, title = k) +
                 theme(legend.position = "none")
         })
 }
@@ -450,7 +450,8 @@ format_dea_sc <- function(
     ) {
     is_id2 <- pull(x, "cluster") %>%
         unique() %>%
-        str_detect(" vs ")
+        str_detect(" vs ") %>%
+        any()
 
     list.map(
         unique(x$cluster),
@@ -661,7 +662,8 @@ format_celltype <- function(
     )
 
     seurat@meta.data[, type] <-
-        table_annotation[match(rownames(seurat[[]]), rownames(table_annotation)), label_type]
+        table_annotation[match(rownames(seurat[[]]), rownames(table_annotation)), label_type] %>%
+        factor(levels = reorder_celltype(.))
 
     return(seurat)
 }

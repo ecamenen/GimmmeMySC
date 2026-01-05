@@ -386,6 +386,8 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
 
     if ("0" %in% levels(Idents(x))) {
         legend <- reorder_celltype(x[[]][, cell_label])
+    } else if ("0" %in% levels(x[[]][, cell_label])) {
+        legend <- levels(x[[]][, cell_label])
     } else {
         legend <- NULL
     }
@@ -456,12 +458,18 @@ bar_ident_group <- function(
 
 #' @export
 bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35", colour = palette_discrete()) {
+
+    if ("0" %in% levels(x[[]][, idents])) {
+        legend <- levels(x[[]][, idents])
+    } else {
+        legend <- reorder_celltype(x[[]][, idents])
+    }
     table_ident_group(x, group.by, idents) %>%
         t() %>%
         as.data.frame() %>%
         bar_ident_group0(
             colour = colour,
-            legend = reorder_celltype(x[[]][, idents])
+            legend = legend
             )
 }
 
