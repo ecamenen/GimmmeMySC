@@ -121,6 +121,13 @@ plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
 ## Cell cycle
 ```{r, message = FALSE}
 plot_dim_cycle(seurat)
+
+Idents(seurat) <- "Phase"
+Idents(seurat) %>% 
+    cluster_size() %>%
+    kable_sc(file = file.path(path_fig, "table_phase.png"))
+
+plot_bar_sc(seurat)
 ```
 
 ## Annotation
@@ -162,7 +169,7 @@ plot_dim_cell(
     split.by = "cell_subtype_formatted",
     label = FALSE,
     ncol = 3, 
-    cols = pal_discrete_sc
+    cols = rep("black", 100)
 ) +
     NoLegend()
 ```
@@ -186,7 +193,7 @@ plot_dim_cell(
     split.by = "cell_subtype_formatted2",
     label = FALSE,
     ncol = 3, 
-    cols = pal_discrete_sc
+    cols = rep("black", 100)
 ) +
     NoLegend()
 ```

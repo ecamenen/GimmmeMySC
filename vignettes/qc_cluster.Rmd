@@ -103,7 +103,7 @@ p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", col = pal_discr
 plot_dim(
     seurat,
     split.by = snn_cluster,
-    cols = pal_discrete_sc,
+    cols = rep("black", 100),
     label = FALSE,
     ncol = 4
 ) + NoLegend()
