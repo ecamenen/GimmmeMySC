@@ -27,6 +27,7 @@ library(rlist)
 library(Seurat)
 library(cowplot)
 library(kableExtra)
+library(openxlsx)
 
 path <- file.path(
   dirname(getwd()),
@@ -40,7 +41,7 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-assay <- "RNA"
+source(file.path(path, "conf.R"))
 
 grouping.var <- "Type"
 cell_label <- paste0(
@@ -52,7 +53,20 @@ cell_label <- paste0(
 split.by <- NULL
 # split.by <- "Type"
 
-load(file.path(path, "type_integrated.rda"))
+pseudo <- TRUE
+pal_discrete_sc <- palette_discrete()[-7]
+```
+
+```{r}
+load(file.path(path, "integrated_bcells4.rda"))
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+
+Idents(seurat) <- snn_cluster
 ```
 
 ## Differentially Expressed Genes
@@ -62,18 +76,23 @@ load(file.path(path, "type_integrated.rda"))
 #     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
 # )
 
-ids <- NULL
-cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var)
-
-l_dea_raw <- cluster_marker_genes %>%
-  mutate(gene_name = gene) %>%
-  format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
-
-l_dea_proc <- dea2deseq(l_dea_raw)
+if (isFALSE(pseudo)) {
+  ids <- NULL
+  cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var)
+  
+  l_dea_raw <- cluster_marker_genes %>%
+    mutate(gene_name = gene) %>%
+    format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
+  
+  l_dea_proc <- dea2deseq(l_dea_raw)
+}
 ```
 
 # Pseudo-bulk
-```{r, eval = FALSE}
+```{r}
+if (isTRUE(pseudo)) {
+library("DESeq2")
+
 cts <- AggregateExpression(
   seurat,
   group.by = c(cell_label, "Patient"),
@@ -94,10 +113,6 @@ cts <- list.map(
 
 cell_pct <- pct_by_ident_type(seurat) %>%
     rownames_to_column("gene_name")
-```
-
-```{r, eval = FALSE}
-library("DESeq2")
 
 metadata_samples <- colnames(cts[[1]]) %>%
     data.frame(id = ., condition = str_remove_all(., "\\d*$") %>% str_remove_all(., "_$")) %>%
@@ -161,41 +176,38 @@ l_dea_proc <- list.map(
             )
     }
 )
+}
 ```
 
-```{r, eval = FALSE}
-l_deg0 <- list.map(
-    l_dea_proc, 
-    f(x) ~x %>%
-        mutate(description = "") %>%
-        print_dea(metadata = FALSE) %>%
-        select(-`Full name`)
-)
+```{r}
 l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
+if (pseudo) {
 top10 <- list.map(
     l_deg,  
     f(x, xx, xxx) ~head(x, 10) %>%
         mutate(cluster = xxx)) %>%
     list.rbind() %>%
-    rename(gene = "Gene") %>%
+    dplyr::rename(gene = "gene_name") %>%
     filter(!duplicated(gene))
 
-
 plot_dot2(seurat, top10, split.by = "Type") +
-    geom_hline(yintercept = seq(2, (length(l_deg0) -1) * 2, by = 2) + 0.5)
+    geom_hline(yintercept = seq(2, (length(l_dea_proc) -1) * 2, by = 2) + 0.5)
+}
 ```
 
-```{r, eval = FALSE}
-l_bcell_markers <- list.map(l_deg, pull(., Gene) %>% unique())
-plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_deg0))
+```{r}
+if (pseudo) {
+  l_bcell_markers <- list.map(l_deg, pull(., gene_name) %>% unique())
+  plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_dea_proc))
+}
 ```
 
 ## Volcano plots
 ```{r}
-kable_dea(l_dea_proc, file = file.path(path_fig, "table_dea.png"))
+kable_dea(l_deg, file = file.path(path_fig, "table_dea.png"))
 
 l_deg_top <- list.map(
-  l_dea_proc,
+  l_deg,
   f(x) ~ top_genes(
     x,
     fc_threshold = fc_threshold,
@@ -205,11 +217,11 @@ l_deg_top <- list.map(
 )
 
 p <- volcano_sc(
-  l_dea_proc,
+  l_deg,
   top_genes = l_deg_top,
   fc_threshold = fc_threshold,
   p_threshold = p_threshold
-  )
+)
 
 n <- length(p)
 plot_grid(plotlist = p[seq(ceiling(n/2))], align = "hv", nrow = 2)
@@ -218,13 +230,43 @@ plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
 
 # Save DEG
 ```{r}
-library("openxlsx")
+if(isFALSE(pseudo)) {
+  metadata <- TRUE
+} else {
+  metadata <- FALSE
+}
 omics2excel(
-  l_dea_proc,
-  file = file.path(path, "deg.xlsx"),
-  function(x) mutate(x, description = "") %>%
-    print_dea(metadata = FALSE) %>%
-    select(-c("ensembl_gene_id", "Full name", "gene"))
+  l_deg,
+  file = file.path(path_fig, "deg.xlsx"),
+  function(x) {
+    res <- mutate(x, description = "") %>%
+    print_dea(metadata = metadata)
+    
+    if (isFALSE(pseudo))
+      res <- res %>%
+    select(-c(c("ensembl_gene_id", "Full name", "gene"), contains(c("KO_", "WT_", "val"))))
+    res
+  }
+)
+
+if (isFALSE(pseudo))
+omics2excel(
+  l_deg,
+  file = file.path(path_fig, "deg_cluster.xlsx"),
+  function(x) {
+    res <- mutate(x, description = "") %>%
+    print_dea(metadata = metadata)
+    
+    if (isFALSE(pseudo))
+      res <- res %>%
+    select(-c(c("ensembl_gene_id", "Full name", "gene"), contains(c("KO_", "WT_", "val")))) %>%
+    rename(
+      `avg_log2FC` = "Fold-change",
+      p_val_adj = "P-adjusted"
+    ) %>%
+    select(-contains("exp."))
+  res
+  }
 )
 ```
 
@@ -414,72 +456,82 @@ list.map(
 ```
 
 ## Dotplots
-```{r}
-l_dea <- format_dea_sc(
-  l_dea_raw,
-  pct_threshold, 
-  fc_threshold = fc_threshold,
-  p_threshold = p_threshold
-)
+```{r, fig.height = 6, fig.width = 12}
+if (!pseudo) {
+  l_dea <- format_dea_sc(
+    l_dea_raw,
+    pct_threshold, 
+    fc_threshold = fc_threshold,
+    p_threshold = p_threshold
+  )
+}
 ```
 
 ```{r}
-top10 <- list.map(
-    l_dea, 
-    f(x) ~ x %>%
-      # filter(log2FoldChange > 0) %>%
-    slice_head(n = 10)
-) %>%
-    list.rbind()
+if (!pseudo) {
+  top10 <- list.map(
+      l_dea, 
+      f(x) ~ x %>%
+        # filter(log2FoldChange > 0) %>%
+      slice_head(n = 10)
+  ) %>%
+      list.rbind()
+}
 ```
 
 ```{r, eval = FALSE}
-last_row_numbers <- top10 %>%
-    # ungroup() %>%
-    filter(!duplicated(gene)) %>%
-    mutate(row_num = row_number() %>% rev()) %>%
-    # mutate(row_num = row_number()) %>% # if pseudo
-    group_by(cluster) %>%
-    slice_tail(n = 1) %>%
-    pull(row_num) %>%
-    sort()
-
-DoHeatmap(
-    seurat,
-    features = top10$gene,
-    # group.by = "cell_type_na",
-    group.colors = palette_discrete(),
-    slot = "data"
-) + 
-    NoLegend() + 
-    scale_fill_gradientn(
-        colors = brewer.pal(11, "Spectral"),
-        na.value = "black"
-    ) +
-    geom_hline(yintercept = last_row_numbers[-1] - 0.5, color = "black", linetype = "solid", linewidth = 1)
+if (!pseudo) {
+  last_row_numbers <- top10 %>%
+      # ungroup() %>%
+      filter(!duplicated(gene)) %>%
+      mutate(row_num = row_number() %>% rev()) %>%
+      # mutate(row_num = row_number()) %>% # if pseudo
+      group_by(cluster) %>%
+      slice_tail(n = 1) %>%
+      pull(row_num) %>%
+      sort()
+  
+  DoHeatmap(
+      seurat,
+      features = top10$gene,
+      # group.by = "cell_type_na",
+      group.colors = palette_discrete(),
+      slot = "data"
+  ) + 
+      NoLegend() + 
+      scale_fill_gradientn(
+          colors = brewer.pal(11, "Spectral"),
+          na.value = "black"
+      ) +
+      geom_hline(yintercept = last_row_numbers[-1] - 0.5, color = "black", linetype = "solid", linewidth = 1)
+}
 ```
 
 ```{r, fig.height = 3.7, fig.width = 8}
-plot_dot2(seurat, top10)
-
-cluster_marker_genes %>% 
-    filter(cluster == first(cluster)) %>%
-  head(15) %>%
-  mutate(padj = format(padj, digits = 1, scientific = TRUE)) %>%
-  mutate(FC = 2^abs(log2FoldChange) * sign(log2FoldChange)) %>%
-   set_rownames(pull(., gene)) %>%
-  select(FC, padj) %>%
-  kable0()
+if (!pseudo) {
+  plot_dot2(seurat, top10)
+  
+  cluster_marker_genes %>% 
+      filter(cluster == first(cluster)) %>%
+    head(15) %>%
+    mutate(padj = format(padj, digits = 1, scientific = TRUE)) %>%
+    mutate(FC = 2^abs(log2FoldChange) * sign(log2FoldChange)) %>%
+     set_rownames(pull(., gene)) %>%
+    select(FC, padj) %>%
+    kable0()
+}
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-markers <- list.map(
-    l_dea, 
-    f(x) ~ x %>%
-        pull("gene_name") %>% unique()
-)
-plot_mfeature(seurat, markers, nrow = 3)
-plot_markers(seurat, markers)
+if (!pseudo) {
+  markers <- list.map(
+      l_dea, 
+      f(x) ~ x %>%
+          pull("gene_name") %>% unique()
+  )
+  plot_mfeature(seurat, markers, nrow = 3)
+  plot_markers(seurat, markers)
+}
 ```
 
 ## Session information
