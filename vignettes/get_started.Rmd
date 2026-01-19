@@ -23,6 +23,7 @@ knitr::opts_chunk$set(
 library("GimmmeMySC")
 library("Seurat")
 library("rlist")
+library("clustree")
 
 path <- file.path(
   dirname(getwd()),

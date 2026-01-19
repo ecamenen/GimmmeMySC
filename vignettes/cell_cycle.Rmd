@@ -49,7 +49,7 @@ plot_dim_cycle0(seurat_subset, split.by = "Patient")
 ```
 
 ## Cell cycle regression
-```{r, eval = FALSE}
+```{r}
 seurat <- ScaleData(
   seurat,
   vars.to.regress = c("S.Score", "G2M.Score"),
@@ -79,8 +79,8 @@ seurat <- RunPCA(
 ```
 
 ## Save data
-```{r, eval = FALSE}
-save(seurat, file = file.path(path, "integrated_bcells2.rda"))
+```{r}
+save(seurat, file = file.path(path, "integrated_bcells4.rda"))
 ```
 
 ## Session information

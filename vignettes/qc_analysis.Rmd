@@ -129,9 +129,11 @@ plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
 ```
 
 ## Cell cycle
-```{r, message = FALSE}
+```{r, fig.width = 5}
 plot_dim_cycle(seurat)
+```
 
+```{r, message = FALSE}
 Idents(seurat) <- "Phase"
 Idents(seurat) %>% 
     cluster_size() %>%
@@ -165,7 +167,7 @@ plot_dim_cell(
 ```
 
 ### B cells
-```{r, message = FALSE}
+```{r, message = FALSE, fig.width = 5}
 b_cell <- subset(seurat, cell_type_formatted == "B cell")
 Idents(b_cell) <- "cell_subtype_formatted2"
 
@@ -192,7 +194,8 @@ plot_bar_sc(seurat)
 Idents(seurat) %>% 
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_subcells.png"))
-
+```
+```{r, fig.width = 5}
 plot_dim_cell(seurat, cols = pal_discrete_sc)
 ```
 
@@ -208,9 +211,11 @@ plot_dim_cell(
     NoLegend()
 ```
 
-```{r, message = FALSE, fig.height = 5, fig.width = 10}
+```{r, fig.width = 5}
 plot_dim_cell(seurat, cols = pal_discrete_sc)
+```
 
+```{r, message = FALSE, fig.height = 5, fig.width = 10}
 cell_categories <- seurat$cell_type_formatted %>% unique() %>% na.omit()
 
 list.map(
@@ -241,6 +246,22 @@ p <- list.map(
 )
 
 plot_grid(plotlist = p, align = "hv", nrow = 2)
+```
+```{r, fig.height = 5, fig.width = 10}
+Idents(seurat) <- "cell_subtype_formatted"
+plot_sc_violin(
+    seurat,
+    nrow = 2,
+    ncol = 2,
+    normalize = c(10, 10, 10, 10),
+    breaks = list(
+      c(0, 1e3, 2.5e3, 5e3, 1e4),
+      c(0, 1e3, 2.5e3, 5e3, 1e4),
+      c(0.1, 0.5, 1, 2.5, 5, 10),
+      c(0.1, 1, 5, 10, 25, 50, 1e3)
+    ),
+    col = pal_discrete_sc
+)
 ```
 
 ## Session information
