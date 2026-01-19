@@ -1,0 +1,168 @@
+---
+title: "filter_by_markers"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{filter_by_markers}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/filter_by_markers/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+```{r setup}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("cowplot")
+library("kableExtra")
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "filter_by_markers")
+
+assay <- "RNA"
+markers <- c("Cd19", "Cd79a", "Cd79b", "Ighm")
+```
+
+```{r}
+load(file.path(path, "integrated_bcells4.rda"))
+summary(seurat$percent_ribosomal)
+
+# seurat <- subset(seurat, subset = Type == "KO")
+```
+
+```{r, eval = FALSE}
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+```
+
+```{r}
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+cts <- GetAssayData(seurat, layer = "data")
+threshold <- .5
+seurat$status <- ifelse(cts["Cd79a", ] > threshold | cts["Cd79b", ] > threshold, "High", "Low")
+```
+
+```{r, fig.height = 6, fig.width = 12}
+plot_feature(seurat, markers, , pt.size = .25) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r}
+Idents(seurat) <- "cell_subtype_formatted"
+plot_heatmap2(seurat, markers) +
+        NoLegend() 
+
+cells_subset <- WhichCells(seurat, idents = c("proB.FRA", "proB.CLP"))
+plot_heatmap2(seurat, markers, lines.width = 5, cells = cells_subset) + guides(color = "none")
+
+plot_violin_sc(seurat, features = markers) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r}
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+
+Idents(seurat) <- snn_cluster
+
+negative_clusters <- 7:(nlevels(Idents(seurat))-1)
+all_clusters <- levels(Idents(seurat))
+positive_clusters <- setdiff(all_clusters, negative_clusters)
+
+plot_heatmap2(seurat, markers) +
+        NoLegend()
+
+cells_subset <- WhichCells(seurat, idents = negative_clusters)
+plot_heatmap2(seurat, markers, lines.width = 5, cells = cells_subset) + guides(color = "none")
+
+plot_violin_sc(seurat, features = markers) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r}
+table(seurat$status, Idents(seurat)) %>% list(table = .) -> tmp
+print_conf(tmp) %>%
+    save_kable(
+          file = file.path(path_fig, "table_low_cluster.png"),
+          zoom = 2
+    )
+calculate_classification_stats(tmp$table, positive_clusters = positive_clusters) %>%
+    kable0(color = "black") %>%
+    save_kable(
+          file = file.path(path_fig, "table_score_cluster.png"),
+          zoom = 2
+    )
+```
+
+```{r}
+table(seurat$status, seurat$cell_subtype_formatted) %>% list(table = .) -> tmp
+print_conf(tmp) %>%
+    save_kable(
+          file = file.path(path_fig, "table_low_celltype.png"),
+          zoom = 2
+    )
+calculate_classification_stats(tmp$table, positive_clusters = c("B.FRF", "B.FRE", "preB.FRD", "preB.FRC", "proB.FRBC")) %>%
+    kable0(color = "black") %>%
+    save_kable(
+          file = file.path(path_fig, "table_score_celltype.png"),
+          zoom = 2
+    )
+```
+
+## Ribosomal
+```{r}
+seurat$status <- ifelse(seurat$percent_ribosomal > 30, "High", "Low")
+```
+
+```{r, eval = FALSE}
+table(seurat$status, Idents(seurat)) %>% list(table = .) -> tmp
+print_conf(tmp) %>%
+    save_kable(
+          file = file.path(path_fig, "table_low_cluster_ribo.png"),
+          zoom = 2
+    )
+calculate_classification_stats(tmp$table, "Low", positive_clusters = 0:7) %>%
+    kable0(color = "black") %>%
+    save_kable(
+          file = file.path(path_fig, "table_score_cluster_ribo.png"),
+          zoom = 2
+    )
+```
+
+```{r, eval = FALSE}
+table(seurat$status, seurat$cell_subtype_formatted) %>% list(table = .) -> tmp
+print_conf(tmp) %>%
+    save_kable(
+          file = file.path(path_fig, "table_low_celltype_ribo.png"),
+          zoom = 2
+    )
+calculate_classification_stats(tmp$table, "Low", positive_clusters = c("B.FRF", "B.FRE", "preB.FRD", "preB.FRC", "proB.FRBC")) %>%
+    kable0(color = "black") %>%
+    save_kable(
+          file = file.path(path_fig, "table_score_celltype_ribo.png"),
+          zoom = 2
+    )
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
