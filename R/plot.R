@@ -422,20 +422,23 @@ clustree_sc <- function(x, prefix, clusters) {
 #' @export
 plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell_subtype_formatted") {
 
-    if ("0" %in% levels(Idents(x))) {
-        legend <- reorder_celltype(x[[]][, cell_label])
-    } else if ("0" %in% levels(x[[]][, cell_label])) {
-        legend <- levels(x[[]][, cell_label])
-    } else {
-        legend <- NULL
-    }
-
-    table(Idents(x), x[[]][, cell_label]) %>%
+    res <- table(Idents(x), x[[]][, cell_label]) %>%
         as.data.frame.matrix() %>%
         t() %>%
         as.data.frame() %>%
         mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+        filter(rowSums(.) > 0)
+
+    if ("0" %in% levels(Idents(x))) {
+        legend <- reorder_celltype(rownames(res))
+    } else if ("0" %in% levels(x[[]][, cell_label])) {
+        legend <- rownames(res) %>% as.numeric() %>% sort()
+    } else {
+        legend <- NULL
+    }
+
         plot_bar_2cat(
+            res,
             count = TRUE,
             stats = FALSE,
             colour =  cols,
