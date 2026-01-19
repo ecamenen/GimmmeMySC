@@ -10,12 +10,18 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.path = "figures/trajectory/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
 )
 ```
 
 ```{r setup}
 library("GimmmeMySC")
+library("Seurat")
+library("rlist")
 library("monocle3")
 library("slingshot")
 library("SeuratWrappers")
@@ -25,10 +31,24 @@ path <- file.path(
   "inst",
   "extdata"
 )
+
+assay <- "RNA"
 ```
 
 ```{r}
-load(file.path(path, "type_integrated.rda"))
+load(file.path(path, "integrated_bcells4.rda"))
+
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+
+Idents(seurat) <- snn_cluster
+
+# seurat <- subset(seurat, subset = Type == "KO")
+start_cluster <- 6
 ```
 
 # Trajectory analysis
@@ -38,7 +58,6 @@ cds <- as.cell_data_set(seurat)
 ```
 
 ```{r}
-start_cluster <- 6
 names(cds@clusters$UMAP$partitions) <- colnames(cds)
 root_cells <- colnames(cds)[cds@clusters$UMAP$clusters == start_cluster]
 
@@ -76,7 +95,7 @@ reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") -> reduc_coords
 sce <- slingshot(
   sce,
   start.clus = start_cluster,
-  clusterLabels = "cell_type",
+  clusterLabels = snn_cluster,
   reducedDim = "UMAP"
 )
 
@@ -111,11 +130,6 @@ theme_sc_dim(p)  +
       colors = rev(pal_sc), 
       name = "Pseudotime"
     )
-```
-
-## Save data
-```{r, eval = FALSE}
-usethis::use_data()
 ```
 
 ## Session information
