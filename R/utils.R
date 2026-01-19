@@ -255,16 +255,17 @@ pct_by_ident_type <- function(
         clusters = Idents(x),
         group.by = x$Type
 ) {
-
     expr_bin <- GetAssayData(x, layer = "data") > 0
     group <- interaction(clusters, group.by, drop = TRUE)
-    percent_matrix <- sapply(
+    sapply(
         levels(group),
         function(g) {
             cells <- colnames(x)[group == g]
-            rowMeans(expr_bin[, cells, drop = FALSE])
-        })
-    as.matrix(percent_matrix) %>% as.data.frame()
+            expr_bin[, cells, drop = FALSE] %>%
+                as.matrix() %>%
+                rowMeans()
+        }) %>%
+        as.data.frame()
 }
 
 #' @export

@@ -437,6 +437,12 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
         legend <- NULL
     }
 
+    if (str_detect(levels(Idents(x)), "B\\.") %>% any()) {
+        sort <- reorder_celltype(levels(Idents(x)))
+    } else {
+        sort <- TRUE
+    }
+
         plot_bar_2cat(
             res,
             count = TRUE,
@@ -445,7 +451,8 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
             pct  = FALSE,
             threshold = 1,
             digits = 1,
-            legend = legend
+            legend = legend,
+            sort = sort
         ) +
         labs(y = "% Cells")
 }
@@ -591,4 +598,25 @@ plot_dim_cell <- function(x, cols = palette_discrete(), ...) {
     Idents(x) <- factor(Idents(x), levels =  reorder_celltype(Idents(x)))
     plot_dim(x, ...) +
         scale_color_manual(na.translate = FALSE, values = cols)
+}
+
+#' @export
+plot_heatmap2 <- function(x, markers, lines.width = NULL, ...) {
+    DoHeatmap(
+        x,
+        features = markers,
+        group.colors = palette_discrete(),
+        slot = "data",
+        angle = -45,
+        hjust = 1,
+        lines.width = lines.width,
+        ...
+    ) +
+        scale_fill_gradientn(
+            colors = brewer.pal(11, "Spectral"),
+            na.value = "black"
+        ) +
+        theme(
+            plot.margin = margin(t = 40),
+            axis.text.y = element_text(size = 15))
 }
