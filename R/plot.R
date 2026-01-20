@@ -478,6 +478,7 @@ bar_ident_group0 <- function(
         x,
         group.by = "Patient",
         idents = "RNA__snn_res.0.35",
+        sort = TRUE,
         ...
     ) {
     x %>%
@@ -487,6 +488,7 @@ bar_ident_group0 <- function(
             stats = FALSE,
             pct  = FALSE,
             digits = 1,
+            sort = sort,
             ...
         ) +
         labs(y = "% Cells")
@@ -499,8 +501,13 @@ bar_ident_group <- function(
         idents = "RNA__snn_res.0.35",
         ...
     ) {
+    if ("0" %in% levels(x[[]][, idents])) {
+        sort <- levels(x[[]][, idents])
+    } else {
+        sort <- TRUE
+    }
     table_ident_group(x, group.by, idents) %>%
-        bar_ident_group0(...) +
+        bar_ident_group0(sort = sort) +
         geom_hline(yintercept = 50, color = "gray")
 }
 
