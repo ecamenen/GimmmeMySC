@@ -82,3 +82,23 @@ seurat <- merge(wt, ko)
 # usethis::use_data(bcell_integrated, overwrite = TRUE)
 seurat <- subset(seurat, cell_type_formatted == "B cell")
 save(seurat, file = file.path(path, "integrated_bcells2.rda"))
+
+################################################
+
+seurat <- merge(wt, ko)
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+
+seurat <- subset(seurat, cell_type_formatted == "B cell")
+seurat <- subset(seurat, subset = percent_ribosomal < 35)
+
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData()
+threshold <- 1
+seurat <- subset(seurat, subset = Cd79a > threshold | Cd79b > threshold)
+
+save(seurat, file = file.path(path, "integrated_bcells4.rda"))
