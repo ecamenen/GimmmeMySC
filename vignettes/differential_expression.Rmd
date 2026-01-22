@@ -180,28 +180,6 @@ l_dea_proc <- list.map(
 }
 ```
 
-```{r}
-if (pseudo) {
-top10 <- list.map(
-    l_deg_top,  
-    f(x, xx, xxx) ~head(x, 10) %>%
-        mutate(cluster = xxx)) %>%
-    list.rbind() %>%
-    dplyr::rename(gene = "gene_name") %>%
-    filter(!duplicated(gene))
-
-plot_dot2(seurat, top10, split.by = "Type") +
-    geom_hline(yintercept = seq(2, (length(l_dea_proc) -1) * 2, by = 2) + 0.5)
-}
-```
-
-```{r}
-if (pseudo) {
-  l_bcell_markers <- list.map(l_deg_top, pull(., gene_name) %>% unique())
-  plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_dea_proc))
-}
-```
-
 ## Volcano plots
 ```{r}
 l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
@@ -239,15 +217,15 @@ if (isFALSE(pseudo)) {
 
 l_deg2 <- list.map(
     l_deg,
-    f(x) ~
+    f(x) ~ {
       if (!pseudo) {
         x <- mutate(x, description = "")
       }
       x %>%
         print_dea(metadata = metadata, f = desc, rank_by = "rank_fc") %>%
         mutate(Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
-        split(.$Expression) %>%
-        select(-Expression)
+        split(.$Expression)
+    }
 ) %>%
     set_names(names(l_deg)) %>%
     list_flatten(name_spec = "{outer}_{inner}")
@@ -256,7 +234,7 @@ omics2excel(
   l_deg2,
     file = file.path(path_fig, "deg.xlsx"),
     function(x) {
-      res <- identity(x)
+      res <- select(x, -Expression)
       if (!pseudo)
         select(res, -`Full name`)
       else
@@ -478,7 +456,15 @@ if (!pseudo) {
 ```
 
 ```{r}
-if (!pseudo) {
+if (pseudo) {
+  top10 <- list.map(
+      l_deg_top,  
+      f(x, xx, xxx) ~head(x, 10) %>%
+          mutate(cluster = xxx)) %>%
+      list.rbind() %>%
+      dplyr::rename(gene = "gene_name") %>%
+      filter(!duplicated(gene))
+} else {
   top10 <- list.map(
       l_dea, 
       f(x) ~ x %>%
@@ -517,10 +503,16 @@ if (!pseudo) {
 }
 ```
 
+```{r}
+if (pseudo) {
+  plot_dot2(seurat, top10, split.by = "Type") +
+    geom_hline(yintercept = seq(2, (length(l_dea_proc) -1) * 2, by = 2) + 0.5)
+  }
+```
+
 ```{r, fig.height = 3.7, fig.width = 8}
 if (!pseudo) {
   plot_dot2(seurat, top10)
-  
   cluster_marker_genes %>% 
       filter(cluster == first(cluster)) %>%
     head(15) %>%
@@ -533,7 +525,10 @@ if (!pseudo) {
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-if (!pseudo) {
+if (pseudo) {
+  l_bcell_markers <- list.map(l_deg_top, pull(., gene_name) %>% unique())
+  plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_dea_proc))
+  } else {
   markers <- list.map(
       l_dea, 
       f(x) ~ x %>%

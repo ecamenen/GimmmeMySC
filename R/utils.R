@@ -401,7 +401,7 @@ dea2deseq <- function(
         select(., -cluster) %>%
             mutate(
                 Expression = ifelse(
-                    pct.1 > pct_threshold | exp.1 > exp_threshold,
+                    pct.1 > pct_threshold & exp.1 > exp_threshold,
                     Expression,
                     "ns"
                 )
@@ -414,7 +414,7 @@ dea2deseq <- function(
                 mutate(
                     .,
                     Expression = ifelse(
-                        pct.2 > pct_threshold | exp.2 > exp_threshold,
+                        pct.2 > pct_threshold & exp.2 > exp_threshold,
                         Expression,
                         "ns"
                     )
