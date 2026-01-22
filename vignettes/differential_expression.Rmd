@@ -181,10 +181,9 @@ l_dea_proc <- list.map(
 ```
 
 ```{r}
-l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
 if (pseudo) {
 top10 <- list.map(
-    l_deg,  
+    l_deg_top,  
     f(x, xx, xxx) ~head(x, 10) %>%
         mutate(cluster = xxx)) %>%
     list.rbind() %>%
@@ -198,13 +197,14 @@ plot_dot2(seurat, top10, split.by = "Type") +
 
 ```{r}
 if (pseudo) {
-  l_bcell_markers <- list.map(l_deg, pull(., gene_name) %>% unique())
+  l_bcell_markers <- list.map(l_deg_top, pull(., gene_name) %>% unique())
   plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_dea_proc))
 }
 ```
 
 ## Volcano plots
 ```{r}
+l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
 kable_dea(l_deg, file = file.path(path_fig, "table_dea.png"))
 
 l_deg_top <- list.map(
@@ -240,10 +240,14 @@ if (isFALSE(pseudo)) {
 l_deg2 <- list.map(
     l_deg,
     f(x) ~
-        mutate(x, description = "") %>%
+      if (!pseudo) {
+        x <- mutate(x, description = "")
+      }
+      x %>%
         print_dea(metadata = metadata, f = desc, rank_by = "rank_fc") %>%
         mutate(Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
-        split(.$Expression)
+        split(.$Expression) %>%
+        select(-Expression)
 ) %>%
     set_names(names(l_deg)) %>%
     list_flatten(name_spec = "{outer}_{inner}")
