@@ -36,14 +36,15 @@ path <- file.path(
 )
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
 
+source(file.path(path, "conf.R"))
+
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-source(file.path(path, "conf.R"))
-
-grouping.var <- "Type"
+# grouping.var <- "Type"
+grouping.var <- NULL
 cell_label <- paste0(
     assay,
     "_snn_res.",
@@ -230,42 +231,47 @@ plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
 
 # Save DEG
 ```{r}
-if(isFALSE(pseudo)) {
+if (isFALSE(pseudo)) {
   metadata <- TRUE
 } else {
   metadata <- FALSE
 }
+
+l_deg2 <- list.map(
+    l_deg,
+    f(x) ~
+        mutate(x, description = "") %>%
+        print_dea(metadata = metadata, f = desc, rank_by = "rank_fc") %>%
+        mutate(Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
+        split(.$Expression)
+) %>%
+    set_names(names(l_deg)) %>%
+    list_flatten(name_spec = "{outer}_{inner}")
+
 omics2excel(
-  l_deg,
-  file = file.path(path_fig, "deg.xlsx"),
-  function(x) {
-    res <- mutate(x, description = "") %>%
-    print_dea(metadata = metadata)
-    
-    if (isFALSE(pseudo))
-      res <- res %>%
-    select(-c(c("ensembl_gene_id", "Full name", "gene"), contains(c("KO_", "WT_", "val"))))
-    res
-  }
+  l_deg2,
+    file = file.path(path_fig, "deg.xlsx"),
+    function(x) {
+      res <- identity(x)
+      if (!pseudo)
+        select(res, -`Full name`)
+      else
+        res
+    }
 )
 
 if (isFALSE(pseudo))
 omics2excel(
-  l_deg,
-  file = file.path(path_fig, "deg_cluster.xlsx"),
+  l_deg2,
+  file = file.path(path_fig, "marker_cluster.xlsx"),
   function(x) {
-    res <- mutate(x, description = "") %>%
-    print_dea(metadata = metadata)
-    
-    if (isFALSE(pseudo))
-      res <- res %>%
+    x %>%
     select(-c(c("ensembl_gene_id", "Full name", "gene"), contains(c("KO_", "WT_", "val")))) %>%
     rename(
       `avg_log2FC` = "Fold-change",
       p_val_adj = "P-adjusted"
     ) %>%
     select(-contains("exp."))
-  res
   }
 )
 ```

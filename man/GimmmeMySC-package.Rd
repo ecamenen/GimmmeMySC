@@ -4,7 +4,7 @@
 \name{GimmmeMySC-package}
 \alias{GimmmeMySC}
 \alias{GimmmeMySC-package}
-\title{GimmmeMySC: GimmmeMySC}
+\title{GimmmeMySC: Single-Cell Data Utilities}
 \description{
 End-to-end workflow for the analysis of single-cell and single-nucleus omics data, including scRNA-seq and scATAC-seq. Features include rigorous quality control, ambient RNA correction, and advanced detection of doublets and duplicated cells. Offers tools for normalization, feature selection, dimensionality reduction, clustering, and robust batch effect correction. Supports cell-type annotation using reference atlases and marker-based methods, sex-specific marker analysis, and cell cycle scoring. Enables multi-omic integration, pseudo-bulk analysis, differential expression and accessibility testing, peak calling, motif enrichment, and gene regulatory network reconstruction. Includes extensive visualization capabilities such as UMAP/t-SNE embeddings, violin and dot plots, coverage maps, co-accessibility networks, and interactive heatmaps.
 }

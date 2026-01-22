@@ -1,5 +1,5 @@
 Package: GimmmeMySC
-Title: GimmmeMySC
+Title: Single-Cell Data Utilities
 Version: 0.1.0
 Authors@R: 
     person("Etienne", "Camenen", , "etienne.camenen@gmail.com", role = c("aut", "cre"),

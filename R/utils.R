@@ -295,6 +295,9 @@ dea_sc <- function(
     cluster_marker_genes0 <- list.map(
         it,
         f(x) ~ {
+            if (is.null(grouping.var)) {
+                grouping.var <- "orig.ident"
+            }
             if (!is.null(ids)) {
                 ident.1 = ids[x, 1]
                 ident.2 = ids[x, 2]
@@ -309,16 +312,19 @@ dea_sc <- function(
                 ident.2 = ident.2,
                 grouping.var = grouping.var,
                 object = seurat,
-                logfc.threshold = .Machine$double.xmin
+                logfc.threshold = .Machine$double.xmin,
+                min.pct = .Machine$double.xmin
             ) %>%
             mutate(
                 cluster = cluster,
                 gene = rownames(.),
                 log2FoldChange = rowMeans(select(., ends_with("avg_log2FC")), na.rm = TRUE),
                 padj = rowMeans(select(., ends_with("p_val_adj")), na.rm = TRUE),
+                pval = rowMeans(select(., ends_with("p_val")), na.rm = TRUE),
                 `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
                 `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
-            )
+            ) %>%
+                select(-contains(unique(seurat$orig.ident)[1]))
 
             if (!is.null(ids)) {
                 res <- left_join(

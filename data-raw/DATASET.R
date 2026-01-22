@@ -28,7 +28,7 @@ l_bcell_markers <- list(
     ),
 
     FrF = c( # B matures (transit moelle → périphérie)
-        "Cd19", "Cd79a", "Cd79b", "Ighm", "Igkc", "Il4i1", "Ms4a1",
+        "Il4i1", "Ms4a1",
         "Nfkbiz", "Notch2", "Ptk2b", "Ptprj", "Tlr9"
     ),
 
@@ -90,15 +90,9 @@ seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 
-seurat <- subset(seurat, cell_type_formatted == "B cell")
-seurat <- subset(seurat, subset = percent_ribosomal < 35)
+seurat <- subset(seurat, cell_type_formatted %in% "B cell")
+seurat <- subset(seurat, !str_detect(cell_subtype_formatted, "FRA|CLP"))
 
-DefaultAssay(seurat) <- "RNA"
-seurat <- NormalizeData(seurat) %>%
-    FindVariableFeatures() %>%
-    ScaleData()
-threshold <- 1
-seurat <- subset(seurat, subset = Cd79a > threshold | Cd79b > threshold)
-
-save(seurat, file = file.path(path, "integrated_bcells4.rda"))
+save(seurat, file = file.path(path, "integrated_bcells5.rda"))
