@@ -392,7 +392,7 @@ dea2deseq <- function(
     } else {
         func <- as.numeric
     }
-    res <- x %>%
+    x %>%
     mutate(cluster = factor(cluster, levels = as.character(sort(func(cls))))
         ) %>%
     group_split(cluster, .keep = TRUE) %>%
@@ -401,28 +401,12 @@ dea2deseq <- function(
         select(., -cluster) %>%
             mutate(
                 Expression = ifelse(
-                    pct.1 > pct_threshold & exp.1 > exp_threshold,
+                    !((pct.1 < pct_threshold | exp.1 < exp_threshold) & (pct.2 < pct_threshold | exp.2 < exp_threshold)),
                     Expression,
                     "ns"
                 )
             )
     )
-
-    if (is_id2) {
-        list.map(
-            res,
-                mutate(
-                    .,
-                    Expression = ifelse(
-                        pct.2 > pct_threshold & exp.2 > exp_threshold,
-                        Expression,
-                        "ns"
-                    )
-                )
-        )
-    } else {
-        res
-    }
 }
 
 #' @export
@@ -444,46 +428,6 @@ volcano_sc <- function(x, top_genes, fc_threshold = log2(1.5), p_threshold = .05
             ) + labs(x = NULL, y = NULL, title = k) +
                 theme(legend.position = "none")
         })
-}
-
-
-#' @export
-format_dea_sc <- function(
-        x,
-        pct_threshold = .25,
-        exp_threshold = .1,
-        fc_threshold = log2(1.5),
-        p_threshold = .05
-    ) {
-    is_id2 <- pull(x, "cluster") %>%
-        unique() %>%
-        str_detect(" vs ") %>%
-        any()
-
-    list.map(
-        unique(x$cluster),
-        f(i) ~ {
-            res <- filter(x, cluster == i) %>%
-                filter(pct.1 > pct_threshold |
-                           exp.1 > exp_threshold)
-
-            if (is_id2) {
-                res <- filter(
-                    res,
-                    pct.2 > pct_threshold |
-                        exp.2 > exp_threshold
-                )
-            }
-
-            top_genes(
-                res,
-                return_rank = TRUE,
-                fc_threshold = fc_threshold,
-                p_threshold = p_threshold
-            )
-        }
-    ) %>%
-        discard(~ nrow(.x) == 0)
 }
 
 #' @export
@@ -572,11 +516,11 @@ organise_plots <- function(x, i = 2) {
 
 
 #' @export
-plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", ...) {
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), ...) {
     p1 <- list.map(
         markers,
         f(i, j, k) ~ {
-            plot_dot(x, head(i, 50) %>% unique(), split.by = split.by) +
+            plot_dot(x, head(i, 50) %>% unique(), split.by = split.by, cols = cols) +
             geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5) +
             ggtitle(k)
         }
@@ -610,7 +554,7 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
     )
     print(p2)
 
-    plot_mviolin(x, markers, split.by = split.by)
+    plot_mviolin(x, markers, split.by = split.by, cols = cols)
 }
 
 #' @export

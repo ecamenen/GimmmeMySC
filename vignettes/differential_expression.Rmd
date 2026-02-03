@@ -85,7 +85,7 @@ if (isFALSE(pseudo)) {
     mutate(gene_name = gene) %>%
     format_dea(fc_threshold = fc_threshold, p_threshold = p_threshold)
   
-  l_dea_proc <- dea2deseq(l_dea_raw)
+  l_dea_proc <- dea2deseq(l_dea_raw, pct_threshold = pct_threshold, exp_threshold = exp_threshold)
 }
 ```
 
@@ -173,7 +173,8 @@ l_dea_proc <- list.map(
                         gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".KO")]] > pct_threshold],
                     Expression,
                     "ns"
-                )
+                ),
+                gene = gene_name
             )
     }
 )
@@ -181,7 +182,7 @@ l_dea_proc <- list.map(
 ```
 
 ## Volcano plots
-```{r}
+```{r, message = FALSE, fig.height = 5, fig.width = 10}
 l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
 kable_dea(l_deg, file = file.path(path_fig, "table_dea.png"))
 
@@ -261,16 +262,24 @@ omics2excel(
 ```{r}
 gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
+custom_upset_barplot(gene_lists, ratio = 1, only_intersect = "inverse")
 
-list.map(
-  l_dea_proc,
+l_deg_top_all <- list.map(
+  l_deg,
   f(x) ~ top_genes(
     x,
     fc_threshold = fc_threshold,
-    p_threshold = p_threshold
-  ) %>% pull(., "gene_name") %>% 
+    p_threshold = p_threshold,
+    return_rank = TRUE
+  )
+)
+
+list.map(
+    l_deg_top_all,
+    ~pull(., "gene_name") %>% 
     sort()
-) %>% custom_upset_barplot(ratio = 1, top_n  = 10)
+  ) %>%
+  custom_upset_barplot(ratio = 1, top_n  = 20)
 ```
 
 ## Enrichment
@@ -444,42 +453,24 @@ list.map(
 ```
 
 ## Dotplots
-```{r, fig.height = 6, fig.width = 12}
-if (!pseudo) {
-  l_dea <- format_dea_sc(
-    l_dea_raw,
-    pct_threshold, 
-    fc_threshold = fc_threshold,
-    p_threshold = p_threshold
-  )
-}
-```
-
 ```{r}
-if (pseudo) {
-  top10 <- list.map(
-      l_deg_top,  
-      f(x, xx, xxx) ~head(x, 10) %>%
-          mutate(cluster = xxx)) %>%
-      list.rbind() %>%
-      dplyr::rename(gene = "gene_name") %>%
-      filter(!duplicated(gene))
-} else {
-  top10 <- list.map(
-      l_dea, 
-      f(x) ~ x %>%
-        # filter(log2FoldChange > 0) %>%
-      slice_head(n = 10)
-  ) %>%
-      list.rbind()
-}
+top50 <- list.map(
+    l_deg_top_all,  
+    f(x, xx, xxx) ~head(x, 50) %>%
+        mutate(cluster = xxx)) %>%
+    list.rbind()
+
+top5_filtered <- top50 %>%
+    filter(!duplicated(gene_name)) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5) %>%
+    ungroup()
 ```
 
 ```{r, eval = FALSE}
 if (!pseudo) {
-  last_row_numbers <- top10 %>%
+  last_row_numbers <- top5_filtered %>%
       # ungroup() %>%
-      filter(!duplicated(gene)) %>%
       mutate(row_num = row_number() %>% rev()) %>%
       # mutate(row_num = row_number()) %>% # if pseudo
       group_by(cluster) %>%
@@ -505,35 +496,21 @@ if (!pseudo) {
 
 ```{r}
 if (pseudo) {
-  plot_dot2(seurat, top10, split.by = "Type") +
-    geom_hline(yintercept = seq(2, (length(l_dea_proc) -1) * 2, by = 2) + 0.5)
-  }
-```
-
-```{r, fig.height = 3.7, fig.width = 8}
-if (!pseudo) {
-  plot_dot2(seurat, top10)
-  cluster_marker_genes %>% 
-      filter(cluster == first(cluster)) %>%
-    head(15) %>%
-    mutate(padj = format(padj, digits = 1, scientific = TRUE)) %>%
-    mutate(FC = 2^abs(log2FoldChange) * sign(log2FoldChange)) %>%
-     set_rownames(pull(., gene)) %>%
-    select(FC, padj) %>%
-    kable0()
+  plot_dot2(seurat, top5_filtered, split.by = "Type", cols = rev(pal_discrete_sc[seq(2)])) +
+    geom_hline(yintercept = seq(2, (length(l_dea_proc) - 1) * 2, by = 2) + 0.5)
+} else {
+  plot_dot2(seurat, top5_filtered)
 }
 ```
 
-```{r, message = FALSE, fig.height = 6, fig.width = 12}
+```{r}
+markers <- top50  %>%
+    split(.$cluster) %>%
+    list.map(~pull(., gene_name) %>% unique())
+
 if (pseudo) {
-  l_bcell_markers <- list.map(l_deg_top, pull(., gene_name) %>% unique())
-  plot_marker_split(seurat, l_bcell_markers, normalize = TRUE, n_line = length(l_dea_proc))
+  plot_marker_split(seurat, markers, normalize = TRUE, n_line = length(l_dea_proc), cols = rev(pal_discrete_sc[seq(2)]))
   } else {
-  markers <- list.map(
-      l_dea, 
-      f(x) ~ x %>%
-          pull("gene_name") %>% unique()
-  )
   plot_mfeature(seurat, markers, nrow = 3)
   plot_markers(seurat, markers)
 }
