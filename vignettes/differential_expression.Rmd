@@ -75,9 +75,9 @@ Idents(seurat) <- snn_cluster
 #     id.1 = c(6, 3, 3, 3, 0, 0, 4, 5, 5),
 #     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
 # )
+ids <- NULL
 
 if (isFALSE(pseudo)) {
-  ids <- NULL
   cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var)
   
   l_dea_raw <- cluster_marker_genes %>%
@@ -234,9 +234,17 @@ omics2excel(
   l_deg2,
     file = file.path(path_fig, "deg.xlsx"),
     function(x) {
-      res <- select(x, -Expression)
+      res <- select(x, -c("Expression", "gene"))
       if (!pseudo)
-        select(res, -`Full name`)
+        select(res, -c("Full name", "pval")) %>% 
+        rename_with(
+            ~ case_when(
+                 . == "ensembl_gene_id" ~ "Ensembl ID",
+                str_detect(., "^pct\\.\\d+$") ~ str_replace(., "^pct\\.(\\d+)$", "%Cell (\\1)"),
+                str_detect(., "^exp\\.\\d+$") ~ str_replace(., "^exp\\.(\\d+)$", "Gene expression (\\1)"),
+                TRUE ~ .
+            )
+        )
       else
         res
     }
@@ -256,6 +264,14 @@ omics2excel(
     select(-contains("exp."))
   }
 )
+```
+
+```{r}
+if (isFALSE(pseudo)) {
+  save(l_deg, file = file.path(path, "clustering_markers.rda"))
+} else {
+  save(l_deg, file = file.path(path, "pseudo.rda"))
+}
 ```
 
 ```{r}
