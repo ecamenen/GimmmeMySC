@@ -463,7 +463,7 @@ table_ident_group <- function(
         idents = "RNA__snn_res.0.35"
     ) {
     list.map(
-        unique(x[[]][, group.by]),
+        unique(x[[]][, group.by]) %>% as.character(),
         f(i) ~ filter(x[[]], !!sym(group.by) == i) %>%
             pull(idents) %>%
             fct_drop() %>%

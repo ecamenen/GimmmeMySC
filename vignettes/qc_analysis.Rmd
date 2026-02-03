@@ -103,7 +103,7 @@ bar_group_ident(
 ```
 
 ```{r}
-seurat <- subset(seurat, subset = Type == "KO")
+seurat <- subset(seurat, subset = Type == target_type )
 seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
 seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 ```

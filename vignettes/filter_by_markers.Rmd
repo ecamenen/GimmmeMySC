@@ -31,9 +31,10 @@ path <- file.path(
   "extdata"
 )
 
+source(file.path(path, "conf.R"))
+
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "filter_by_markers")
 
-assay <- "RNA"
 markers <- c("Cd19", "Cd79a", "Cd79b", "Ighm")
 ```
 
@@ -41,7 +42,7 @@ markers <- c("Cd19", "Cd79a", "Cd79b", "Ighm")
 load(file.path(path, "integrated_bcells4.rda"))
 summary(seurat$percent_ribosomal)
 
-# seurat <- subset(seurat, subset = Type == "KO")
+seurat <- subset(seurat, subset = Type == target_type)
 ```
 
 ```{r, eval = FALSE}
@@ -132,7 +133,7 @@ calculate_classification_stats(tmp$table, positive_clusters = c("B.FRF", "B.FRE"
 seurat$status <- ifelse(seurat$percent_ribosomal > 30, "High", "Low")
 ```
 
-```{r, eval = FALSE}
+```{r}
 table(seurat$status, Idents(seurat)) %>% list(table = .) -> tmp
 print_conf(tmp) %>%
     save_kable(
@@ -147,7 +148,7 @@ calculate_classification_stats(tmp$table, "Low", positive_clusters = 0:7) %>%
     )
 ```
 
-```{r, eval = FALSE}
+```{r}
 table(seurat$status, seurat$cell_subtype_formatted) %>% list(table = .) -> tmp
 print_conf(tmp) %>%
     save_kable(

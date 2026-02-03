@@ -19,15 +19,15 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup, message = FALSE}
-library(GimmeMyOmics)
-library(GimmmeMySC)
-library(GimmeMyPlot)
-library(magrittr)
-library(rlist)
-library(Seurat)
-library(cowplot)
-library(kableExtra)
-library(openxlsx)
+library("GimmeMyOmics")
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("magrittr")
+library("rlist")
+library("Seurat")
+library("cowplot")
+library("kableExtra")
+library("openxlsx")
 
 path <- file.path(
   dirname(getwd()),
@@ -55,7 +55,6 @@ split.by <- NULL
 # split.by <- "Type"
 
 pseudo <- TRUE
-pal_discrete_sc <- palette_discrete()[-7]
 ```
 
 ```{r}

@@ -12,3 +12,6 @@ if (species == "human") {
 } else {
     func_format <- str_to_sentence
 }
+
+target_type <- "KO"
+pal_discrete_sc <- palette_discrete()[-7]

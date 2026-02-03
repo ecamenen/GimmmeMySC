@@ -20,6 +20,7 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
 library("rlist")
 library("monocle3")
@@ -32,7 +33,7 @@ path <- file.path(
   "extdata"
 )
 
-assay <- "RNA"
+source(file.path(path, "conf.R"))
 ```
 
 ```{r}
@@ -47,7 +48,7 @@ snn_cluster <- paste0(
 
 Idents(seurat) <- snn_cluster
 
-# seurat <- subset(seurat, subset = Type == "KO")
+# seurat <- subset(seurat, subset = Type == target_type )
 start_cluster <- 6
 ```
 

@@ -23,7 +23,6 @@ library("GimmmeMySC")
 library("Seurat")
 library("GimmeMyPlot")
 
-pal_discrete_sc <- palette_discrete()[-7]
 # pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
 
 path <- file.path(
@@ -35,7 +34,7 @@ source(file.path(path, "conf.R"))
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
 
-split.by = 'Patient'
+split.by <- 'Patient'
 cell_label <- "cell_subtype_formatted"
 ```
 
@@ -52,7 +51,7 @@ seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- subsampling_sc(seurat) %>%
   subset(
-    subset = Type == "WT"
+    subset = Type == target_type
 )
 seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
 ```

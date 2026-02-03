@@ -100,7 +100,7 @@ plot_marker_split(seurat, jcb_markers, normalize = TRUE)
 ```{r}
 seurat <- subset(
     seurat_old, 
-    subset = Type == "WT"
+    subset = Type == target_type
 )
 
 seurat <- reorder_idents(seurat, old_ident)
