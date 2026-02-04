@@ -23,10 +23,12 @@ knitr::opts_chunk$set(
 library("GimmeMyOmics")
 library("GimmmeMySC")
 library("GimmeMyPlot")
+library("magrittr")
 library("rlist")
 library("Seurat")
 library("cowplot")
 library("kableExtra")
+library("openxlsx")
 library("clusterProfiler")
 
 path <- file.path(
@@ -66,6 +68,16 @@ load(file.path(path, "clustering_markers.rda"))
 load(file.path(path, "integrated_bcells5.rda"))
 ```
 
+```{r}
+data("term2gene_microarray")
+term2gene <- term2gene_microarray
+
+# ontology <- "GO_Biological_Process_2025"
+# ontology <- "CellMarker_2024"
+# term2gene <- str_replace_all(ontology, " ", "_") %>%
+#   term2gene_enrichr(to_lower = species == "mouse")
+```
+
 ## Analysis
 ```{r}
 if (method == "ora") {
@@ -78,35 +90,38 @@ if (method == "ora") {
     }
   ) %>%
     set_names(names(l_deg)) %>%
-    list_flatten(name_spec = "{outer}_{inner}")
-
-  l_dea <- list.map(
-    l_deg_proc,
-    f(x) ~ top_genes(
-      x,
-      fc_threshold = fc_threshold,
-      p_threshold = p_threshold,
-      return_rank = TRUE,
-      n = 300
-    )
+    list_flatten(name_spec = "{outer}_{inner}") %>%
+    list.map(
+      f(x) ~ top_genes(
+        x,
+        fc_threshold = fc_threshold,
+        p_threshold = p_threshold,
+        return_rank = TRUE,
+        n = 300
+      )
   )
   
   l_enrich <- list.map(
-    l_dea,
-    f(x) ~enrichGO(
+    l_deg_proc,
+    f(x) ~enricher(
       gene = pull(x, "gene_name"),
-      OrgDb = get(org_lib),
-      keyType = "ALIAS",
-      ont = "ALL",
+      # OrgDb = get(org_lib),
+      # keyType = "ALIAS",
+      # ont = "ALL",
       pvalueCutoff = 1,
       qvalueCutoff = 1,
-      universe = Features(seurat)
+      universe = Features(seurat),
+      TERM2GENE = term2gene
     )
   )
+  
+  l_enrich_proc <- l_enrich %>%
+    .[grep("up", names(.))] %>%
+    set_names(str_remove(names(.), "_up"))
 } else {
   var <- "gene_name"
   
-  l_deg_ranked <- list.map(
+  l_deg_proc <- list.map(
       l_deg,
       f(x) ~ {
           metric <- "log2FoldChange"
@@ -121,14 +136,15 @@ if (method == "ora") {
   )
   
   l_enrich <- list.map(
-      l_deg_ranked,
+      l_deg_proc,
       f(x) ~ {
-          gseGO(
+          GSEA(
               x,
-              ont = "ALL",
-              OrgDb = get(org_lib),
-              keyType = "ALIAS",
-              verbose = FALSE
+              # OrgDb = get(org_lib),
+              # keyType = "ALIAS",
+              # ont = "ALL",
+              verbose = FALSE,
+              TERM2GENE = term2gene
           ) %>%
               # setReadable(org_lib, 'ENSEMBL') %>%
               suppressWarnings() %>%
@@ -138,13 +154,55 @@ if (method == "ora") {
 }
 ```
 
+## Nb DEG
+```{r}
+if (method == "ora") {
+l_enrich_proc <- split(l_enrich, str_extract(names(l_enrich), "down|up")) %>%
+    list.map(~set_names(., str_remove(names(.), "_down|_up")))
+  
+l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
+    list.map(~set_names(., str_remove(names(.), "_down|_up")))
+  
+  tmp <- list.map(
+    l_enrich_proc, 
+    ~list.map(., f(i) ~print_enrich(i, method = method) %>% nrow())
+  )
+   data.frame(
+    Cluster = names(tmp$up),
+    Up = unlist(tmp$up)
+  ) %>%
+  left_join(
+    data.frame(Cluster = names(tmp$down), Down = unlist(tmp$down)),
+    by = "Cluster"
+  ) %>% 
+    mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
+    kable0()
+  
+} else {
+  l_enrich_proc <- list(up = l_enrich)
+  l_deg_proc <- list(up = l_deg_proc)
+  list.map(l_enrich, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
+    list.cbind() %>%
+    set_rownames("# Pathway") %>%
+    kable0()
+}
+```
+
 ## Plot
 ```{r}
-regex <- pathway_keywords()$immunity_additional
+# regex <- pathway_keywords()$immunity_additional
+regex <- NULL
+id <- "up"
 
 list.map(
-    l_enrich ,
+    l_enrich_proc[[id]],
     f(x, y, z) ~ {
+    tmp <- print_enrich(
+      x, 
+      method = method,
+      regex = regex
+    )
+    if (nrow(tmp) > 0)
       plot_enrich(
         x,
         cex = 0.65,
@@ -157,28 +215,24 @@ list.map(
     }
 ) %>% 
   compact() %>%
-  plot_grid(plotlist = ., ncol = 2, nrow = 2, align = "hv")
-
-list.map(l_enrich, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
-    list.cbind() %>%
-    set_rownames("# Pathway GO") %>%
-    kable0()
+  plot_grid(plotlist = ., ncol = 4, align = "hv")
 
 list.map(
-  l_enrich,
+  l_enrich_proc[[id]],
   f(i, j, k) ~ {
     tmp <- print_enrich(
       i, 
       method = method,
       regex = regex
     )
-    if (nrow(tmp) > 1)
+    if (nrow(tmp) > 0)
   heatmap_enrich_full(
-    l_enrich[[j]],
-    l_dea[[j]],
-    regex = pathway_keywords()$immunity_additional,
+    i,
+    l_deg_proc[[id]][[j]],
+    method = method,
+    regex = regex,
     width_text = 100
-  ) + labs( title = paste("Cluster", k), y = NULL, x = NULL) +
+  ) + labs( title = k, y = NULL, x = NULL) +
      theme_custom()
   }
 ) %>%
@@ -190,8 +244,8 @@ list.map(
 ```{r}
 omics2excel(
   l_enrich, 
-  file = file.path(path, paste0(method, ".xlsx")), 
-  func = function(x) print_enrich(x, method = method)
+  file = file.path(path_fig, paste0(method, ".xlsx")), 
+  func = function(x) print_enrich(x, method = method) %>% select(-ID)
 )
 ```
 
