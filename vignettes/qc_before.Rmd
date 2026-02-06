@@ -53,6 +53,7 @@ list_seurat <-  list.map(
       CreateSeuratObject()
       tmp[["percent_mitochondrial"]] <- PercentageFeatureSet(tmp, pattern = "^((MT)|(mt))-")
       tmp[["percent_ribosomal"]] <- PercentageFeatureSet(tmp, pattern = "^((RP[LS])|(Rp[ls]))")
+      tmp[["percent_hemoglobin"]] <- PercentageFeatureSet(tmp, pattern = "^((^HB[^(P)])|(Hb[^(p)]))")
       tmp
     }
 )

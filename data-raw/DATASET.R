@@ -96,3 +96,17 @@ seurat <- subset(seurat, cell_type_formatted %in% "B cell")
 seurat <- subset(seurat, !str_detect(cell_subtype_formatted, "FRA|CLP"))
 
 save(seurat, file = file.path(path, "integrated_bcells5.rda"))
+
+################################################
+library("readxl")
+
+excel_file <- "Signatures-Articles.xlsx"
+excel_file <- "B_cell_subet_Marker_Genes-JCB.xlsx"
+file_path <- file.path(golem::get_golem_wd(), "inst", "extdata", excel_file)
+
+term2gene_microarray <- excel_sheets(file_path) %>%
+    list.map(~read_excel(file_path, sheet = ., col_names = TRUE)[[2]] %>% str_to_sentence()) %>% set_names(names(.) %>% str_remove_all(" vs_all")) %>%
+enframe(name = "term", value = "name") %>%
+    unnest(cols = c(name))
+
+usethis::use_data(term2gene_microarray, overwrite = TRUE)

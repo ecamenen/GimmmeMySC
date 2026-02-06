@@ -211,15 +211,7 @@ print_filtered_cells <- function(before, after) {
 }
 
 #' @export
-integrate_multisamples <- function(
-        x,
-        labels = paste0(
-            types,
-            "_",
-            # str_remove_all(l_samples, types) %>% str_remove_all("_")
-            l_samples
-        )
-) {
+integrate_multisamples <- function(x, labels) {
     seurat <- merge(
         x = x[[1]],
         y = x[-1],
@@ -435,6 +427,8 @@ plot_mqc <- function(
         x,
         features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal"),
         file = NULL,
+        ncol = 2,
+        nrow = 2,
         ...
     ) {
     p <- print_sc_stats(x, features = features, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
@@ -465,9 +459,9 @@ plot_mqc <- function(
     plot_sc_violin(
         x,
         features = features,
-        nrow = 2,
-        ncol = 2,
         normalize = rep(10, length(features)),
+        ncol = ncol,
+        nrow = nrow,
         ...
     )
 }

@@ -208,10 +208,6 @@ data("l_bcell_markers")
 plot_markers(seurat, l_bcell_markers)
 ```
 
-## Save data
-```{r, eval = FALSE}
-usethis::use_data()
-```
 
 ## Session information
 ```{r end, echo = FALSE}
