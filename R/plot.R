@@ -12,7 +12,7 @@ plot_sc_violin <- function(
         metadata = TRUE,
         ...
 ) {
-    if(is.null(normalize)) {
+    if (is.null(normalize)) {
         normalize <- rep(TRUE, length(features))
     }
     plot_list <- list.map(
@@ -40,7 +40,7 @@ plot_sc_violin <- function(
                 } else {
                     df <- x@meta.data[, i]
                 }
-                p <- p + GimmeMyPlot:::axis_log(df, "y", normalize[j], breaks[[j]])
+                p <- p + axis_log(df, "y", normalize[j], breaks[[j]])
             } else {
                 if (!is.null(breaks[[j]]))
                     p <- p + scale_y_continuous(labels = label_number_auto(), breaks = breaks[[j]])
@@ -281,7 +281,7 @@ plot_dot <- function(
     }
 }
 
-
+#' @export
 plot_dot2 <- function(x, markers, ...) {
     last_row_numbers <- markers %>%
         filter(!duplicated(gene)) %>%

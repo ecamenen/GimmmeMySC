@@ -225,6 +225,8 @@ integrate_multisamples <- function(x, labels) {
         into = c("Type", "Patient", "Barcode"),
         sep = "_"
     )
+
+    Idents(seurat) <- "Patient"
     return(seurat)
 }
 
@@ -467,7 +469,7 @@ plot_mqc <- function(
 }
 
 #' @export
-subsampling_sc <- function(x, group.by = "Patient") {
+subsampling_sc <- function(x, group.by = "Type") {
     meta <- seurat@meta.data
     meta$cell_id <- rownames(meta)
 
@@ -612,4 +614,70 @@ format_celltype <- function(
         factor(levels = reorder_celltype(.))
 
     return(seurat)
+}
+
+#' @export
+set_percent <- function(x) {
+    x[["percent_mitochondrial"]] <- PercentageFeatureSet(x, pattern = "^((MT)|(mt))-")
+    x[["percent_ribosomal"]] <- PercentageFeatureSet(x, pattern = "^((RP[LS])|(Rp[ls]))")
+    x[["percent_hemoglobin"]] <- PercentageFeatureSet(x, pattern = "^((^HB[^(P)])|(Hb[^(p)]))")
+    return(x)
+}
+
+#' @export
+plot_bar_doublet <- function(x) {
+    list.map(
+        unique(x$Patient),
+        f(i) ~ filter(x[[]], Patient == i) %>% pull("doublets") %>% table()
+    ) %>%
+    list.rbind() %>%
+    as.data.frame() %>%
+    rbind(".Total" = colSums(.)) %>%
+    t() %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE,
+        colour = palette_discrete()[c(1, 3)],
+        colour_text = "black"
+    )
+}
+
+#' @export
+plot_bar_kept <- function(seurat_old, seurat, l_samples) {
+    list.map(
+        l_samples,
+        f(x) ~ list.map(
+            c(seurat_old, seurat),
+            f(i) ~ filter(i[[]], Patient == x) %>% nrow()
+        ) %>%
+            list.rbind()
+    ) %>%
+    list.cbind() %>%
+    as.data.frame() %>%
+    set_colnames(l_samples) %>%
+    t() %>%
+    as.data.frame() %>%
+    rbind(`.Total` = colSums(.)) %>%
+    mutate(V3 = V1 - V2) %>%
+    select(-V1) %>%
+    t() %>%
+    as.data.frame() %>%
+    set_rownames(c("Kept", "Removed"))  %>%
+    plot_bar_2cat(
+        count = TRUE,
+        stats = FALSE
+    )
+}
+
+#' @export
+pct_peak_per_chr <- function(x) {
+    chrY_ranges <- GRanges(x, IRanges(start = 1, end = 5e8))
+
+    chrY_counts <- FeatureMatrix(
+        fragments = Fragments(seurat),
+        features = chrY_ranges,
+        cells = colnames(seurat)
+    )
+
+    Matrix::colSums(chrY_counts)
 }
