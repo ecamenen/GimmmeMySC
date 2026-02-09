@@ -21,8 +21,11 @@ knitr::opts_chunk$set(
 ## Setup
 ```{r init, message = FALSE}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
-library("scDblFinder")
+library("rlist")
+library("cowplot")
+library("SingleR")
 
 path <- file.path(
   dirname(getwd()),
@@ -31,152 +34,23 @@ path <- file.path(
 )
 
 source(file.path(path, "conf.R"))
-project <- "KO"
 
-l_samples <- list.files(path) %>%  
-  .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
-  .[str_detect(., "KO")]
-
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
-path_data <- file.path(dirname(getwd()), "data")
 ```
 
 ## Load data
-```{r data}
-list_seurat <-  list.map(
-    l_samples,
-    f(x) ~{
-      count_matrix <- file.path(path, x, "outs") %>%
-        list.files(full.names =TRUE) %>% 
-        .[str_detect(., "filtered_feature_bc_matrix.h5")]
-      tmp <- Read10X_h5(count_matrix) %>%
-      CreateSeuratObject() %>%
-      set_percent()
-    }
-)
-```
-
-```{r data}
-cell_id <- paste0(project, "_", l_samples)
-seurat <- integrate_multisamples(list_seurat, cell_id)
-```
-
-## QC
-### Filter cells with low or too high genes
-```{r qc_plot}
-plot_mqc(seurat)
-```
-
 ```{r}
-seurat_old <- seurat
-list_seurat0 <- list_seurat
-features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial")
-list_seurat <- list.map(
-    list_seurat,
-    f(i) ~{
-      stats_qc <- sapply(
-        features,
-        function(x) quantile(
-            i[[x]], 
-            probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1), 
-            na.rm = TRUE)
-    )
-    subset(
-      i, 
-      subset = 
-        nFeature_RNA > stats_qc["10%", "nFeature_RNA"] &
-        nFeature_RNA < stats_qc["90%", "nFeature_RNA"] & 
-        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"] & 
-        nCount_RNA < stats_qc["90%", "nCount_RNA"]
-  )
-  }
-)
-
-list.mapv(
-  seq_along(list_seurat0),
-  f(i) ~ print_filtered_cells(list_seurat0[[i]], list_seurat[[i]])
-)
-
-seurat <- integrate_multisamples(list_seurat, cell_id)
-```
-
-### Doublets
-```{r}
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-sce <- scDblFinder(
-  GetAssayData(seurat[["RNA"]], slot = "counts"),
-  samples = seurat$Patient,
-  aggregateFeatures = FALSE,
-  k = NULL,
-  processing = "normFeatures",
-  dims = 20
-)
-```
-
-```{r}
-table(sce$scDblFinder.class)
-
-seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
-
-plot_bar_doublet(seurat)
-```
-
-```{r}
-Idents(seurat) <- "doublets"
-plot_sc_violin(
-    seurat,
-    nrow = 1,
-    normalize = rep(10, 4)
-)
-Idents(seurat) <- "Patient"
-seurat <- subset(seurat, subset = doublets == "singlet")
-```
-
-## Gene filtering
-```{r filter_mark}
-# seurat[["RNA"]] <- split(seurat[["RNA"]], f = seurat$Patient)
-if (isFALSE(SCT)) {
-      seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures()
-    variable_plot(seurat)
-}
-```
-
-## PCA
-```{r pca}
-if (!SCT) {
-  if (assay == "sketch") {
-    seurat <- SketchData(seurat, over.write = TRUE)
-    DefaultAssay(seurat) <- "sketch"
-  }
-  seurat <- ScaleData(seurat)
-} else {
-  seurat <- SCTransform(seurat, method = "glmGamPoi", assay = "RNA")
-  assay <- "SCT"
-  DefaultAssay(seurat) <- "SCT"
-  if (assay == "sketch") {
-     seurat <- SketchData(seurat, over.write = TRUE)
-    DefaultAssay(seurat) <- "sketch"
-  }
-}
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
-```
-
-## QC after
-```{r qc_sub}
-(ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
-
-plot_bar_kept(seurat_old, seurat, l_samples)
+load(file.path(path_data, "atac6.rda"))
 ```
 
 ```{r}
 array <- "RNA"
 DefaultAssay(seurat) <- "RNA"
-plot_mqc(seurat)
 ```
 
 ### Negative / positive control genes
-```{r}
+```{r, fig.height = 5, fig.width = 10}
 g_neg <- c("DRD1", "ALB", "MYL1", "NPPA") %>% sort()
 g_pos <- c("GAPDH", "ACTB", "TMSB4X", "B2M") %>% sort()
 g_ctr <- c(g_neg, g_pos)
@@ -280,13 +154,7 @@ plotDeltaDistribution(
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path_data, paste0(projet, "_all_cells.rda")))
-seurat <- subset(
-  seurat,
-  str_detect(cell_type, "B cell")
-)
-save(seurat, file = file.path(path_data, paste0(projet, "_bcells.rda")))
-seurat$cell_type_formatted %>% cluster_size()
+save(seurat, file = file.path(path_data, "atac7.rda"))
 ```
 
 ## Session information
