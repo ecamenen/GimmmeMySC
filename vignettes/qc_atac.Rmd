@@ -1,0 +1,492 @@
+---
+title: "QC ATAC"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{qc_atac}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r init, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/qc_atac/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r setup, message=FALSE}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Signac")
+library("Seurat") 
+library("rlist")
+library("scales")
+library("GenomicRanges")
+library("scDblFinder")
+library("AnnotationHub")
+# BiocManager::install("ensembldb")
+# biovizBase
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+
+source(file.path(path, "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA")
+path_project <- file.path(path_data, "dobino", "ATAC")
+l_samples <- list.dirs(path_project, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
+# l_samples <- l_samples %>% .[str_detect(., "WT")]
+
+# techno <- "atac_"
+techno <- ""
+```
+
+## Annotation
+```{r annotations, eval = FALSE}
+genome_version <- 98
+
+if (species == "mouse") {
+genome_species <- "Mmusculus"
+  genome_consortium <- "mm10"
+  genome_annot <- "BSgenome.Mmusculus.UCSC.mm10"
+} else {
+  genome_consortium <- "hg38"
+  genome_annot <- "BSgenome.Hsapiens.UCSC.hg38"
+  genome_species <- "Hsapiens"
+}
+
+# Search for the Ensembl gene annotations on AnnotationHub
+ah <- AnnotationHub()
+ensdb_id <- ah$ah_id[grep(paste0(" ", genome_version, " EnsDb.*", str_sub(genome_species, 2)), ah$title)]
+ensdb_id
+query(ah, paste0("EnsDb.", genome_species, ".v", genome_version))
+ensdb <- ah[[ensdb_id]]
+
+annotations <- GetGRangesFromEnsDb(ensdb = ensdb)
+seqlevelsStyle(annotations) <- "UCSC"
+
+ref_path <- file.path(path_data, "ref")
+annotation_file <- file.path(ref_path, paste(tolower(genome_species), 113, "annotation_extended.tsv", sep = "_"))
+annotation_bis <- read_tsv(annotation_file) %>% as.data.frame()
+annotation_bis_filtered <- annotation_bis %>%
+    filter(str_detect(gene_biotype, "^(IG_|TR_)") | str_detect(external_gene_name, "(Xist)|(Tsix)"))
+
+annotation_bis_ranges <- GRanges(
+  seqnames = paste0("chr", annotation_bis_filtered$chromosome_name),
+  ranges = IRanges(
+    start = annotation_bis_filtered$start_position, 
+    end = annotation_bis_filtered$end_position
+    ),
+  tx_id = annotation_bis_filtered$ensembl_transcript_id,
+  gene_name = annotation_bis_filtered$external_gene_name,
+  gene_id = annotation_bis_filtered$ensembl_gene_id,
+  gene_biotype = annotation_bis_filtered$gene_biotype,
+  type = "exon"
+)
+names(annotation_bis_ranges) <- annotation_bis_filtered$ensembl_exon_id
+
+annotation_tot <- c(annotations, annotation_bis_ranges)
+
+genome(annotation_tot) <- genome_consortium
+```
+
+# Load data
+```{r}
+load(file.path(path_project, "atac2.rda"))
+```
+
+```{r, eval = FALSE}
+l_peaks <- list.map(
+  l_samples,
+  f(i) ~ {
+  path_sample <- file.path(path_project, i)
+  bed_filename <- file.path(path_sample, "outs", paste0(techno, "peaks.bed"))
+  
+  peaks <- read.table(
+    file = bed_filename,
+    col.names = c("chr", "start", "end")
+  )
+  makeGRangesFromDataFrame(peaks)
+})
+
+# combined.peaks <- GenomicRanges::reduce(x = Reduce(c, l_peaks))
+combined.peaks <- GenomicRanges::reduce(x = Reduce(c, l_peaks))
+peakwidths <- width(combined.peaks)
+print_sc_stats(list(peakwidths = peakwidths), "peakwidths")
+hist(peakwidths)
+combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
+
+seurat <- list.map(
+  l_samples,
+  f(i) ~ {
+  sample_path <- file.path(path_project, i)
+  fragment_filename <- file.path(sample_path, "outs", paste0(techno, "fragments.tsv.gz"))
+  metadata_filename <- file.path(sample_path, "outs", "singlecell.csv")
+  
+  metadata <- read_csv(
+    file = metadata_filename,
+  ) %>% column_to_rownames("barcode")
+  
+  frags <- CreateFragmentObject(fragment_filename)
+  counts <- FeatureMatrix(frags, combined.peaks)
+  
+  seurat_i <- CreateChromatinAssay(
+      counts, 
+      fragments = frags,
+      sep = c(":", "-"),
+      genome = unique(annotation_tot@seqinfo@genome),
+      annotation = annotation_tot
+    ) %>%
+    CreateSeuratObject(
+      assay = "ATAC", 
+      meta.data = metadata#,
+      # min.features = 10
+    )
+})
+```
+
+```{r, eval = FALSE}
+seurat <- list.map(
+  seurat,
+  f(i) ~ {
+    subset(
+      i,
+      subset =
+        nFeature_ATAC > 100 &
+      	nCount_ATAC > 100
+  )
+  }
+)
+```
+
+## Quality control
+```{r}
+features_supp0 <- c("unmapped", ifelse(techno == "atac", "dup", "duplicate"), "mitochondrial")
+
+if (techno == "atac") {
+  metadata_reads <- "atac_raw_reads"
+  metadata_fragments <- "atac_fragments"
+  techno2 <- "atac_"
+} else{
+  metadata_reads <- "total"
+  metadata_fragments <- "passed_filters"
+  techno2 <- ""
+}
+
+features_atac <- c(
+  paste0("nCount", "_", assay),
+  paste0("nFeature", "_", assay),
+  "nucleosome_signal",
+  "TSS.enrichment",
+  "percent_reads_in_peaks",
+  "blacklist_ratio"
+)
+
+features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
+```
+
+```{r, eval = FALSE}
+seurat <- list.map(
+  seurat,
+  f(i) ~{
+    i <- NucleosomeSignal(i)
+    i <- TSSEnrichment(i, verbose  = FALSE)
+    i$percent_reads_in_peaks <- i[[]][, paste0(techno2, "peak_region_fragments")] / i[[]][, metadata_fragments] * 100
+    i$blacklist_ratio <- FractionCountsInRegion(
+      object = i,
+      assay = assay,
+      regions = blacklist_hg38_unified
+    )
+    for (x in features_supp0)
+      i[[]][, paste0("percent_", x)] <- i[[]][, paste0(techno2, x, ifelse(techno == "atac", "_reads", ""))] / i[[]][, metadata_reads] * 100
+    i[[]][, "percent_low_map_qc"] <- i[[]][, paste0(techno2, "lowmapq")] / i[[]][, metadata_reads] * 100
+
+    return(i)
+})
+```
+
+```{r}
+l_samples <- str_remove_all(l_samples, "cellranger_onlyATAC_count_")
+types  <- str_remove_all(l_samples, "_?\\d+")
+
+col_inds <- list(
+    c("#FB9A99", "#E31A1C" ),
+    c("#B2DF8A", "#33A02C")
+)
+color_types <- sapply(col_inds, last)
+
+col_inds <- list.mapv(unique(types), f(i, j) ~colorRampPalette(col_inds[[j]])(length(types[types == i]))) %>% as.character()
+```
+
+```{r}
+cell_id <- paste0(
+      types,
+      "_",
+      str_remove_all(l_samples, types) %>%
+        str_remove_all("_")
+      )
+seurat_merged <- integrate_multisamples(seurat, cell_id)
+
+seurat_old <- seurat_merged
+plot_mqc(seurat_merged, features = c(features_atac, features_supp), ncol = 4, nrow = 3)
+```
+
+```{r}
+seurat <- list.map(
+  seurat,
+  f(i, j) ~ {
+      stats_qc <- sapply(
+        c(features_atac, features_supp),
+        function(x) quantile(
+            i[[x]], 
+            probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1), 
+            na.rm = TRUE)
+    )
+    subset(
+      i,
+      subset = nFeature_ATAC > stats_qc["10%", "nFeature_ATAC"] &
+        nFeature_ATAC < stats_qc["90%", "nFeature_ATAC"] &
+      	nCount_ATAC > stats_qc["10%", "nCount_ATAC"] &
+        nCount_ATAC < stats_qc["90%", "nCount_ATAC"] &
+        TSS.enrichment > 1 &
+        nucleosome_signal < 2 &
+        percent_reads_in_peaks > stats_qc["10%", "percent_reads_in_peaks"] &
+        percent_low_map_qc < stats_qc["90%", "percent_low_map_qc"] &
+        percent_unmapped < stats_qc["90%", "percent_unmapped"] &
+        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"]
+  )
+  }
+)
+```
+
+```{r, eval=FALSE}
+seurat_merged$nucleosome_group <- ifelse(seurat_merged$nucleosome_signal > 4, "NS > 4", "NS < 4")
+FragmentHistogram(object = seurat_merged, group.by = "nucleosome_group") + theme_custom() + scale_fill_manual(values = pal_discrete_sc[c(3, 1)])
+```
+
+## Sample merging
+```{r}
+peaks <- GenomicRanges::reduce(unlist(as(map(seurat, ~.[["ATAC"]]@ranges), "GRangesList")))
+peakwidths <- width(peaks)
+print_sc_stats(list(peakwidths = peakwidths), "peakwidths")
+hist(peakwidths)
+
+peaks <- peaks[peakwidths < 10000 & peakwidths > 20]
+```
+
+```{r, message = FALSE}
+seurat <- integrate_multisamples(seurat, cell_id)
+
+counts_atac_merged <- FeatureMatrix(
+  seurat@assays$ATAC@fragments,
+  features = peaks,
+  cells = colnames(seurat)
+)
+
+seurat[['ATAC']] <- CreateChromatinAssay(
+  counts_atac_merged,
+  fragments = seurat@assays$ATAC@fragments,
+  annotation = seurat@assays$ATAC@annotation,
+  sep = c(":","-"),
+  genome = genome_consortium
+)
+
+grange.counts <- granges(seurat[["ATAC"]])
+idx_standard_chroms <- which(seqnames(grange.counts) %in% standardChromosomes(grange.counts))
+seurat[["ATAC"]] <- subset(
+  seurat[["ATAC"]],
+  features = rownames(seurat[["ATAC"]])[idx_standard_chroms]
+)
+seqlevels(seurat[['ATAC']]@ranges) <- intersect(
+  seqlevels(grange.counts),
+  unique(seqnames(grange.counts))
+)
+```
+
+## Doublets
+```{r}
+sce <- scDblFinder(
+  GetAssayData(seurat[["ATAC"]], slot = "counts"),
+  artificialDoublets = 1,
+  samples = seurat$Patient,
+  aggregateFeatures = TRUE,
+  nfeatures = 30,
+  k = 20,
+  processing = "normFeatures",
+  dims = 20
+)
+table(sce$scDblFinder.class)
+
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+
+plot_bar_doublet(seurat)
+```
+
+```{r}
+Idents(seurat) <- "doublets"
+plot_sc_violin(
+    seurat,
+    features = c(features_atac[-6], "passed_filters"),
+    cols = palette_discrete()[c(1, 3)],
+    nrow = 3,
+    normalize = c(10, 10, 2, 10, 0, 10)
+)
+Idents(seurat) <- "Patient"
+seurat <- subset(seurat, subset = doublets == "singlet")
+```
+
+## Dimension reduction
+```{r message=FALSE, warning=FALSE}
+seurat <- RunTFIDF(seurat)
+seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
+seurat <- RunSVD(seurat, n = n_dim)
+```
+
+```{r}
+DepthCor(seurat, n = 20) + 
+  theme_custom() + 
+  ggtitle("Correlation between sequencing depth and components") +
+  labs(subtitle = NULL)
+```
+
+## Gene activity
+```{r message=FALSE, warning=FALSE}
+gene.activities <- GeneActivity(seurat, biotypes = NULL)
+
+seurat[["RNA"]] <- CreateAssayObject(counts = gene.activities)
+seurat <- NormalizeData(
+  object = seurat,
+  assay = "RNA",
+  normalization.method = "LogNormalize",
+  scale.factor = median(seurat@meta.data[, "nCount_RNA"])
+)
+```
+
+## QC after
+```{r, message=FALSE, fig.height=6}
+plot_sc_violin(
+    seurat,
+    features = c(features_atac[-6], "passed_filters"),
+    cols = col_inds,
+    nrow = 3,
+    normalize = c(10, 10, 2, 10, 0, 10)
+)
+```
+
+```{r}
+plot_sc_violin(
+    seurat,
+    features = c(features_supp, features_atac[6]),
+    cols = col_inds,
+    nrow = 3,
+    normalize = c(2, 10, 2, 10, 10, 0)
+)
+```
+
+```{r, eval = FALSE}
+plot_bar_kept(seurat_old, seurat, l_samples)
+```
+
+```{r}
+print_sc_stats(seurat, features = c(features_atac, "passed_filters", features_supp)) %>%
+  kable0(digits = 3)
+```
+
+```{r, eval = FALSE}
+p <- map(
+  features_atac,
+  ~FeaturePlot(
+    object = seurat,
+    features = .,
+    alpha = 0.5,
+    cols = c("yellow", "blue"),
+    ) %>% 
+    theme_sc_dim() +
+    ggtitle(str_clean(., "ATAC"))
+)
+
+plot_grid(plotlist = p, nrow = 1, ncol = 2, align = "hv")
+plot_grid(plotlist = p[3:6], nrow = 2, ncol = 2, align = "hv")
+
+p2 <- map(
+  features_supp,
+  ~FeaturePlot(
+    object = seurat,
+    features = .,
+    alpha = 0.5,
+    cols = c("yellow", "blue"),
+    ) %>% 
+    theme_sc_dim()+
+    ggtitle(str_clean(., "ATAC"))
+)
+plot_grid(plotlist = p2, nrow = 2, ncol = 2, align = "hv")
+```
+
+## Sex effect
+```{r, eval = FALSE}
+map(
+  c("Ddx3y", "Xist"),
+  ~CoveragePlot(
+      object = seurat,
+      region = .,
+      extend.upstream = 1000,
+      extend.downstream = 1000
+  )
+)
+
+seurat$percent_chromosom_X <- pct_peak_per_chr("chrX")
+seurat$percent_chromosom_Y <- pct_peak_per_chr("chrY")
+seurat$chrX_counts <- pct_peak_per_chr("chrX")
+seurat$chrY_counts <- pct_peak_per_chr("chrY")
+
+seurat$chrXY_ratio <- seurat$chrX_counts / seurat$chrY_counts
+
+breaks <- c(1e-3, 5e-2, 1e-1, 1e0, 1e1, 1e2)
+plot_sc_violin(
+    seurat,
+    features = c("chrXY_ratio", "chrX_counts", "chrY_counts", "percent_chromosom_X", "percent_chromosom_Y"),
+    cols = col_inds,
+    nrow = 2,
+    normalize = rep(10, 5),
+    breaks = rep(list(breaks), 5)
+)
+
+seurat[[]] %>%
+    select(starts_with("percent_chromosom_")) %>%
+    pivot_longer(
+        cols = everything(),
+        names_to = "chromosome",
+        names_prefix = "percent_chromosom_",
+        values_to = "percent"
+    ) %>%
+  ggplot(aes(x = percent)) +
+    geom_histogram(
+        bins = 100,
+        fill = "black",
+        color = "black"
+    ) +
+    facet_wrap(~ chromosome, ncol = 1, scales = "free_y") + 
+    labs(
+        title = "Chromosome % distribution per cell",
+        x = "% of reads mapping to chromosome",
+        y = "Number of cells"
+    ) +
+  theme_minimal() +
+  theme_custom()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+save(seurat, file = file.path(path_project, "atac6.rda"))
+```
+
+```{r}
+sessionInfo()
+```
