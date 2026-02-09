@@ -63,7 +63,7 @@ load(file.path(path, "integrated_bcells2.rda"))
 ## PCA
 ### Dimension selection
 ```{r}
-eig <- seurat[['pca']]@stdev / sum(seurat[['pca']]@stdev) * 100
+eig <- seurat[[reduction]]@stdev / sum(seurat[[reduction]]@stdev) * 100
 plot_pca_qc(eig)
 
 cumsum(eig) %>% .[n_dim] %>% round(1)
@@ -80,7 +80,7 @@ list.map(
 ```{r}
 comp_genes <- list.map(
     seq(max_dim),
-    f(x) ~ Loadings(seurat, reduction = "pca") %>%
+    f(x) ~ Loadings(seurat, reduction = reduction) %>%
         as.data.frame() %>%
         select(paste0("PC_", x)) %>%
         arrange(abs(!!sym(paste0("PC_", x)))) %>%
@@ -96,15 +96,15 @@ list.map(
 
 ### Component markers
 ```{r pca_plot, fig.height = 6}
-print(seurat[['pca']], dims = 1:5, nfeatures = 5)
-VizDimLoadings(seurat, dims = 1:2, reduction = 'pca')
+print(seurat[[reduction]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(seurat, dims = 1:2, reduction = reduction)
 ```
 
 ## UMAP before
 ```{r umap}
 seurat <- RunUMAP(
   seurat, 
-  dims = seq(n_dim),
+  dims = dims,
   reduction.key = "Dim. ",
   )
 ```
@@ -131,23 +131,53 @@ if (is.null(seurat[["RNA"]]@layers$data.1)) {
       layers = c("counts", "data")
   )
 }
+
+if (assay == "ATAC") {
+  seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
+    counts = seurat@assays$ATAC$counts, 
+    data = seurat@assays$ATAC$data
+  )
+  seurat@assays[["ATAC_v5"]]@key <- "atacv5_"
+  
+  DefaultAssay(seurat) <- "ATAC_v5"
+  seurat <- ScaleData(seurat)
+  seurat[["ATAC_v5"]] <- split(
+    seurat[["ATAC_v5"]], 
+    f = seurat$Patient,
+    layers = c("counts","data")
+  )
+}
 ```
 
 ```{r}
-DefaultAssay(seurat) <- "RNA"
 integration_method <- "RPCA"
-seurat <- IntegrateLayers(
+
+if (assay == "atac") {
+  integration_method <- "RPCA"
+  seurat <- IntegrateLayers(
     object = seurat, 
     method = get(paste0(integration_method, "Integration")),
     new.reduction = integration_method,
-    # reduction.key = "Dim. ",
-    orig.reduction = "pca",
-    dims.to.integrate = seq(n_dim),
-    normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+    features = Features(seurat@assays[["ATAC_v5"]]),
+    orig.reduction = reduction,
+    assay = "ATAC_v5",
+    dims.to.integrate = dims,
     verbose = TRUE
-)
+  )
+} else {
+  seurat <- IntegrateLayers(
+      object = seurat, 
+      method = get(paste0(integration_method, "Integration")),
+      new.reduction = integration_method,
+      # reduction.key = "Dim. ",
+      orig.reduction = reduction,
+      dims.to.integrate = dims,
+      normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+      verbose = TRUE
+  )
+}
 
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+seurat[[assay2]] <- JoinLayers(seurat[[assay2]])
 
 Idents(seurat) <- split.by
 ```
@@ -156,7 +186,7 @@ Idents(seurat) <- split.by
 ```{r}
 seurat <- RunUMAP(
   seurat, 
-  dims = seq(n_dim),
+  dims = dims,
   reduction = integration_method
 )
 ```
@@ -175,13 +205,14 @@ plot_dim(
 
 ## Clustering
 ```{r clus_int}
+DefaultAssay(seurat) <- assay
 resolution2 <- seq(.1, .4, 0.05)
 resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
 resolution_tot <- c(resolution2, resolution)
 seurat <- FindNeighbors(
   seurat,
   reduction = integration_method, 
-  dims = seq(n_dim)
+  dims = dims
 )
 
 seurat <- FindClusters(
@@ -208,13 +239,15 @@ clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
 kable_cluster(
   seurat,
   clusters, 
-  file = file.path(path_fig, "clusters.png")
+  file = file.path(path_fig, "clusters.png"),
+  assay = assay
 )
 grep(prefix_cl, colnames(seurat2[[]]), value = TRUE) %>% sort() %>%
   kable_cluster(
     seurat,
     ., 
-    file = file.path(path_fig, "clusters2.png")
+    file = file.path(path_fig, "clusters2.png"),
+    assay = assay
 )
 ```
 

@@ -2,10 +2,18 @@ set.seed(1234)
 options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
 max_dim <- 100
-n_dim <- 30
+n_dim <- 50
+dims <- seq(n_dim)
+dims <- dims[-c(1)]
 species <- "mouse"
-assay <- "RNA"
+assay <- "ATAC"
+if (assay == "ATAC") {
+    assay2 <- "ATAC_V5"
+} else {
+    assay2 <- "RNA"
+}
 SCT <- FALSE
+reduction <- "lsi"
 
 if (species == "human") {
     func_format <- identity
