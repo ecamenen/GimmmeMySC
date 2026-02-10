@@ -76,13 +76,6 @@ plot_violin_sc(seurat, features = markers) %>%
 ```
 
 ```{r}
-best_resolution <- 0.35
-snn_cluster <- paste0(
-    assay,
-    "_snn_res.",
-    best_resolution
-)
-
 Idents(seurat) <- snn_cluster
 
 negative_clusters <- 7:(nlevels(Idents(seurat))-1)

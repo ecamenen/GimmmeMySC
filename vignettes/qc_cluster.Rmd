@@ -64,13 +64,6 @@ seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 
 ## Clustering
 ```{r, clus_int_res}
-best_resolution <- 0.35
-snn_cluster <- paste0(
-    assay,
-    "_snn_res.",
-    best_resolution
-)
-
 Idents(seurat) <- seurat[[]][, snn_cluster]
 
 Idents(seurat) %>% 

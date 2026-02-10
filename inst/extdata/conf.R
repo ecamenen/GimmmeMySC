@@ -23,3 +23,11 @@ if (species == "human") {
 
 target_type <- "KO"
 pal_discrete_sc <- palette_discrete()[-7]
+
+best_resolution <- 0.35
+snn_cluster <- paste0(
+    assay,
+    "_snn_res.",
+    best_resolution
+)
+

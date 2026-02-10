@@ -50,7 +50,7 @@ grouping.var <- "Type"
 cell_label <- paste0(
     assay,
     "_snn_res.",
-    0.35
+    best_resolution
 )
 # cell_label <- "predicted.labels"
 split.by <- NULL
@@ -61,13 +61,6 @@ pseudo <- TRUE
 
 ```{r}
 load(file.path(path_data, "integrated_bcells5.rda"))
-best_resolution <- 0.35
-snn_cluster <- paste0(
-    assay,
-    "_snn_res.",
-    best_resolution
-)
-
 Idents(seurat) <- snn_cluster
 ```
 

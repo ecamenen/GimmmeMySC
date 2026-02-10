@@ -37,8 +37,8 @@ path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_integration")
 
 # new_ident <- "predicted.labels"
-old_ident <- "RNA_snn_res.0.35"
-new_ident <- "RNA_snn_res.0.35"
+old_ident <- snn_cluster
+new_ident <- snn_cluster
 # old_ident <- "old_labels"
 ```
 

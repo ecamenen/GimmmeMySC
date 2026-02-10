@@ -47,6 +47,8 @@ if (assay == "RNA") {
 } else {
   slot <- "data"
 }
+
+integration_method <- "RPCA"
 ```
 
 ## Load data
@@ -165,8 +167,6 @@ gc()
 ```
 
 ```{r}
-integration_method <- "RPCA"
-
 if (assay == "ATAC") {
   seurat <- IntegrateLayers(
     object = seurat, 
@@ -200,8 +200,7 @@ Idents(seurat) <- split.by
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction = integration_method,
-  reduction = reduction
+  reduction = integration_method
 )
 ```
 
@@ -288,17 +287,22 @@ plot_res(
 
 # Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-data("jcb_markers")
-plot_mfeature(seurat, jcb_markers, nrow = 3)
+if (assay != "ATAC") {
+  data("jcb_markers")
+  plot_mfeature(seurat, jcb_markers, nrow = 3)
+}
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-data("l_bcell_markers")
-plot_mfeature(seurat, l_bcell_markers, nrow = 3)
+if (assay != "ATAC") {
+  data("l_bcell_markers")
+  plot_mfeature(seurat, l_bcell_markers, nrow = 3)
+}
 ```
 
 ## Save data
 ```{r}
+Idents(seurat) <- seurat[[]][, snn_cluster]
 save(seurat, file = file.path(path_data, "atac11.rda"))
 ```
 

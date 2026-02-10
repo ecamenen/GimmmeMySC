@@ -44,14 +44,6 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 ```{r}
 load(file.path(path_data, "atac11.rda"))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
-
-best_resolution <- 0.35
-snn_cluster <- paste0(
-    assay,
-    "_snn_res.",
-    best_resolution
-)
-
 Idents(seurat) <- seurat[[]][, snn_cluster]
 
 seurat <- subsampling_sc(seurat)
