@@ -32,15 +32,13 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
-
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "filter_by_markers")
 
 markers <- c("Cd19", "Cd79a", "Cd79b", "Ighm")
 ```
 
 ```{r}
-load(file.path(path_data, "integrated_bcells5.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 summary(seurat$percent_ribosomal)
 
 seurat <- subset(seurat, subset = Type == target_type)

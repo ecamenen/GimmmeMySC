@@ -36,8 +36,6 @@ project <- "KO"
 l_samples <- list.files(path) %>%  
   .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
   .[str_detect(., "KO")]
-
-path_data <- 
 ```
 
 ## Load data
@@ -170,7 +168,7 @@ plot_bar_kept(seurat_old, seurat, l_samples)
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path_data, paste0(projet, ".rda")))
+save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ## Session information

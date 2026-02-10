@@ -31,3 +31,6 @@ snn_cluster <- paste0(
     best_resolution
 )
 
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
+seurat_dataset <- "integrated_bcells5"
+

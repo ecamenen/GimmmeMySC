@@ -31,14 +31,14 @@ library("kableExtra")
 library("openxlsx")
 library("clusterProfiler")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "enrichment")
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "enrichment")
 
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
@@ -64,8 +64,8 @@ if (method == "ora") {
 
 ## Load data
 ```{r}
-load(file.path(path, "clustering_markers.rda"))
-load(file.path(path, "integrated_bcells5.rda"))
+load(file.path(path_data, "clustering_markers.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ```{r}

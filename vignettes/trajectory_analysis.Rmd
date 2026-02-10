@@ -35,12 +35,10 @@ source(
   "inst",
   "extdata"
 ), "conf.R"))
-
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 ```
 
 ```{r}
-load(file.path(path_data, "atac11.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
 
 # seurat <- subset(seurat, subset = Type == target_type )

@@ -36,7 +36,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
 
 fc_threshold  <- log2(1.5)
@@ -60,7 +59,7 @@ pseudo <- TRUE
 ```
 
 ```{r}
-load(file.path(path_data, "integrated_bcells5.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
 ```
 

@@ -38,8 +38,6 @@ source(
   "inst",
   "extdata"
 ), "conf.R"))
-
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 l_samples <- list.dirs(path_data, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
 
 # techno <- "atac_"
@@ -97,10 +95,6 @@ genome(annotation_tot) <- genome_consortium
 
 # Load data
 ```{r}
-load(file.path(path_data, "atac2.rda"))
-```
-
-```{r, eval = FALSE}
 l_peaks <- list.map(
   l_samples,
   f(i) ~ {
@@ -150,7 +144,7 @@ seurat <- list.map(
 })
 ```
 
-```{r, eval = FALSE}
+```{r}
 seurat <- list.map(
   seurat,
   f(i) ~ {
@@ -190,7 +184,7 @@ features_atac <- c(
 features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
 ```
 
-```{r, eval = FALSE}
+```{r}
 seurat <- list.map(
   seurat,
   f(i) ~{
@@ -340,20 +334,6 @@ Idents(seurat) <- "Patient"
 seurat <- subset(seurat, subset = doublets == "singlet")
 ```
 
-## Dimension reduction
-```{r message=FALSE, warning=FALSE}
-seurat <- RunTFIDF(seurat)
-seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
-seurat <- RunSVD(seurat, n = n_dim)
-```
-
-```{r}
-DepthCor(seurat, n = 20) + 
-  theme_custom() + 
-  ggtitle("Correlation between sequencing depth and components") +
-  labs(subtitle = NULL)
-```
-
 ## Gene activity
 ```{r message=FALSE, warning=FALSE}
 gene.activities <- GeneActivity(seurat, biotypes = NULL)
@@ -460,7 +440,7 @@ seurat[[]] %>%
 ```
 
 ```{r, eval = FALSE}
-save(seurat, file = file.path(path_data, "atac6.rda"))
+save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ```{r}

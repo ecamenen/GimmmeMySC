@@ -33,8 +33,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
-
 split.by <- 'Patient'
 cell_label <- "cell_type_formatted"
 
@@ -42,7 +40,7 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 ```
 
 ```{r}
-load(file.path(path_data, "atac11.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 Idents(seurat) <- seurat[[]][, snn_cluster]
 

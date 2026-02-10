@@ -34,14 +34,12 @@ source(
   "inst",
   "extdata"
 ), "conf.R"))
-
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
 ```
 
 ## Load data
 ```{r}
-load(file.path(path_data, "atac6.rda"))
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ```{r}
@@ -161,7 +159,7 @@ plotDeltaDistribution(
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path_data, "atac7.rda"))
+save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ## Session information
