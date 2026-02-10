@@ -737,3 +737,31 @@ pct_peak_per_chr <- function(x) {
 
     Matrix::colSums(chrY_counts)
 }
+
+#' @export
+downsample_by_cluster <- function(x, group_by = "Type") {
+
+    df <- data.frame(
+        cell = colnames(x),
+        cluster = Idents(x),
+        group_by = x[[group_by]][,1],
+        stringsAsFactors = FALSE
+    )
+
+    selected_cells <- unlist(
+        lapply(split(df, df$cluster), function(i) {
+
+            counts <- table(i$group_by)
+            n_min <- min(counts)
+
+            unlist(
+                lapply(names(counts), function(j) {
+                    sample(i$cell[i$group_by == j], n_min)
+                })
+            )
+        })
+    )
+
+    subset(x, cells = selected_cells)
+}
+

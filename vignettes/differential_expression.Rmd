@@ -43,9 +43,10 @@ fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
+assay <- "RNA"
 
-# grouping.var <- "Type"
-grouping.var <- NULL
+grouping.var <- "Type"
+# grouping.var <- NULL
 cell_label <- paste0(
     assay,
     "_snn_res.",
@@ -92,18 +93,26 @@ if (isFALSE(pseudo)) {
 # Pseudo-bulk
 ```{r}
 if (isTRUE(pseudo)) {
-library("DESeq2")
+  library("DESeq2")
+  min_exp <- 10
+  
+  table(Idents(seurat), seurat$Type) %>%
+    kable_sc(file = file.path(path_fig, "table_cell_before.png"))
+  seurat <- downsample_by_cluster(seurat)
+  table(Idents(seurat), seurat$Type) %>%
+    kable_sc(file = file.path(path_fig, "table_cell_after.png"))
 
 cts <- AggregateExpression(
   seurat,
   group.by = c(cell_label, "Patient"),
-  assay = "RNA",
+  assay = assay,
   slot = "counts",
   return.seurat = FALSE
 )
 
 cts <- pluck(cts, assay) %>%
-  as.data.frame()
+  as.data.frame() %>%
+  .[rowSums(. < min_exp) == 0, ]
 cts <- list.map(
   levels(seurat@meta.data[, cell_label]),
   f(x) ~{
@@ -148,8 +157,7 @@ l_dea_proc <- list.map(
             countData = gene_count,
             colData = metadata_samples,
             design = ~ condition
-        ) %>%
-            .[rowSums(counts(.) >= 10) >= 3, ]
+        )
         
         dea <- DESeq(dea_df, quiet = TRUE)
         
