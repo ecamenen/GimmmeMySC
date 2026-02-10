@@ -26,6 +26,7 @@ library("Seurat")
 library("rlist")
 library("cowplot")
 library("SingleR")
+library("RColorBrewer")
 
 path <- file.path(
   dirname(getwd()),
@@ -47,6 +48,13 @@ load(file.path(path_data, "atac6.rda"))
 ```{r}
 array <- "RNA"
 DefaultAssay(seurat) <- "RNA"
+seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
+seurat <- set_percent(seurat)
+```
+
+## QC
+```{r, fig.height = 5, fig.width = 10}
+plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ### Negative / positive control genes
@@ -112,12 +120,12 @@ cell_subtype <- SingleR(
 )
 
 annotation <- list(cell_type = cell_type, cell_subtype = cell_subtype)
-save(annotation, file = file.path(path_data, paste0(projet, "_annotation")))
+save(annotation, file = file.path(path_data, "annotation.rda"))
 ```
 
 ### Visualization
 ```{r}
-seurat <- format_celltype(seurat, annotation)
+seurat <- format_celltype(seurat, annotation, path_fig = path_fig)
 ```
 
 ```{r}
@@ -128,7 +136,7 @@ plotScoreHeatmap(
 ```
 
 ```{r}
-seurat <- format_celltype(seurat, annotation, type = "cell_subtype")
+seurat <- format_celltype(seurat, annotation, type = "cell_subtype", path_fig = path_fig)
 
 seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))

@@ -50,7 +50,7 @@ plot_sc_violin <- function(
             p +
                 NoLegend()  +
                 ggtitle(
-                    str_clean(i) %>%
+                    str_clean(i, assay = assay) %>%
                         str_wrap(width = width)
                 )  +
                 ylab(NULL) +
@@ -125,7 +125,7 @@ plot_eig <- function(x) {
 }
 
 #' @export
-density_scatter <- function(object, x, y, ...) {
+density_scatter <- function(object, x, y, assay = "RNA", ...) {
     DensityScatter(
         object,
         x,
@@ -134,8 +134,8 @@ density_scatter <- function(object, x, y, ...) {
         ...
     ) +
         theme_custom() +
-        xlab(str_clean(x)) +
-        ylab(str_clean(y))
+        xlab(str_clean(x, assay = assay)) +
+        ylab(str_clean(y, assay = assay))
 }
 
 #' @export

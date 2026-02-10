@@ -87,7 +87,7 @@ kable_cluster <-  function(
 }
 
 #' @export
-kable_sc <- function(x, func = str_clean, digits = getOption("digits"), file = NULL) {
+kable_sc <- function(x, func = str_clean, digits = 3, file = NULL) {
     p <- x %>%
         set_colnames(colnames(.) %>% func()) %>%
         kable0(digits = digits)
@@ -184,6 +184,20 @@ cluster_size <- function(x, order = TRUE, digits = 1) {
         arrange(res, desc(n))
     else
         res
+}
+
+
+#' @export
+kable_stats <- function(x, digits = 3, file = NULL, ...) {
+    p <- print_sc_stats(x, ...) %>%
+        kable0(digits = digits)
+    if (!is.null(file))
+        save_kable(
+            p,
+            file = file,
+            zoom = 2
+        )
+    print(p)
 }
 
 #' @export
@@ -431,17 +445,10 @@ plot_mqc <- function(
         file = NULL,
         ncol = 2,
         nrow = 2,
+        digits = 3,
         ...
     ) {
-    p <- print_sc_stats(x, features = features, probs = c(0, 0.1, 0.5, 0.9, 1)) %>%
-        kable_sc(digits = 3)
-    if (!is.null(file))
-        save_kable(
-            p,
-            file = file,
-            zoom = 2
-        )
-    print(p)
+    kable_stats(x, features = features, probs = c(0, 0.1, 0.5, 0.9, 1), digits = digits, file = file)
 
     p <- list.map(
         features[c(1, 3)],
@@ -464,6 +471,48 @@ plot_mqc <- function(
         normalize = rep(10, length(features)),
         ncol = ncol,
         nrow = nrow,
+        ...
+    )
+}
+
+#' @export
+plot_mqc_atac <- function(seurat, cols = palette_discrete(), nrow = 2, digits = 3, file = NULL, ...) {
+    kable_stats(x, features = c(features_atac, "passed_filters", features_supp), probs = c(0, 0.1, 0.5, 0.9, 1), digits = digits, file = file)
+
+    p <- list.map(
+        c("nCount_ATAC", "percent_mitochondrial"),
+        f(i, j) ~ {
+            density_scatter(
+                seurat,
+                x = i,
+                y = "nFeature_ATAC",
+                assay = "ATAC",
+                log_x = TRUE,
+                log_y = TRUE
+            )
+        }
+    ) %>% plot_grid(plotlist = ., align = "hv")
+    print(p)
+
+    Idents(x) <- "Patient"
+    p <- plot_sc_violin(
+        seurat,
+        features = c(features_atac[-6], "passed_filters"),
+        assay = "ATAC",
+        cols = cols,
+        nrow = nrow,
+        normalize = c(10, 10, 2, 10, 0, 10),
+        ...
+    )
+    print(p)
+
+    plot_sc_violin(
+        seurat,
+        features = c(features_supp, features_atac[6]),
+        assay = "ATAC",
+        cols = cols,
+        nrow = nrow,
+        normalize = c(2, 10, 2, 10, 10, 0),
         ...
     )
 }
@@ -581,17 +630,18 @@ format_celltype <- function(
         type = "cell_type",
         label_type = "pruned.labels",
         lim = 50,
-        path_fig = path_fig
+        path_fig = NULL
     ) {
     table_annotation <- annotation[[type]] %>%
         as.data.frame()
     seurat@meta.data[, paste0(type, "_raw")] <- pull(table_annotation, label_type)
 
+    if (!is.null(path_fig))
     kable_ncell(
         table_annotation,
         label_type,
         digits = 2,
-        file =  file.path(path_fig, paste0("table", type, "before.png", sep = "_"))
+        file =  file.path(path_fig, paste("table_", type, "_before.png"))
     )
     p2 <- pull(table_annotation, label_type) %>%
         plot_bar_sc()
@@ -602,11 +652,12 @@ format_celltype <- function(
         names()
     table_annotation[pull(table_annotation, label_type) %in% to_remove, label_type] <- NA
 
+    if (!is.null(path_fig))
     kable_ncell(
         table_annotation,
         label_type,
         digits = 2,
-        file =  file.path(path_fig, paste0("table", type, "after.png", sep = "_"))
+        file =  file.path(path_fig, paste0("table_", type, "_after.png"))
     )
 
     seurat@meta.data[, type] <-
@@ -632,6 +683,7 @@ plot_bar_doublet <- function(x) {
     ) %>%
     list.rbind() %>%
     as.data.frame() %>%
+    set_colnames(colnames(.) %>% str_to_sentence()) %>%
     rbind(".Total" = colSums(.)) %>%
     t() %>%
     plot_bar_2cat(
