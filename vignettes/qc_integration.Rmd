@@ -26,16 +26,16 @@ library("cowplot")
 library("kableExtra")
 library("Seurat")
 
-pal_discrete_sc <- palette_discrete()[-7]
-
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
+), "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_integration")
 
-source(file.path(path, "conf.R"))
 # new_ident <- "predicted.labels"
 old_ident <- "RNA_snn_res.0.35"
 new_ident <- "RNA_snn_res.0.35"
@@ -43,9 +43,8 @@ new_ident <- "RNA_snn_res.0.35"
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells2.rda"))
-seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+load(file.path(path_data, "atac11.rda"))
+
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- reorder_idents(seurat, new_ident)

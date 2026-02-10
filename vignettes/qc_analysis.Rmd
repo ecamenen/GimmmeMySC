@@ -26,15 +26,14 @@ library("Seurat")
 library("rlist")
 library("cowplot")
 
-pal_discrete_sc <- palette_discrete()[-7]
-
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 
 split.by <- 'Patient'
 cell_label <- "cell_type_formatted"
@@ -43,11 +42,7 @@ path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells2.rda"))
-seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
-
-seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+load(file.path(path_data, "atac11.rda"))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 best_resolution <- 0.35

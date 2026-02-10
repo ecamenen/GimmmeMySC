@@ -3,7 +3,6 @@
 #' @import clustree GimmeMyOmics GimmeMyPlot ggraph gridExtra kableExtra
 #' @import magrittr pheatmap RColorBrewer rlist
 #' @import scDblFinder Seurat Signac SingleR tidyverse
-#' @importFrom magrittr %>%
 #' @keywords internal
 "_PACKAGE"
 

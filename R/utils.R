@@ -83,7 +83,7 @@ kable_cluster <-  function(
             file = file,
             zoom = 2
         )
-    p
+    print(p)
 }
 
 #' @export
@@ -213,6 +213,10 @@ print_sc_stats <- function(
             x[[i]],
             probs = probs,
             na.rm = TRUE)
+    ) %>%
+        set_colnames(colnames(.) %>% str_clean(assay))
+}
+
     )
 }
 

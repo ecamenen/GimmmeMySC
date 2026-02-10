@@ -25,12 +25,14 @@ library("GimmeMyPlot")
 
 # pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-source(file.path(path, "conf.R"))
+), "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
 
@@ -40,13 +42,7 @@ cell_label <- "cell_subtype_formatted"
 
 ## Load data
 ```{r data}
-# load(file.path(path, "ko_bcell_cycle.rda"))
-load(file.path(path, "integrated_bcells2.rda"))
-
-seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
-
-seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+load(file.path(path_data, "atac11.rda"))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- subsampling_sc(seurat) %>%

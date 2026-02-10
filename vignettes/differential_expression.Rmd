@@ -29,14 +29,15 @@ library("cowplot")
 library("kableExtra")
 library("openxlsx")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
 
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
@@ -58,7 +59,7 @@ pseudo <- TRUE
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells4.rda"))
+load(file.path(path_data, "integrated_bcells5.rda"))
 best_resolution <- 0.35
 snn_cluster <- paste0(
     assay,
@@ -268,9 +269,9 @@ omics2excel(
 
 ```{r}
 if (isFALSE(pseudo)) {
-  save(l_deg, file = file.path(path, "clustering_markers.rda"))
+  save(l_deg, file = file.path(path_data, "clustering_markers.rda"))
 } else {
-  save(l_deg, file = file.path(path, "pseudo.rda"))
+  save(l_deg, file = file.path(path_data, "pseudo.rda"))
 }
 ```
 

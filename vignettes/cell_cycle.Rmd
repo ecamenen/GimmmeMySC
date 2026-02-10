@@ -22,16 +22,18 @@ knitr::opts_chunk$set(
 library("GimmmeMySC")
 library("Seurat")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-source(file.path(path, "conf.R"))
+), "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells2.rda"))
+load(file.path(path_data, "integrated_bcells5.rda"))
 ```
 
 ## Data normalization
@@ -80,7 +82,7 @@ seurat <- RunPCA(
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path, "integrated_bcells4.rda"))
+save(seurat, file = file.path(path_data, "integrated_bcells5.rda"))
 ```
 
 ## Session information

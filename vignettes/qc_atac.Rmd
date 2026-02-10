@@ -32,18 +32,15 @@ library("AnnotationHub")
 # BiocManager::install("ensembldb")
 # biovizBase
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
-
-path_data <- file.path("C:", "Users", "etien", "DATA")
-path_project <- file.path(path_data, "dobino", "ATAC")
-l_samples <- list.dirs(path_project, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
-# l_samples <- l_samples %>% .[str_detect(., "WT")]
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
+l_samples <- list.dirs(path_data, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
 
 # techno <- "atac_"
 techno <- ""
@@ -100,14 +97,14 @@ genome(annotation_tot) <- genome_consortium
 
 # Load data
 ```{r}
-load(file.path(path_project, "atac2.rda"))
+load(file.path(path_data, "atac2.rda"))
 ```
 
 ```{r, eval = FALSE}
 l_peaks <- list.map(
   l_samples,
   f(i) ~ {
-  path_sample <- file.path(path_project, i)
+  path_sample <- file.path(path_data, i)
   bed_filename <- file.path(path_sample, "outs", paste0(techno, "peaks.bed"))
   
   peaks <- read.table(
@@ -127,7 +124,7 @@ combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
 seurat <- list.map(
   l_samples,
   f(i) ~ {
-  sample_path <- file.path(path_project, i)
+  sample_path <- file.path(path_data, i)
   fragment_filename <- file.path(sample_path, "outs", paste0(techno, "fragments.tsv.gz"))
   metadata_filename <- file.path(sample_path, "outs", "singlecell.csv")
   
@@ -462,8 +459,8 @@ seurat[[]] %>%
   theme_custom()
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-save(seurat, file = file.path(path_project, "atac6.rda"))
+```{r, eval = FALSE}
+save(seurat, file = file.path(path_data, "atac6.rda"))
 ```
 
 ```{r}

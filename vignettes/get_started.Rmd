@@ -25,13 +25,14 @@ library("Seurat")
 library("rlist")
 library("clustree")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 
 split.by = 'Type'
 cell_label <- "cell_type_formatted"
@@ -57,7 +58,9 @@ seurat <- NormalizeData(seurat) %>%
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells2.rda"))
+load(file.path(path_data, "atac9.rda"))
+seurat <- subset(seurat, subset = Type == target_type)
+DefaultAssay(seurat) <- assay
 ```
 
 ## PCA
@@ -286,7 +289,7 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path, "integrated_bcells2.rda"))
+save(seurat, file = file.path(path_data, "atac11.rda"))
 ```
 
 ## Session information

@@ -27,17 +27,20 @@ library("monocle3")
 library("slingshot")
 library("SeuratWrappers")
 
-path <- file.path(
+library("Seurat")
+
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
+), "conf.R"))
 
-source(file.path(path, "conf.R"))
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 ```
 
 ```{r}
-load(file.path(path, "integrated_bcells4.rda"))
+load(file.path(path_data, "atac11.rda"))
 
 best_resolution <- 0.35
 snn_cluster <- paste0(

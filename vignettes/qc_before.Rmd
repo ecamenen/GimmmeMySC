@@ -28,13 +28,12 @@ library("cowplot")
 library("SingleR")
 library("RColorBrewer")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-
-source(file.path(path, "conf.R"))
+), "conf.R"))
 
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
