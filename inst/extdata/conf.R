@@ -3,7 +3,7 @@ options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
 max_dim <- 100
 n_dim <- 50
-dims <- seq(n_dim)
+dims <- seq(30)
 dims <- dims[-c(1)]
 species <- "mouse"
 assay <- "ATAC"

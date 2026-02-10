@@ -21,9 +21,11 @@ knitr::opts_chunk$set(
 ## Setup
 ```{r init, message = FALSE}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
 library("rlist")
 library("clustree")
+library("magrittr")
 
 source(
   file.path(file.path(
@@ -34,10 +36,17 @@ source(
 
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
 
-split.by = 'Type'
+# split.by = 'Type'
+split.by = "Patient"
 cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
+
+if (assay == "RNA") {
+  slot <- "scale.data"
+} else {
+  slot <- "data"
+}
 ```
 
 ## Load data
@@ -76,20 +85,21 @@ cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
 ```{r, fig.height = 6, fig.width = 12}
 list.map(
   list(seq(15), 16:30, 31:45),
-  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE)
+  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = reduction, slot = slot)
 )
 ```
 
 ```{r}
 comp_genes <- list.map(
-    seq(max_dim),
+    dims,
     f(x) ~ Loadings(seurat, reduction = reduction) %>%
         as.data.frame() %>%
+        set_colnames(str_replace(colnames(.), "(\\w+)_(\\d+)", "PC_\\2")) %>%
         select(paste0("PC_", x)) %>%
         arrange(abs(!!sym(paste0("PC_", x)))) %>%
         tail(20) %>%
         rownames()
-) %>% set_names(seq(max_dim))
+) %>% set_names(dims)
 
 list.map(
   lapply(cc.genes, func_format),
@@ -109,6 +119,7 @@ seurat <- RunUMAP(
   seurat, 
   dims = dims,
   reduction.key = "Dim. ",
+  reduction = reduction
   )
 ```
 
@@ -127,14 +138,6 @@ plot_dim(
 
 ## Integration
 ```{r}
-if (is.null(seurat[["RNA"]]@layers$data.1)) {
-  seurat[["RNA"]] <- split(
-      seurat[["RNA"]],
-      f = seurat[[]][, split.by],
-      layers = c("counts", "data")
-  )
-}
-
 if (assay == "ATAC") {
   seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
     counts = seurat@assays$ATAC$counts, 
@@ -149,14 +152,22 @@ if (assay == "ATAC") {
     f = seurat$Patient,
     layers = c("counts","data")
   )
+} else {
+  if (is.null(seurat[["RNA"]]@layers$data.1)) {
+    seurat[["RNA"]] <- split(
+        seurat[["RNA"]],
+        f = seurat[[]][, split.by],
+        layers = c("counts", "data")
+    )
+  }
 }
+gc()
 ```
 
 ```{r}
 integration_method <- "RPCA"
 
-if (assay == "atac") {
-  integration_method <- "RPCA"
+if (assay == "ATAC") {
   seurat <- IntegrateLayers(
     object = seurat, 
     method = get(paste0(integration_method, "Integration")),
@@ -172,7 +183,6 @@ if (assay == "atac") {
       object = seurat, 
       method = get(paste0(integration_method, "Integration")),
       new.reduction = integration_method,
-      # reduction.key = "Dim. ",
       orig.reduction = reduction,
       dims.to.integrate = dims,
       normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
@@ -190,7 +200,8 @@ Idents(seurat) <- split.by
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction = integration_method
+  reduction = integration_method,
+  reduction = reduction
 )
 ```
 
@@ -208,7 +219,6 @@ plot_dim(
 
 ## Clustering
 ```{r clus_int}
-DefaultAssay(seurat) <- assay
 resolution2 <- seq(.1, .4, 0.05)
 resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
 resolution_tot <- c(resolution2, resolution)

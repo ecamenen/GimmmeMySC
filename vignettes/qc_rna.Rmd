@@ -168,10 +168,6 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 plot_bar_kept(seurat_old, seurat, l_samples)
 ```
 
-```{r}
-plot_mqc(seurat)
-```
-
 ## Save data
 ```{r}
 save(seurat, file = file.path(path_data, paste0(projet, ".rda")))
