@@ -59,7 +59,8 @@ seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
-    group.by = "Type"
+    group.by = "Type",
+    colour = pal_discrete_sc2
 )
 
 list.map(
@@ -83,7 +84,8 @@ list.map(
 bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
-    group.by = split.by
+    group.by = split.by,
+    colour = pal_discrete_sc2
 )
 ```
 
@@ -97,12 +99,14 @@ seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 ```{r}
 plot_dim(
     seurat,
-    label = FALSE
+    label = FALSE,
+    cols = pal_discrete_sc
 )
 plot_dim(
     seurat,
     split.by = split.by,
-    label = FALSE
+    label = FALSE,
+    cols = pal_discrete_sc
 ) + NoLegend()
 ```
 
@@ -181,7 +185,7 @@ Idents(seurat) %>%
     kable_sc(file = file.path(path_fig, "table_subcells.png"))
 ```
 ```{r, fig.width = 5}
-plot_dim_cell(seurat, cols = pal_discrete_sc)
+plot_dim_cell(seurat, cols = pal_discrete_sc2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
@@ -197,7 +201,7 @@ plot_dim_cell(
 ```
 
 ```{r, fig.width = 5}
-plot_dim_cell(seurat, cols = pal_discrete_sc)
+plot_dim_cell(seurat, cols = pal_discrete_sc2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}

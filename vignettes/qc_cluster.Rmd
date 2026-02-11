@@ -85,7 +85,7 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 p2 <- plot_dim(seurat, cols = pal_discrete_sc)
 p2
 
-p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", col = pal_discrete_sc)
+p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
 
 plot_dim(
     seurat,
@@ -95,7 +95,7 @@ plot_dim(
     ncol = 4
 ) + NoLegend()
 
-plot_ident_celltype(seurat, cell_label = cell_label)
+plot_ident_celltype(seurat, cell_label = cell_label, col = pal_discrete_sc2)
 Idents(seurat) <- "cell_subtype_formatted2"
 plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc)
 Idents(seurat) <- seurat[[]][, snn_cluster]
@@ -119,7 +119,8 @@ plot_dim(
 plot_dim(
     seurat,
     split.by = "cell_type_formatted",
-    ncol = 3
+    ncol = 3,
+    col = pal_discrete_sc
 )
 ```
 
@@ -181,18 +182,19 @@ for (x in unique(Idents(seurat)))
 ## Markers
 ### From dataset
 ```{r, message = FALSE}
+DefaultAssay(seurat) <- "RNA"
 data("jcb_markers")
-plot_module(seurat, jcb_markers)
+plot_module(seurat, jcb_markers, cols = pal_discrete_sc)
 ```
 
 ```{r, eval = FALSE, message = FALSE, fig.height = 6, fig.width = 12}
-plot_markers(seurat, jcb_markers)
+plot_markers(seurat, jcb_markers, cols = pal_discrete_sc))
 ```
 
 ### B cell markers
 ```{r, eval = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
-plot_markers(seurat, l_bcell_markers)
+plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
 ```
 
 
