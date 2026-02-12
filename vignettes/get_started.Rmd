@@ -40,13 +40,6 @@ split.by = "Patient"
 cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
-
-if (assay2 == "RNA") {
-  slot <- "scale.data"
-} else {
-  slot <- "data"
-}
-
 integration_method <- "Harmony"
 ```
 
