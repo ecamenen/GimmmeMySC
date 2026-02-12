@@ -26,6 +26,7 @@ library("Seurat")
 library("rlist")
 library("clustree")
 library("magrittr")
+library("harmony")
 
 source(
   file.path(file.path(
@@ -40,40 +41,52 @@ cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
 
-if (assay == "RNA") {
+if (assay2 == "RNA") {
   slot <- "scale.data"
 } else {
   slot <- "data"
 }
 
-integration_method <- "RPCA"
+integration_method <- "Harmony"
 ```
 
 ## Load data
-```{r data, eval = FALSE}
-seurat <- readRDS(file.path(path, "all_cell_ko.rds"))
-seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype)
-
-seurat@assays$SCT@scale.data <- matrix()
-
-seurat <- NormalizeData(seurat) %>%
-    FindVariableFeatures() %>%
-    ScaleData() %>%
-  RunPCA(
-    reduction_key = "Dim. ",
-  npcs = max_dim
-)
-```
-
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+# seurat@assays$SCT@scale.data <- matrix()
 seurat <- subset(seurat, subset = Type == target_type)
 DefaultAssay(seurat) <- assay
 ```
 
 ## PCA
 ### Dimension selection
+```{r message=FALSE, warning=FALSE}
+if (assay == "ATAC") {
+  library("Signac")
+  seurat <- RunTFIDF(seurat)
+  seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
+  seurat <- RunSVD(seurat, n = n_dim)
+  
+  DepthCor(seurat, n = 20) + 
+    theme_custom() + 
+    ggtitle("Correlation between sequencing depth and components") +
+    labs(subtitle = NULL)
+} else {
+  if (isFALSE(SCT)) {
+  seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData()
+  } else {
+    seurat <- SCTransform(seurat)
+  }
+  seurat <- RunPCA(
+    seurat,
+    reduction_key = "Dim. ",
+    npcs = max_dim
+  )
+}
+```
+
 ```{r}
 eig <- seurat[[reduction]]@stdev / sum(seurat[[reduction]]@stdev) * 100
 plot_pca_qc(eig)
@@ -177,18 +190,30 @@ if (assay == "ATAC") {
     verbose = TRUE
   )
 } else {
-  seurat <- IntegrateLayers(
-      object = seurat, 
-      method = get(paste0(integration_method, "Integration")),
+  if (integration_method != "Harmony") {
+    seurat <- IntegrateLayers(
+        object = seurat,
+        method = get(paste0(integration_method, "Integration")),
       new.reduction = integration_method,
       orig.reduction = reduction,
       dims.to.integrate = dims,
-      normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+        normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+        verbose = TRUE
+    )
+    seurat[[assay]] <- JoinLayers(seurat[[assay]])
+  } else {
+    library("harmony")
+    seurat <- RunHarmony(
+      object = seurat,
+      group.by.vars = split.by,
+      reduction.save = integration_method,
+      reduction = reduction,
+      assay.use = assay,
+      dims.to.integrate = dims,
       verbose = TRUE
-  )
+    )
+  }
 }
-
-seurat[[assay2]] <- JoinLayers(seurat[[assay2]])
 
 Idents(seurat) <- split.by
 ```

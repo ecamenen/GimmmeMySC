@@ -45,8 +45,7 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ```{r}
-array <- "RNA"
-DefaultAssay(seurat) <- "RNA"
+DefaultAssay(seurat) <- assay2
 seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 seurat <- set_percent(seurat)
 ```
