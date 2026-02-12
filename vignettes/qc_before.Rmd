@@ -35,6 +35,8 @@ source(
   "extdata"
 ), "conf.R"))
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
+
+lim <- 100
 ```
 
 ## Load data
@@ -122,7 +124,7 @@ save(annotation, file = file.path(path_data, "annotation.rda"))
 
 ### Visualization
 ```{r}
-seurat <- format_celltype(seurat, annotation, path_fig = path_fig)
+seurat <- format_celltype(seurat, annotation, path_fig = path_fig, lim = lim)
 ```
 
 ```{r}
@@ -133,7 +135,7 @@ plotScoreHeatmap(
 ```
 
 ```{r}
-seurat <- format_celltype(seurat, annotation, type = "cell_subtype", path_fig = path_fig)
+seurat <- format_celltype(seurat, annotation, type = "cell_subtype", path_fig = path_fig, lim = lim)
 
 seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
