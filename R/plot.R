@@ -601,10 +601,10 @@ heatmap_celltype <- function(
 }
 
 #' @export
-plot_dim_cell <- function(x, cols = palette_discrete(), ...) {
+plot_dim_cell <- function(x,  ...) {
     Idents(x) <- factor(Idents(x), levels =  reorder_celltype(Idents(x)))
-    plot_dim(x, ...) +
-        scale_color_manual(na.translate = FALSE, values = cols)
+    plot_dim(x, ...) #+
+        # scale_color_manual(na.translate = FALSE, values = cols)
 }
 
 #' @export
