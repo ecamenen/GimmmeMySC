@@ -21,7 +21,9 @@ knitr::opts_chunk$set(
 ## Setup
 ```{r init, message = FALSE}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
+library("rlist")
 library("scDblFinder")
 
 path <- file.path(
@@ -31,11 +33,11 @@ path <- file.path(
 )
 
 source(file.path(path, "conf.R"))
-project <- "KO"
 
-l_samples <- list.files(path) %>%  
-  .[sapply(., function(x) dir.exists(file.path(path, x)))]  %>%
-  .[str_detect(., "KO")]
+l_samples <- list.files(path_data) %>%  
+  .[sapply(., function(x) dir.exists(file.path(path_data, x)))]
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_rna")
 ```
 
 ## Load data
@@ -43,8 +45,8 @@ l_samples <- list.files(path) %>%
 list_seurat <-  list.map(
     l_samples,
     f(x) ~{
-      count_matrix <- file.path(path, x, "outs") %>%
-        list.files(full.names =TRUE) %>% 
+      count_matrix <- file.path(path_data, x, "outs") %>% 
+        list.files(full.names = TRUE) %>% 
         .[str_detect(., "filtered_feature_bc_matrix.h5")]
       tmp <- Read10X_h5(count_matrix) %>%
       CreateSeuratObject() %>%
@@ -53,15 +55,15 @@ list_seurat <-  list.map(
 )
 ```
 
-```{r data}
-cell_id <- paste0(project, "_", l_samples)
+```{r}
+cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
 seurat <- integrate_multisamples(list_seurat, cell_id)
 ```
 
 ## QC
 ### Filter cells with low or too high genes
-```{r qc_plot}
-plot_mqc(seurat)
+```{r qc_plot, fig.height = 5, fig.width = 10}
+plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ```{r}
@@ -110,7 +112,7 @@ sce <- scDblFinder(
 )
 ```
 
-```{r}
+```{r, fig.height = 8}
 table(sce$scDblFinder.class)
 
 seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
@@ -160,10 +162,10 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 ```
 
 ## QC after
-```{r qc_sub}
+```{r qc_sub, fig.height = 8}
 (ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
 
-plot_bar_kept(seurat_old, seurat, l_samples)
+plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 ```
 
 ## Save data
