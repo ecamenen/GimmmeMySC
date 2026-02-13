@@ -116,6 +116,7 @@ sce <- scDblFinder(
 table(sce$scDblFinder.class)
 
 seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 
 plot_bar_doublet(seurat)
 ```
