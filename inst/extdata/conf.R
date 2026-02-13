@@ -8,9 +8,9 @@ dims <- dims[-c(1)]
 species <- "mouse"
 assay <- "ATAC"
 if (assay == "ATAC") {
-    assay2 <- "ATAC_V5"
-} else {
     assay2 <- "RNA"
+} else {
+    assay2 <- assay
 }
 SCT <- FALSE
 reduction <- "lsi"
@@ -22,9 +22,10 @@ if (species == "human") {
 }
 
 target_type <- "KO"
-# pal_discrete_sc <- palette_discrete()[-7]
-pal_discrete_sc <- palette_continuous()(15)
-pal_discrete_sc2 <-  palette_continuous()(29)
+split.by <- "Type"
+pal_discrete_sc <- palette_discrete()[-7] -> pal_discrete_sc2
+# pal_discrete_sc <- palette_continuous()(15)
+# pal_discrete_sc2 <-  palette_continuous()(29)
 
 best_resolution <- 0.35
 snn_cluster <- paste0(
@@ -34,5 +35,6 @@ snn_cluster <- paste0(
 )
 
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
-seurat_dataset <- "integrated_bcells5"
+# seurat_dataset <- paste0("rna_allcell", "_", target_type)
+seurat_dataset <- "rna_bcell_integrated"
 
