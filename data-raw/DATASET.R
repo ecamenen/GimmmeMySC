@@ -49,6 +49,11 @@ usethis::use_data(l_bcell_markers, overwrite = TRUE)
 
 
 ##### Microarray markers
+path <- file.path(
+    golem::get_golem_wd(),
+    "inst",
+    "extdata"
+)
 
 fileIn <- file.path(path, "B_cell_subet_Marker_Genes-JCB.xlsx")
 name <- "Gene name"
@@ -65,37 +70,35 @@ usethis::use_data(jcb_markers, overwrite = TRUE)
 
 #### Data integration
 
-path <- file.path(
-    golem::get_golem_wd(),
-    "inst",
-    "extdata"
-)
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
 
-wt <- readRDS(file.path(path, "all_cell_wt.rds"))
-ko <- readRDS(file.path(path, "all_cell_ko.rds"))
-
-wt@assays$SCT@scale.data <- matrix()
-ko@assays$SCT@scale.data <- matrix()
+load(file.path(path_data, "rna_allcell_WT.rda"))
+wt <- seurat
+load(file.path(path_data, "rna_allcell_KO.rda"))
+ko <- seurat
+#
+# wt@assays$SCT@scale.data <- matrix()
+# ko@assays$SCT@scale.data <- matrix()
 
 seurat <- merge(wt, ko)
 # seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 # usethis::use_data(bcell_integrated, overwrite = TRUE)
 seurat <- subset(seurat, cell_type_formatted == "B cell")
-save(seurat, file = file.path(path, "integrated_bcells2.rda"))
+save(seurat, file = file.path(path_data, "integrated_bcells2.rda"))
 
 ################################################
 
 seurat <- merge(wt, ko)
-seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+# seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+# seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
-seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
-seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
+# seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
+# seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 
 seurat <- subset(seurat, cell_type_formatted %in% "B cell")
 seurat <- subset(seurat, !str_detect(cell_subtype_formatted, "FRA|CLP"))
 
-save(seurat, file = file.path(path, "integrated_bcells5.rda"))
+save(seurat, file = file.path(path_data, "rna_bcell_integrated.rda"))
 
 ################################################
 library("readxl")
