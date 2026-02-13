@@ -52,14 +52,14 @@ plot_pca_qc <- function(x) {
 
 #' @export
 kable_cluster <-  function(
-        seurat,
+        x,
         clusters,
         file = NULL,
         assay = "RNA"
     ) {
     cl_size <- map_dfr(
         clusters,
-        ~ cluster_size(seurat@meta.data[, .x]) %>%
+        ~ cluster_size(x@meta.data[, .x]) %>%
             pull(1) %>%
             tibble(
                 Clusters = .x,
@@ -108,18 +108,18 @@ kable_ncell <- function(x, label_type = "pruned.labels", digits = 2, ...) {
 }
 
 #' @export
-plot_res <- function(seurat, clusters, cols = palette_continuous(), ncol = 4, ...) {
+plot_res <- function(x, clusters, cols = palette_continuous(), ncol = 4, ...) {
     p_cl <- list.map(
         clusters,
-        f(x, y, z) ~
+        f(i) ~
             plot_dim(
-                seurat,
-                group.by = x,
-                cols = cols(seurat@meta.data[, x] %>% unique() %>% length()),
+                x,
+                group.by = i,
+                cols = cols(x@meta.data[, i] %>% unique() %>% length()),
                 ...
             ) +
             NoLegend() +
-            labs(title = str_remove(x, ".*_snn_res."))
+            labs(title = str_remove(i, ".*_snn_res."))
     )
     p1 <- plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = ncol, nrow = 2)
     print(p1)
@@ -230,22 +230,22 @@ print_filtered_cells <- function(before, after) {
 
 #' @export
 integrate_multisamples <- function(x, labels) {
-    seurat <- merge(
+    res <- merge(
         x = x[[1]],
         y = x[-1],
         add.cell.ids = labels
     )
 
-    seurat$sample <- rownames(seurat[[]])
-    seurat[[]] <- separate(
-        seurat[[]],
+    res$sample <- rownames(res[[]])
+    res[[]] <- separate(
+        res[[]],
         col = "sample",
         into = c("Type", "Patient", "Barcode"),
         sep = "_"
     )
 
-    Idents(seurat) <- "Patient"
-    return(seurat)
+    Idents(res) <- "Patient"
+    return(res)
 }
 
 #' @export
@@ -282,14 +282,14 @@ pct_by_ident_type <- function(
 
 #' @export
 dea_sc <- function(
-        seurat,
+        x,
         ids = NULL,
         group.by = "ident",
         grouping.var = "Patient",
         assay = "RNA"
     ) {
     cts <- AverageExpression(
-        seurat,
+        x,
         group.by = group.by,
         return.seurat = FALSE
     ) %>%
@@ -302,28 +302,28 @@ dea_sc <- function(
     if (!is.null(ids)) {
         it <- seq(nrow(ids))
     } else {
-        it <- levels(Idents(seurat))
+        it <- levels(Idents(x))
     }
     cluster_marker_genes0 <- list.map(
         it,
-        f(x) ~ {
+        f(i) ~ {
             if (is.null(grouping.var)) {
                 grouping.var <- "orig.ident"
             }
             if (!is.null(ids)) {
-                ident.1 = ids[x, 1]
-                ident.2 = ids[x, 2]
-                cluster = paste(ident.1, ident.2, sep = " vs ")
+                ident.1 <- ids[i, 1]
+                ident.2 <- ids[i, 2]
+                cluster <- paste(ident.1, ident.2, sep = " vs ")
             } else {
-                ident.1 = x
-                ident.2 = NULL
-                cluster = x
+                ident.1 <- i
+                ident.2 <- NULL
+                cluster <- i
             }
             res <- FindConservedMarkers(
                 ident.1 = ident.1,
                 ident.2 = ident.2,
                 grouping.var = grouping.var,
-                object = seurat,
+                object = x,
                 logfc.threshold = .Machine$double.xmin,
                 min.pct = .Machine$double.xmin
             ) %>%
@@ -336,18 +336,18 @@ dea_sc <- function(
                 `pct.1` = rowMeans(select(., ends_with("pct.1")), na.rm = TRUE),
                 `pct.2` = rowMeans(select(., ends_with("pct.2")), na.rm = TRUE)
             ) %>%
-                select(-contains(unique(seurat$orig.ident)[1]))
+                select(-contains(unique(x$orig.ident)[1]))
 
             if (!is.null(ids)) {
                 res <- left_join(
                     res,
-                    select(cts, all_of(c("gene", ids[x, 1], ids[x, 2]))) %>%
+                    select(cts, all_of(c("gene", ids[i, 1], ids[i, 2]))) %>%
                         set_colnames(c("gene", "exp.1", "exp.2")),
                     by = "gene")
             } else {
                 res <- left_join(
                     res,
-                    select(cts, all_of(c("gene", x, paste0("except_", x)))) %>%
+                    select(cts, all_of(c("gene", i, paste0("except_", i)))) %>%
                         set_colnames(c("gene", "exp.1", "exp.2")),
                     by = "gene")
             }
@@ -480,14 +480,14 @@ plot_mqc <- function(
 }
 
 #' @export
-plot_mqc_atac <- function(seurat, cols = palette_discrete(), nrow = 2, digits = 3, file = NULL, ...) {
+plot_mqc_atac <- function(x, cols = palette_discrete(), nrow = 2, digits = 3, file = NULL, ...) {
     kable_stats(x, features = c(features_atac, "passed_filters", features_supp), probs = c(0, 0.1, 0.5, 0.9, 1), digits = digits, file = file)
 
     p <- list.map(
         c("nCount_ATAC", "percent_mitochondrial"),
-        f(i, j) ~ {
+        f(i) ~ {
             density_scatter(
-                seurat,
+                x,
                 x = i,
                 y = "nFeature_ATAC",
                 assay = "ATAC",
@@ -500,7 +500,7 @@ plot_mqc_atac <- function(seurat, cols = palette_discrete(), nrow = 2, digits = 
 
     Idents(x) <- "Patient"
     p <- plot_sc_violin(
-        seurat,
+        x,
         features = c(features_atac[-6], "passed_filters"),
         assay = "ATAC",
         cols = cols,
@@ -511,7 +511,7 @@ plot_mqc_atac <- function(seurat, cols = palette_discrete(), nrow = 2, digits = 
     print(p)
 
     plot_sc_violin(
-        seurat,
+        x,
         features = c(features_supp, features_atac[6]),
         assay = "ATAC",
         cols = cols,
@@ -523,7 +523,7 @@ plot_mqc_atac <- function(seurat, cols = palette_discrete(), nrow = 2, digits = 
 
 #' @export
 subsampling_sc <- function(x, group.by = "Type") {
-    meta <- seurat@meta.data
+    meta <- x@meta.data
     meta$cell_id <- rownames(meta)
 
     cells_to_keep <- meta %>%
@@ -629,7 +629,7 @@ reorder_celltype <- function(x) {
 
 #' @export
 format_celltype <- function(
-        seurat,
+        x,
         annotation,
         type = "cell_type",
         label_type = "pruned.labels",
@@ -638,7 +638,7 @@ format_celltype <- function(
     ) {
     table_annotation <- annotation[[type]] %>%
         as.data.frame()
-    seurat@meta.data[, paste0(type, "_raw")] <- pull(table_annotation, label_type)
+    x@meta.data[, paste0(type, "_raw")] <- pull(table_annotation, label_type)
 
     if (!is.null(path_fig))
     kable_ncell(
@@ -664,11 +664,11 @@ format_celltype <- function(
         file =  file.path(path_fig, paste0("table_", type, "_after.png"))
     )
 
-    seurat@meta.data[, type] <-
-        table_annotation[match(rownames(seurat[[]]), rownames(table_annotation)), label_type] %>%
+    x@meta.data[, type] <-
+        table_annotation[match(rownames(x[[]]), rownames(table_annotation)), label_type] %>%
         factor(levels = reorder_celltype(.))
 
-    return(seurat)
+    return(x)
 }
 
 #' @export
@@ -699,12 +699,12 @@ plot_bar_doublet <- function(x) {
 }
 
 #' @export
-plot_bar_kept <- function(seurat_old, seurat, l_samples) {
+plot_bar_kept <- function(x, y, l_samples) {
     list.map(
         l_samples,
-        f(x) ~ list.map(
-            c(seurat_old, seurat),
-            f(i) ~ filter(i[[]], Patient == x) %>% nrow()
+        f(i) ~ list.map(
+            c(x, y),
+            f(j) ~ filter(j[[]], Patient == i) %>% nrow()
         ) %>%
             list.rbind()
     ) %>%
@@ -730,9 +730,9 @@ pct_peak_per_chr <- function(x) {
     chrY_ranges <- GRanges(x, IRanges(start = 1, end = 5e8))
 
     chrY_counts <- FeatureMatrix(
-        fragments = Fragments(seurat),
+        fragments = Fragments(x),
         features = chrY_ranges,
-        cells = colnames(seurat)
+        cells = colnames(x)
     )
 
     Matrix::colSums(chrY_counts)
