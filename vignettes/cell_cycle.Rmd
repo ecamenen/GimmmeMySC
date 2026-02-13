@@ -20,6 +20,7 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library("GimmmeMySC")
+library("GimmeMyPlot")
 library("Seurat")
 
 source(
@@ -37,10 +38,17 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ## Data normalization
 ```{r}
 DefaultAssay(seurat) <- "RNA"
+
+if (isFALSE(SCT)) {
 seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
-    ScaleData() %>%
-  RunPCA(features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
+    ScaleData()
+} else {
+  seurat <- SCTransform(seurat)
+  assay <- "SCT"
+  DefaultAssay(seurat) <- "SCT"
+}
+seurat <- RunPCA(seurat, features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
 
 plot_dim_cycle(seurat)
 seurat_subset <- subsampling_sc(seurat)
@@ -50,21 +58,29 @@ plot_dim_cycle0(seurat_subset, split.by = "Patient")
 
 ## Cell cycle regression
 ```{r}
-seurat <- ScaleData(
-  seurat,
-  vars.to.regress = c("S.Score", "G2M.Score"),
-  features = rownames(seurat)
-)
+if (isFALSE(SCT)) {
+  seurat <- ScaleData(
+    seurat,
+    vars.to.regress = c("S.Score", "G2M.Score"),
+    features = rownames(seurat)
+  ) 
+} else {
+  seurat <- SCTransform(
+    seurat, 
+    vars.to.regress = c("S.Score", "G2M.Score"), 
+    verbose = FALSE
+  )
+}
 ```
 
 ```{r}
-seurat <- RunPCA(
+seurat2 <- RunPCA(
   seurat,
   features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>%
     func_format()
 )
-plot_dim_cycle(seurat)
-seurat_subset <- subsampling_sc(seurat)
+plot_dim_cycle(seurat2)
+seurat_subset <- subsampling_sc(seurat2)
 plot_dim_cycle0(seurat_subset, split.by = "Type")
 plot_dim_cycle0(seurat_subset, split.by = "Patient")
 ```
