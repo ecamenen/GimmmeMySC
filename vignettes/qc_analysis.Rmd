@@ -179,7 +179,6 @@ plot_dim_cell(
 ```{r}
 Idents(seurat) <- "cell_subtype_formatted"
 plot_bar_sc(seurat)
-
 Idents(seurat) %>% 
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_subcells.png"))

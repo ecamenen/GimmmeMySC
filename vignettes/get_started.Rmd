@@ -35,8 +35,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-# split.by = 'Type'
-split.by = "Patient"
 cell_label <- "cell_type_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
@@ -91,7 +89,7 @@ cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
 ```{r, fig.height = 6, fig.width = 12}
 list.map(
   list(seq(15), 16:30, 31:45),
-  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = reduction, slot = slot)
+  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = reduction)
 )
 ```
 

@@ -33,8 +33,6 @@ source(
 ), "conf.R"))
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
-
-split.by <- 'Patient'
 cell_label <- "cell_subtype_formatted"
 ```
 
@@ -187,14 +185,18 @@ data("jcb_markers")
 plot_module(seurat, jcb_markers, cols = pal_discrete_sc)
 ```
 
-```{r, eval = FALSE, message = FALSE, fig.height = 6, fig.width = 12}
-plot_markers(seurat, jcb_markers, cols = pal_discrete_sc))
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+if (group.by == "Type") {
+  plot_markers(seurat, jcb_markers, cols = pal_discrete_sc)
+}
 ```
 
 ### B cell markers
-```{r, eval = FALSE, fig.height = 6, fig.width = 12}
-data("l_bcell_markers")
-plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
+```{r, fig.height = 6, fig.width = 12}
+if (group.by == "Type") {
+  data("l_bcell_markers")
+  plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
+}
 ```
 
 
