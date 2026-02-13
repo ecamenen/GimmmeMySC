@@ -427,6 +427,7 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
         t() %>%
         as.data.frame() %>%
         mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
+        mutate(across(everything(), ~replace_na(.x, 0))) %>%
         filter(rowSums(.) > 0)
 
     if ("0" %in% levels(Idents(x))) {

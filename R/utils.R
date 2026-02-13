@@ -531,7 +531,7 @@ subsampling_sc <- function(x, group.by = "Type") {
         sample_n(size = min(table(meta[, group.by]), n()), replace = FALSE) %>%
         pull(cell_id)
 
-    seurat_subset <- subset(seurat, cells = cells_to_keep)
+    seurat_subset <- subset(x, cells = cells_to_keep)
 }
 
 
