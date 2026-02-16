@@ -181,12 +181,11 @@ plot_feature <- function(
      limits = NULL,
      normalize = FALSE,
      split.by = NULL,
-     assay = "RNA",
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
     if (isTRUE(normalize)) {
-        cts <- GetAssayData(object = object, assay = assay)
+        cts <- GetAssayData(object = object, assay = DefaultAssay(object))
         limits <- map(features, ~cts[., ] %>% quantile(c(0, 1)))
     } else {
         limits <- replicate(length(features), NULL, simplify = FALSE)

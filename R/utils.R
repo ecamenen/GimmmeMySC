@@ -325,7 +325,8 @@ dea_sc <- function(
                 grouping.var = grouping.var,
                 object = x,
                 logfc.threshold = .Machine$double.xmin,
-                min.pct = .Machine$double.xmin
+                min.pct = .Machine$double.xmin,
+                assay = assay
             ) %>%
             mutate(
                 cluster = cluster,
