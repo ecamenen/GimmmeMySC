@@ -42,18 +42,11 @@ fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
-assay <- "RNA"
 
-grouping.var <- "Type"
+grouping.var <- "Patient"
 # grouping.var <- NULL
-cell_label <- paste0(
-    assay,
-    "_snn_res.",
-    best_resolution
-)
+cell_label <- snn_cluster
 # cell_label <- "predicted.labels"
-split.by <- NULL
-# split.by <- "Type"
 
 pseudo <- TRUE
 ```
@@ -66,13 +59,19 @@ Idents(seurat) <- snn_cluster
 ## Differentially Expressed Genes
 ```{r}
 # ids <- data.frame(
-#     id.1 = c(6, 3, 3, 3, 0, 0, 4, 5, 5),
-#     id.2 = c(2, 2, 6, 0, 1, 4, 1, 1, 4)
+#     id.1 = c(3, 6, 2, 5, 7, 0, 1, 7, 5),
+#     id.2 = c(6, 2, 5, 7, 0, 1, 4, 8, 0)
 # )
 ids <- NULL
-
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+    
 if (isFALSE(pseudo)) {
-  cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var)
+  
+  if (isTRUE(SCT)) {
+    seurat <- PrepSCTFindMarkers(seurat)
+  }
+  
+  cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var, assay = assay2)
   
   l_dea_raw <- cluster_marker_genes %>%
     mutate(gene_name = gene) %>%
@@ -341,10 +340,7 @@ if (!pseudo) {
 ```
 
 ```{r}
-if (pseudo) {
-  plot_dot2(seurat, top5_filtered, split.by = "Type", cols = rev(pal_discrete_sc[seq(2)])) +
-    geom_hline(yintercept = seq(2, (length(l_dea_proc) - 1) * 2, by = 2) + 0.5)
-} else {
+if (!pseudo) {
   plot_dot2(seurat, top5_filtered)
 }
 ```
@@ -354,12 +350,25 @@ markers <- top50  %>%
     split(.$cluster) %>%
     list.map(~pull(., gene_name) %>% unique())
 
-if (pseudo) {
-  plot_marker_split(seurat, markers, normalize = TRUE, n_line = length(l_dea_proc), cols = rev(pal_discrete_sc[seq(2)]))
-  } else {
+if (!pseudo) {
   plot_mfeature(seurat, markers, nrow = 3)
   plot_markers(seurat, markers)
 }
+```
+
+```{r}
+if (pseudo) {
+  n_line <- length(l_dea_proc)
+} else {
+  n_line <- length(Idents(seurat))
+}
+
+plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+    geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
+```
+
+```{r}
+plot_marker_split(seurat, markers, normalize = TRUE, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
 ```
 
 ## Session information
