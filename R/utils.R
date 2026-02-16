@@ -712,8 +712,8 @@ kable_doublet <- function(x, file = NULL, ...) {
 }
 
 #' @export
-plot_bar_doublet <- function(x, normalize = FALSE, ...) {
-    res <-calculate_doublet_by_condition(x, ...) %>%
+plot_bar_doublet <- function(x, normalize = FALSE, pct = TRUE, ...) {
+    res <- calculate_doublet_by_condition(x, ...) %>%
         t() %>%
         as.data.frame()
 
@@ -725,6 +725,7 @@ plot_bar_doublet <- function(x, normalize = FALSE, ...) {
         res,
         count = TRUE,
         stats = FALSE,
+        pct = pct,
         colour = palette_discrete()[c(1, 3)],
         colour_text = "black"
     )

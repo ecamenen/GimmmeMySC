@@ -74,11 +74,13 @@ seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 kable_doublet(seurat, label = snn_cluster, file = file.path(path_fig, "table_doublets.png"))
 
 plot_bar_doublet(seurat)
-plot_bar_doublet(seurat, label = snn_cluster)
-
-plot_sc_violin(seurat, features = "doublet_score", ncol = 1, nrow = 1)
+plot_bar_doublet(seurat, label = snn_cluster, pct = FALSE)
+```
+```{r}
+func <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
+func(seurat)
 Idents(seurat) <- "doublets"
-plot_sc_violin(seurat, features = "doublet_score", ncol = 1, nrow = 1)
+func(seurat)
 ```
 
 ## Session information
