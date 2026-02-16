@@ -102,13 +102,23 @@ seurat <- integrate_multisamples(list_seurat, cell_id)
 ### Doublets
 ```{r}
 seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+
+n_cores <- detectCores() - 1
+
+if (.Platform$OS.type == "windows") {
+  bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
+} else {
+  bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
+}
+
 sce <- scDblFinder(
   GetAssayData(seurat[["RNA"]], slot = "counts"),
   samples = seurat$Patient,
   aggregateFeatures = FALSE,
   k = NULL,
   processing = "normFeatures",
-  dims = 20
+  dims = 20,
+  BPPARAM = bp_param
 )
 ```
 
