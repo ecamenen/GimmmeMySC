@@ -681,17 +681,48 @@ set_percent <- function(x) {
 }
 
 #' @export
-plot_bar_doublet <- function(x) {
-    list.map(
-        unique(x$Patient),
-        f(i) ~ filter(x[[]], Patient == i) %>% pull("doublets") %>% table()
+calculate_doublet_by_condition <- function(x, label = "Patient", total = TRUE) {
+    res <- list.map(
+        unique(x[[]][, label]) %>% as.character() %>% sort(),
+        f(i) ~ filter(x[[]], !!sym(label) == i) %>% pull("doublets") %>% table()
     ) %>%
-    list.rbind() %>%
-    as.data.frame() %>%
-    set_colnames(colnames(.) %>% str_to_sentence()) %>%
-    rbind(".Total" = colSums(.)) %>%
-    t() %>%
+        list.rbind() %>%
+        as.data.frame() %>%
+        set_colnames(colnames(.) %>% str_to_sentence())
+
+    if (isTRUE(total)) {
+        res <- res %>%
+            rbind(".Total" = colSums(.))
+    }
+    return(res)
+}
+
+#' @export
+kable_doublet <- function(x, file = NULL, ...) {
+    p <- calculate_doublet_by_condition(x, ...) %>%
+        kable0()
+
+    if (!is.null(file))
+        save_kable(
+            p,
+            file = file,
+            zoom = 2
+        )
+    print(p)
+}
+
+#' @export
+plot_bar_doublet <- function(x, normalize = FALSE, ...) {
+    res <-calculate_doublet_by_condition(x, ...) %>%
+        t() %>%
+        as.data.frame()
+
+    if (isTRUE(normalize)) {
+        res <- res %>%
+            mutate(across(everything(), ~ .x / sum(.x) * 100))
+    }
     plot_bar_2cat(
+        res,
         count = TRUE,
         stats = FALSE,
         colour = palette_discrete()[c(1, 3)],

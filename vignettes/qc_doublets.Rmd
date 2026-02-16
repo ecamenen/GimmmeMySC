@@ -1,0 +1,87 @@
+---
+title: "QC doublets"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{qc_doublets}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/qc_doublets/",
+  fig.width = 12,
+  fig.height = 6,
+  dpi = 300
+)
+```
+
+```{r setup, message = FALSE}
+library("GimmeMyOmics")
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("scDblFinder")
+library("BiocParallel")
+library("parallel")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_doublets")
+```
+
+```{r}
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+Idents(seurat) <- snn_cluster
+```
+
+```{r}
+n_cores <- detectCores() - 1
+
+if (.Platform$OS.type == "windows") {
+  bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
+} else {
+  bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
+}
+```
+
+```{r}
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+sce <- scDblFinder(
+  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  samples = seurat$Patient,
+  aggregateFeatures = FALSE,
+  k = NULL,
+  processing = "normFeatures",
+  cluster = Idents(seurat),
+  dims = 20,
+  BPPARAM = bp_param
+)
+```
+
+## QC Plot
+```{r, fig.height = 8}
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
+
+kable_doublet(seurat, label = snn_cluster, file = file.path(path_fig, "table_doublets.png"))
+
+plot_bar_doublet(seurat)
+plot_bar_doublet(seurat, label = snn_cluster)
+
+plot_sc_violin(seurat, features = "doublet_score", ncol = 1, nrow = 1)
+Idents(seurat) <- "doublets"
+plot_sc_violin(seurat, features = "doublet_score", ncol = 1, nrow = 1)
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
