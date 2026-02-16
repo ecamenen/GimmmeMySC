@@ -181,11 +181,12 @@ plot_feature <- function(
      limits = NULL,
      normalize = FALSE,
      split.by = NULL,
+     assay = "RNA",
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
     if (isTRUE(normalize)) {
-        cts <- GetAssayData(object = object)
+        cts <- GetAssayData(object = object, assay = assay)
         limits <- map(features, ~cts[., ] %>% quantile(c(0, 1)))
     } else {
         limits <- replicate(length(features), NULL, simplify = FALSE)
@@ -218,28 +219,30 @@ plot_feature <- function(
 
 #' @export
 plot_mfeature <- function(
-        object = object,
+        x = x,
         features =  features,
         pt.size = .5,
         ncol = 4,
         nrow = NULL,
-        func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(12),
+        func = function(i) func_format(i) %>% .[. %in% Features(x)] %>% head(12),
         cols = brewer.pal(9, "Reds"),
         ...
     ) {
     list.map(
         features,
-        f(x, y, z) ~ {
-            x <- unique(func(x))
-            names(x) <- NULL
-            plot_feature(
-                object,
-                features = x,
-                pt.size = pt.size,
-                cols = cols,
-                ...
-            ) %>%
-            theme_multiple(ncol = ncol, nrow = nrow, title = z)
+        f(i, j, k) ~ {
+            i <- unique(func(i))
+            names(i) <- NULL
+            if (length(i) > 0) {
+                plot_feature(
+                    x,
+                    features = i,
+                    pt.size = pt.size,
+                    cols = cols,
+                    ...
+                ) %>%
+                theme_multiple(ncol = ncol, nrow = nrow, title = k)
+            }
         }
     )
 }
