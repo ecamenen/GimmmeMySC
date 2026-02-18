@@ -43,7 +43,7 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-grouping.var <- "Patient"
+grouping.var <- "Type"
 # grouping.var <- NULL
 cell_label <- snn_cluster
 # cell_label <- "predicted.labels"
@@ -102,8 +102,7 @@ cts <- AggregateExpression(
 )
 
 cts <- pluck(cts, assay) %>%
-  as.data.frame() %>%
-  .[rowSums(. < min_exp) == 0, ]
+  as.data.frame()
 cts <- list.map(
   levels(seurat@meta.data[, cell_label]),
   f(x) ~{
@@ -148,7 +147,8 @@ l_dea_proc <- list.map(
             countData = gene_count,
             colData = metadata_samples,
             design = ~ condition
-        )
+        ) %>%
+            .[rowSums(counts(.) >= min_exp) >= 2, ]
         
         dea <- DESeq(dea_df, quiet = TRUE)
         
@@ -352,6 +352,11 @@ markers <- top50  %>%
 
 if (!pseudo) {
   plot_mfeature(seurat, markers, nrow = 3)
+}
+```
+
+```{r}
+if (!pseudo) {
   plot_markers(seurat, markers)
 }
 ```
