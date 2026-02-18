@@ -35,25 +35,22 @@ source(
 ), "conf.R"))
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_doublets")
+n_cores <- detectCores() - 1
 ```
 
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
+# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 ```
 
 ```{r}
-n_cores <- detectCores() - 1
-
 if (.Platform$OS.type == "windows") {
   bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
 } else {
   bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
 }
-```
 
-```{r}
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 sce <- scDblFinder(
   GetAssayData(seurat[["RNA"]], slot = "counts"),
   samples = seurat$Patient,
@@ -64,23 +61,27 @@ sce <- scDblFinder(
   dims = 20,
   BPPARAM = bp_param
 )
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 ```
 
 ## QC Plot
 ```{r, fig.height = 8}
-seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
-seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
-
-kable_doublet(seurat, label = snn_cluster, file = file.path(path_fig, "table_doublets.png"))
+kable_doublet(seurat, split_by = snn_cluster, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
 
 plot_bar_doublet(seurat)
-plot_bar_doublet(seurat, label = snn_cluster, pct = FALSE)
+plot_bar_doublet(seurat, split_by = snn_cluster, pct = FALSE)
 ```
+
 ```{r}
-func <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
-func(seurat)
+plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
+plot_violin_doublet(seurat)
 Idents(seurat) <- "doublets"
-func(seurat)
+plot_violin_doublet(seurat)
+```
+
+```{r}
+save(seurat, file = file.path(path_data, paste0(seurat_dataset, "2.rda")))
 ```
 
 ## Session information
