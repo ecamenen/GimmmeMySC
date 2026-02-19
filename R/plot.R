@@ -630,3 +630,18 @@ plot_heatmap2 <- function(x, markers, lines.width = NULL, ...) {
             plot.margin = margin(t = 40),
             axis.text.y = element_text(size = 15))
 }
+
+#' @export
+plot_dim_selected <- function(x, cells) {
+    plot_dim(
+        x,
+        cells.highlight =  cells,
+        sizes.highlight = .5,
+        cols = NULL,
+        label = FALSE
+    )  +
+        scale_color_manual(
+            labels = c("Other", "Selected"),
+            values = c("grey80", "red")
+        )
+}

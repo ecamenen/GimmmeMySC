@@ -217,6 +217,20 @@ print_sc_stats <- function(
         set_colnames(colnames(.) %>% str_clean(assay))
 }
 
+#' @export
+print_sc_stats2 <- function(
+        x,
+        y = x@meta.data,
+        features = "percent_ribosomal",
+        idents = levels(Idents(x)),
+        probs = c(0, .025, .05, .1, seq(.25, .75, .25), .9, .95, .975, 1)
+) {
+    sapply(
+        idents,
+        function(i) quantile(
+            unlist(y[WhichCells(x, idents = i), features]),
+            probs = probs,
+            na.rm = TRUE)
     )
 }
 
@@ -229,11 +243,12 @@ print_filtered_cells <- function(before, after) {
 }
 
 #' @export
-integrate_multisamples <- function(x, labels) {
+integrate_multisamples <- function(x, labels = names(x)) {
     res <- merge(
         x = x[[1]],
         y = x[-1],
-        add.cell.ids = labels
+        add.cell.ids = labels,
+        merge.dr = TRUE
     )
 
     res$sample <- rownames(res[[]])
@@ -446,10 +461,9 @@ volcano_sc <- function(x, top_genes, fc_threshold = log2(1.5), p_threshold = .05
 #' @export
 plot_mqc <- function(
         x,
-        features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal"),
+        features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal", "percent_hemoglobin"),
         file = NULL,
         ncol = 2,
-        nrow = 2,
         digits = 3,
         ...
     ) {
@@ -475,7 +489,6 @@ plot_mqc <- function(
         features = features,
         normalize = rep(10, length(features)),
         ncol = ncol,
-        nrow = nrow,
         ...
     )
 }
