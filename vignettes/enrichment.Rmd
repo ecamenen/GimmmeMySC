@@ -58,22 +58,40 @@ if (method == "ora") {
 } else {
   label_x <- "NES"
 }
+
+pseudo <- FALSE
 ```
 
 ## Load data
 ```{r}
-load(file.path(path_data, "clustering_markers.rda"))
+if (!pseudo) {
+  load(file.path(path_data, "clustering_markers.rda"))
+} else {
+  load(file.path(path_data, "pseudo.rda"))
+}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
 ```{r}
-data("term2gene_microarray")
-term2gene <- term2gene_microarray
+# data("term2gene_microarray")
+# term2gene <- term2gene_microarray
 
-# ontology <- "GO_Biological_Process_2025"
-# ontology <- "CellMarker_2024"
-# term2gene <- str_replace_all(ontology, " ", "_") %>%
-#   term2gene_enrichr(to_lower = species == "mouse")
+ontology <- c(
+    "GO_Biological_Process_2025",
+    "CellMarker_2024",
+    "Mouse Gene Atlas",
+    "PanglaoDB Augmented 2021",
+    "Tabula Muris",
+    "Descartes Cell Types and Tissue 2021",
+    "HuBMAP ASCTplusB augmented 2022",
+    "Azimuth Cell Types 2021"
+)
+
+l_term2gene <- list.map(
+    ontology, 
+    ~str_replace_all(., " ", "_") %>%
+        term2gene_enrichr(to_lower = species == "mouse")
+)
 ```
 
 ## Analysis
@@ -101,21 +119,20 @@ if (method == "ora") {
   
   l_enrich <- list.map(
     l_deg_proc,
-    f(x) ~enricher(
-      gene = pull(x, "gene_name"),
-      # OrgDb = get(org_lib),
-      # keyType = "ALIAS",
-      # ont = "ALL",
-      pvalueCutoff = 1,
-      qvalueCutoff = 1,
-      universe = Features(seurat),
-      TERM2GENE = term2gene
-    )
+    f(i) ~list.map(
+        l_term2gene,
+        f(x) ~enricher(
+            gene = pull(i, "gene_name"),
+            # OrgDb = get(org_lib),
+            # keyType = "ALIAS",
+            # ont = "ALL",
+            pvalueCutoff = 1,
+            qvalueCutoff = 1,
+            universe = Features(seurat),
+            TERM2GENE = x
+        )
+    ) %>% compact()
   )
-  
-  l_enrich_proc <- l_enrich %>%
-    .[grep("up", names(.))] %>%
-    set_names(str_remove(names(.), "_up"))
 } else {
   var <- "gene_name"
   
@@ -132,30 +149,29 @@ if (method == "ora") {
               .[!duplicated(.)]
       }
   )
-  
   l_enrich <- list.map(
-      l_deg_proc,
-      f(x) ~ {
-          GSEA(
-              x,
-              # OrgDb = get(org_lib),
-              # keyType = "ALIAS",
-              # ont = "ALL",
-              verbose = FALSE,
-              TERM2GENE = term2gene
-          ) %>%
-              # setReadable(org_lib, 'ENSEMBL') %>%
+    l_deg_proc,
+    f(i) ~list.map(
+        l_term2gene,
+        f(x) ~GSEA(
+            i,
+            # OrgDb = get(org_lib),
+            # keyType = "ALIAS",
+            # ont = "ALL",
+            verbose = FALSE,
+            TERM2GENE = x
+        ) %>%
               suppressWarnings() %>%
               invisible()
-      }
-  )
+    ) %>% compact()
+)
 }
 ```
 
 ## Nb DEG
 ```{r}
 if (method == "ora") {
-l_enrich_proc <- split(l_enrich, str_extract(names(l_enrich), "down|up")) %>%
+l_enrich_proc <- list.map(l_enrich, bind_gsea(.)) %>% split(str_extract(names(l_enrich), "down|up")) %>%
     list.map(~set_names(., str_remove(names(.), "_down|_up")))
   
 l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
@@ -187,63 +203,95 @@ l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
 ```
 
 ## Plot
-```{r}
-# regex <- pathway_keywords()$immunity_additional
-regex <- NULL
-id <- "up"
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+regex <- pathway_keywords()$immunity_additional
+# regex <- NULL
 
-list.map(
-    l_enrich_proc[[id]],
-    f(x, y, z) ~ {
-    tmp <- print_enrich(
-      x, 
-      method = method,
-      regex = regex
-    )
-    if (nrow(tmp) > 0)
-      plot_enrich(
-        x,
-        cex = 0.65,
-        label_x = label_x,
+p <- list.map(
+  l_enrich,
+  f(i, j, k) ~{
+  list.map(
+      i,
+      f(x, y, z) ~ {
+      tmp <- print_enrich(
+        x, 
         method = method,
-        regex = regex,
-        n = 15,
-        title = z
+        regex = regex
       )
-    }
-) %>% 
-  compact() %>%
-  plot_grid(plotlist = ., ncol = 4, align = "hv")
+      if (nrow(tmp) > 0)
+        plot_enrich(
+          x,
+          cex = 0.65,
+          label_x = label_x,
+          method = method,
+          regex = regex,
+          n = 15,
+          title = z
+        )
+      }
+  ) %>% 
+    compact() %>%
+    plot_grid(plotlist = ., ncol = 3, nrow = 2, align = "hv") %>%
+          plot_grid(
+            ggdraw() + 
+              draw_label(
+                str_replace(k, "(.*)_(.*)", "\\1 (\\2)") %>% 
+                str_to_title(),
+                color = "#2F5496",
+                size = 50,
+                fontface = "bold.italic"
+              ),
+            .,
+            ncol = 1,
+            rel_heights = c(0.1, 1)
+          )
+  })
+p
+```
 
-list.map(
-  l_enrich_proc[[id]],
+## Heatmap
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+regex <- pathway_keywords()$cell
+p2 <- list.map(
+  l_enrich,
   f(i, j, k) ~ {
+    i <- bind_gsea(i)
     tmp <- print_enrich(
       i, 
       method = method,
       regex = regex
     )
     if (nrow(tmp) > 0)
-  heatmap_enrich_full(
-    i,
-    l_deg_proc[[id]][[j]],
-    method = method,
-    regex = regex,
-    width_text = 100
-  ) + labs( title = k, y = NULL, x = NULL) +
+    heatmap_enrich_full(
+      i,
+      l_deg_proc[[j]],
+      method = method,
+      regex = regex,
+      width_text = 100
+    ) + labs(title = k, y = NULL, x = NULL) +
      theme_custom()
   }
 ) %>%
-  compact() %>%
-  plot_grid(plotlist = ., ncol = 2, nrow = NULL, align = "hv")
+  compact()
+p2
 ```
 
 ## Save
 ```{r}
+func <- function(i) list.map(
+    i,
+    f(x, y, z) ~ {
+        print_enrich(x, method = method) %>%
+        mutate(Database = z) %>%
+        relocate(Database)
+    }
+    ) %>%
+    list.rbind() %>% select(-ID)
+
 omics2excel(
   l_enrich, 
   file = file.path(path_fig, paste0(method, ".xlsx")), 
-  func = function(x) print_enrich(x, method = method) %>% select(-ID)
+  func = func
 )
 ```
 
