@@ -440,6 +440,13 @@ seurat[[]] %>%
   theme_custom()
 ```
 
+```{r}
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData()
+```
+
 ```{r, eval = FALSE}
 save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```

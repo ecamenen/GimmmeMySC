@@ -43,7 +43,6 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-grouping.var <- "Type"
 # grouping.var <- NULL
 cell_label <- snn_cluster
 # cell_label <- "predicted.labels"

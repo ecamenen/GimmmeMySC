@@ -303,7 +303,7 @@ plot_res(
 
 # Markers
 ```{r}
-if (assay == "ATAC") {
+if (split.by == "Type" && assay == "ATAC") {
   DefaultAssay(seurat) <- "RNA"
   seurat <- NormalizeData(seurat) %>%
       FindVariableFeatures() %>%
