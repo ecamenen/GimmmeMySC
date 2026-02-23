@@ -32,7 +32,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
 cell_label <- "cell_subtype_formatted"
 ```
 

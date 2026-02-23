@@ -32,8 +32,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "filter_by_markers")
-
 markers <- c("Cd19", "Cd79a", "Cd79b", "Ighm")
 ```
 

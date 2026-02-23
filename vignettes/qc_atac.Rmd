@@ -68,7 +68,7 @@ ensdb <- ah[[ensdb_id]]
 annotations <- GetGRangesFromEnsDb(ensdb = ensdb)
 seqlevelsStyle(annotations) <- "UCSC"
 
-ref_path <- file.path(path_data, "ref")
+ref_path <- file.path(path_root_data, "ref")
 annotation_file <- file.path(ref_path, paste(tolower(genome_species), 113, "annotation_extended.tsv", sep = "_"))
 annotation_bis <- read_tsv(annotation_file) %>% as.data.frame()
 annotation_bis_filtered <- annotation_bis %>%

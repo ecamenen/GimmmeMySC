@@ -35,7 +35,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "get_started")
 integration_method <- "RPCA"
 if (assay == "ATAC") {
   slot <- "data" 

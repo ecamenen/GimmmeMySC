@@ -34,7 +34,6 @@ source(
   "inst",
   "extdata"
 ), "conf.R"))
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_before")
 
 lim <- 100
 ```

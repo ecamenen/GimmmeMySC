@@ -38,7 +38,10 @@ snn_cluster <- paste0(
     best_resolution
 )
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", path)
+path_root <- file.path("C:", "Users", "etien")
+path_root_data <- file.path(path_root, "DATA")
+path_data <- file.path(path_root_data, "dobino", path)
+path_fig <- file.path(path_root, "bin", "GimmmeMySC", "vignettes",  knitr::opts_chunk$get("fig.path"))
 # seurat_dataset <- paste0("rna_allcell", "_", target_type)
 seurat_dataset <- "rna_bcell_integrated"
 

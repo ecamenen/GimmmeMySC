@@ -33,8 +33,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_integration")
-
 # new_ident <- "predicted.labels"
 old_ident <- snn_cluster
 new_ident <- snn_cluster

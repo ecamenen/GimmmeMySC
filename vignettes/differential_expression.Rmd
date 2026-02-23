@@ -36,8 +36,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "differential_expression")
-
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 pct_threshold <- 0.25

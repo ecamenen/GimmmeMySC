@@ -35,8 +35,6 @@ source(
 
 cell_label <- "cell_subtype_formatted"
 
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
-
 if (assay != "ATAC") {
   features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")
 } else {
