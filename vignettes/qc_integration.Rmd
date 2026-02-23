@@ -85,6 +85,7 @@ bar_group_ident(
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
+DefaultAssay(seurat) <- assay2
 data("l_bcell_markers")
 plot_marker_split(seurat, l_bcell_markers, normalize = TRUE)
 ```

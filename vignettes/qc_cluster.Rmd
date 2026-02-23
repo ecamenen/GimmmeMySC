@@ -128,7 +128,7 @@ seurat_subset <- subsampling_sc(seurat)
 
 plot_dim(
   object = seurat_subset,
-  group.by = split.by,
+  group.by = "Patient",
   col = pal_discrete_sc
 )
 
@@ -186,14 +186,15 @@ plot_module(seurat, jcb_markers, cols = pal_discrete_sc)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-if (group.by == "Type") {
+DefaultAssay(seurat) <- assay2
+if (split.by == "Type") {
   plot_markers(seurat, jcb_markers, cols = pal_discrete_sc)
 }
 ```
 
 ### B cell markers
 ```{r, fig.height = 6, fig.width = 12}
-if (group.by == "Type") {
+if (split.by == "Type") {
   data("l_bcell_markers")
   plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
 }

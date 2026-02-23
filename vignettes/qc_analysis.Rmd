@@ -33,10 +33,22 @@ source(
   "extdata"
 ), "conf.R"))
 
-split.by <- 'Patient'
-cell_label <- "cell_type_formatted"
+cell_label <- "cell_subtype_formatted"
 
 path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_analysis")
+
+if (assay != "ATAC") {
+  features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")
+} else {
+  features <- c(
+    paste0("nCount", "_", assay),
+    paste0("nFeature", "_", assay),
+    "nucleosome_signal",
+    "TSS.enrichment",
+    "percent_reads_in_peaks",
+    "blacklist_ratio"
+  )
+}
 ```
 
 ```{r}
@@ -50,10 +62,10 @@ seurat <- subsampling_sc(seurat)
 ## Annotation (1)
 ```{r}
 lim <- 25
-tab <- table(seurat$cell_subtype_formatted, seurat$Type)
+tab <- table(seurat$cell_subtype_formatted, seurat[[]][, split.by])
 cell_types_low <- rownames(tab)[apply(tab, 1, function(x) any(x < lim))]
 
-seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2%in% cell_types_low] <- NA
+seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2 %in% cell_types_low] <- NA
 seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 
 bar_group_ident(
@@ -64,13 +76,13 @@ bar_group_ident(
 )
 
 list.map(
-  unique(seurat$Type),
+  unique(seurat[[]][, split.by]),
   f(i) ~{
   tmp <- seurat
-  tmp$Type[seurat$Type != i] <- NA
+  tmp[[]][, split.by][seurat[[]][, split.by] != i] <- NA
   plot_dim(
     tmp,
-    group.by = "Type",
+    group.by = split.by,
     label = FALSE, 
     na.value = "grey"
   ) +
@@ -84,7 +96,7 @@ list.map(
 bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
-    group.by = split.by,
+    group.by = "Patient",
     colour = pal_discrete_sc2
 )
 ```
@@ -104,7 +116,7 @@ plot_dim(
 )
 plot_dim(
     seurat,
-    split.by = split.by,
+    split.by = "Patient",
     label = FALSE,
     cols = pal_discrete_sc
 ) + NoLegend()
@@ -112,9 +124,9 @@ plot_dim(
 
 ## QC
 ```{r, message = FALSE}
-p <- plot_feature(seurat, pt.size = .25, c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal")) %>%
+p <- plot_feature(seurat, pt.size = .25, features) %>%
         list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
-plot_grid(plotlist = p, nrow = 2, ncol = 2, align = "hv")
+plot_grid(plotlist = p, nrow = 2, align = "hv")
 ```
 
 ## Cell cycle
@@ -151,23 +163,22 @@ plot_dim_cell(
     split.by = cell_label,
     ncol = 3,
     label = FALSE,
-    col = pal_discrete_sc
+    col = rep("black", 100)
 ) + NoLegend()
 ```
 
 ### B cells
 ```{r, message = FALSE, fig.width = 5}
-b_cell <- subset(seurat, cell_type_formatted == "B cell")
-Idents(b_cell) <- "cell_subtype_formatted2"
-
-plot_dim_cell(b_cell, cols = pal_discrete_sc)
+cells <- WhichCells(seurat, expression = cell_type_formatted == "B cell")
+plot_dim_cell(seurat, cols = pal_discrete_sc, cells = cells, group.by = "cell_subtype_formatted2")
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim_cell(
-    b_cell,
+    seurat,
     group.by = "cell_subtype_formatted",
     split.by = "cell_subtype_formatted",
+    cells = cells,
     label = FALSE,
     ncol = 3, 
     cols = rep("black", 100)
@@ -188,10 +199,13 @@ plot_dim_cell(seurat, cols = pal_discrete_sc2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
-Idents(seurat) <- "cell_subtype_formatted2"
+top_cells <- seurat$cell_subtype_formatted2 %>% fct_infreq() %>% levels() %>% head(12) %>% reorder_celltype()
+seurat$cell_subtype_formatted3 <- seurat$cell_subtype_formatted2
+seurat$cell_subtype_formatted3[!seurat$cell_subtype_formatted3 %in% top_cells] <- NA
+Idents(seurat) <- "cell_subtype_formatted3"
 plot_dim_cell(
     seurat,
-    split.by = "cell_subtype_formatted2",
+    split.by = "cell_subtype_formatted3",
     label = FALSE,
     ncol = 3, 
     cols = rep("black", 100)
@@ -207,36 +221,40 @@ plot_dim_cell(seurat, cols = pal_discrete_sc2)
 cell_categories <- seurat$cell_type_formatted %>% unique() %>% na.omit()
 
 list.map(
-    cell_categories,
-    f(x, y) ~ subset(seurat, cell_type_formatted == x)
-    ) %>%
-list.map(
-    f(x, y, z) ~
+  cell_categories,
+    f(x, y, z) ~ {
+      cells <- WhichCells(seurat, expression = cell_type_formatted == x)
+      if(length(cells) > 50)
         plot_dim(
-            x,
+            seurat,
             group.by = "cell_subtype_formatted",
+            cells = cells,
             cols = rep(palette_discrete(), 5),
             pt.size = .25
         ) +
-        labs(title = z, x = NULL) 
-) %>% plot_grid(plotlist = ., align = "hv", nrow = 2)
+        labs(title = z, x = NULL)
+    }
+) %>% compact() %>%
+plot_grid(plotlist = ., align = "hv", nrow = 2)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 cell_list <- map(cell_categories, ~ {
   seurat$cell_subtype[str_detect(seurat$cell_subtype, paste0("^", .x))] %>% na.omit() %>% keep_parenthesis()
 }) %>%
-  set_names(cell_categories)
+  set_names(cell_categories) %>%
+  .[order(lengths(.), decreasing = TRUE)]
 
 p <- list.map(
   compact(cell_list),
   f(x, y, z) ~ plot_bar_sc(x, z)
 )
 
-plot_grid(plotlist = p, align = "hv", nrow = 2)
+n_max <- min(length(p), 9)
+plot_grid(plotlist = p[seq(n_max)])
 ```
 ```{r, fig.height = 5, fig.width = 10}
-Idents(seurat) <- "cell_subtype_formatted"
+Idents(seurat) <- cell_label
 plot_sc_violin(
     seurat,
     nrow = 2,

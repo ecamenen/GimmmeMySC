@@ -6,14 +6,18 @@ n_dim <- 50
 dims <- seq(30)
 dims <- dims[-c(1)]
 species <- "mouse"
-assay <- "ATAC"
+assay <- "SCT"
+SCT <- TRUE
+reduction <- "pca"
 if (assay == "ATAC") {
     assay2 <- "RNA"
+    SCT <- FALSE
+    reduction <- "lsi"
+    path <- "ATAC"
 } else {
     assay2 <- assay
+    path <- "RNA"
 }
-SCT <- FALSE
-reduction <- "lsi"
 
 if (species == "human") {
     func_format <- identity
@@ -34,7 +38,7 @@ snn_cluster <- paste0(
     best_resolution
 )
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", path)
 # seurat_dataset <- paste0("rna_allcell", "_", target_type)
 seurat_dataset <- "rna_bcell_integrated"
 
