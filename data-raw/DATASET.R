@@ -70,17 +70,29 @@ usethis::use_data(jcb_markers, overwrite = TRUE)
 
 #### Data integration
 
-path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "RNA")
+assay <- "ATAC"
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", assay)
 
-load(file.path(path_data, "rna_allcell_WT.rda"))
-wt <- seurat
-load(file.path(path_data, "rna_allcell_KO.rda"))
-ko <- seurat
-#
+seurat <- list.map(
+    c("WT", "KO"),
+    f(x) ~{
+        gc()
+        load(file.path(path_data, paste0(str_to_lower(assay), "_allcell_", x, ".rda")))
+        subset(
+            seurat,
+            subset = cell_type_formatted %in% "B cell" &
+                !str_detect(cell_subtype_formatted, "FRA|CLP")
+        )
+    }
+) %>% Reduce(function(x, y) merge(x, y), .)
+seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
+save(seurat, file = file.path(path_data, paste0(str_to_lower(assay), "_bcell_integrated.rda")))
+
 # wt@assays$SCT@scale.data <- matrix()
 # ko@assays$SCT@scale.data <- matrix()
 
-seurat <- merge(wt, ko)
 # seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 # usethis::use_data(bcell_integrated, overwrite = TRUE)
 seurat <- subset(seurat, cell_type_formatted == "B cell")
@@ -90,15 +102,7 @@ save(seurat, file = file.path(path_data, "integrated_bcells2.rda"))
 
 seurat <- merge(wt, ko)
 # seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-# seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
-seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
-# seurat[["percent_ribosomal"]] <- PercentageFeatureSet(seurat, pattern = "^((RP[LS])|(Rp[ls]))")
-# seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 
-seurat <- subset(seurat, cell_type_formatted %in% "B cell")
-seurat <- subset(seurat, !str_detect(cell_subtype_formatted, "FRA|CLP"))
-
-save(seurat, file = file.path(path_data, "rna_bcell_integrated.rda"))
 
 ################################################
 library("readxl")
