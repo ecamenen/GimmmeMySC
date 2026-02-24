@@ -19,25 +19,22 @@ knitr::opts_chunk$set(
 ```
 
 ## Setup
-```{r init, message = FALSE}
+```{r}
 library("GimmmeMySC")
 library("GimmeMyPlot")
 library("Seurat")
 library("rlist")
 library("scDblFinder")
 
-path <- file.path(
+source(
+  file.path(file.path(
   dirname(getwd()),
   "inst",
   "extdata"
-)
-
-source(file.path(path, "conf.R"))
+), "conf.R"))
 
 l_samples <- list.files(path_data) %>%  
   .[sapply(., function(x) dir.exists(file.path(path_data, x)))]
-
-path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_rna")
 ```
 
 ## Load data
@@ -181,6 +178,7 @@ plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 
 ## Save data
 ```{r}
+seurat$Patient <- paste0(seurat$Type, seurat$Patient)
 save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 

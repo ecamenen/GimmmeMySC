@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 ```
 
 ## Setup
-```{r setup, message=FALSE}
+```{r}
 library("GimmmeMySC")
 library("GimmeMyPlot")
 library("Signac")
@@ -49,16 +49,14 @@ techno <- ""
 genome_version <- 98
 
 if (species == "mouse") {
-genome_species <- "Mmusculus"
+  genome_species <- "Mmusculus"
   genome_consortium <- "mm10"
-  genome_annot <- "BSgenome.Mmusculus.UCSC.mm10"
 } else {
-  genome_consortium <- "hg38"
-  genome_annot <- "BSgenome.Hsapiens.UCSC.hg38"
   genome_species <- "Hsapiens"
+  genome_consortium <- "hg38"
 }
+genome_annot <- paste0("BSgenome.", genome_species, ".UCSC.", genome_consortium)
 
-# Search for the Ensembl gene annotations on AnnotationHub
 ah <- AnnotationHub()
 ensdb_id <- ah$ah_id[grep(paste0(" ", genome_version, " EnsDb.*", str_sub(genome_species, 2)), ah$title)]
 ensdb_id

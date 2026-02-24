@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup, message = FALSE}
+```{r}
 library("GimmeMyOmics")
 library("GimmmeMySC")
 library("GimmeMyPlot")
