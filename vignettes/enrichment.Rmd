@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 ```
 
 ## Setup
-```{r setup, message = FALSE}
+```{r}
 library("GimmeMyOmics")
 library("GimmmeMySC")
 library("GimmeMyPlot")
@@ -168,6 +168,109 @@ if (method == "ora") {
 }
 ```
 
+## Plot
+```{r, message = FALSE, fig.height = 10, fig.width = 20}
+l_plot_enrich <- function(regex = NULL) {
+  list.map(
+  l_enrich,
+  f(i, j, k) ~{
+  list.map(
+      i,
+      f(x, y, z) ~ {
+        x <- filter_gsea(
+          x,
+          pathway_keywords()$cell_cycle,
+          negate = TRUE
+        )
+      tmp <- print_enrich(
+        x, 
+        method = method,
+        regex = regex
+      )
+      if (nrow(tmp) > 0)
+        plot_enrich(
+          x,
+          cex = 0.65,
+          label_x = label_x,
+          method = method,
+          regex = regex,
+          n = 15,
+          title = z
+        )
+      }
+  ) %>% 
+    compact() %>%
+    plot_grid(plotlist = ., ncol = 3, nrow = 2, align = "hv") %>%
+          plot_grid(
+            ggdraw() + 
+              draw_label(
+                str_replace(k, "(.*)_(.*)", "\\1 (\\2)") %>%
+                  str_to_title(),
+                color = "#2F5496",
+                size = 50,
+                fontface = "bold.italic"
+              ),
+            .,
+            ncol = 1,
+            rel_heights = c(0.1, 1)
+          )
+  })
+}
+l_plot_enrich()
+```
+
+```{r, message = FALSE, fig.height = 10, fig.width = 20}
+l_plot_enrich(pathway_keywords()$immunity_additional)
+```
+
+## Heatmap
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+l_heatmap_enrich <- function(regex = NULL) {
+  list.map(
+  l_enrich,
+  f(i, j, k) ~ {
+    i <- bind_gsea(i)
+    tmp <- print_enrich(
+      i, 
+      method = method,
+      regex = regex
+    )
+    if (nrow(tmp) > 0)
+    heatmap_enrich_full(
+      i,
+      l_deg_proc[[j]],
+      method = method,
+      regex = regex,
+      width_text = 100
+    ) + labs(
+        title = str_replace(k, "(.*)_(.*)", "\\1 (\\2)") %>%
+          str_to_title(),
+        y = NULL, 
+        x = NULL
+      ) +
+     theme_custom() +
+     theme(
+      plot.title = element_text(
+        color = "#2F5496",
+        size = 50,
+        face = "bold"
+      )
+    )
+  }
+) %>%
+  compact()
+}
+
+l_heatmap_enrich()
+```
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+l_heatmap_enrich(pathway_keywords()$immunity_additional)
+```
+
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+l_heatmap_enrich(pathway_keywords()$cell)
+```
+
 ## Nb DEG
 ```{r}
 if (method == "ora") {
@@ -200,80 +303,6 @@ l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
     set_rownames("# Pathway") %>%
     kable0()
 }
-```
-
-## Plot
-```{r, message = FALSE, fig.height = 8, fig.width = 16}
-regex <- pathway_keywords()$immunity_additional
-# regex <- NULL
-
-p <- list.map(
-  l_enrich,
-  f(i, j, k) ~{
-  list.map(
-      i,
-      f(x, y, z) ~ {
-      tmp <- print_enrich(
-        x, 
-        method = method,
-        regex = regex
-      )
-      if (nrow(tmp) > 0)
-        plot_enrich(
-          x,
-          cex = 0.65,
-          label_x = label_x,
-          method = method,
-          regex = regex,
-          n = 15,
-          title = z
-        )
-      }
-  ) %>% 
-    compact() %>%
-    plot_grid(plotlist = ., ncol = 3, nrow = 2, align = "hv") %>%
-          plot_grid(
-            ggdraw() + 
-              draw_label(
-                str_replace(k, "(.*)_(.*)", "\\1 (\\2)") %>% 
-                str_to_title(),
-                color = "#2F5496",
-                size = 50,
-                fontface = "bold.italic"
-              ),
-            .,
-            ncol = 1,
-            rel_heights = c(0.1, 1)
-          )
-  })
-p
-```
-
-## Heatmap
-```{r, message = FALSE, fig.height = 8, fig.width = 16}
-regex <- pathway_keywords()$cell
-p2 <- list.map(
-  l_enrich,
-  f(i, j, k) ~ {
-    i <- bind_gsea(i)
-    tmp <- print_enrich(
-      i, 
-      method = method,
-      regex = regex
-    )
-    if (nrow(tmp) > 0)
-    heatmap_enrich_full(
-      i,
-      l_deg_proc[[j]],
-      method = method,
-      regex = regex,
-      width_text = 100
-    ) + labs(title = k, y = NULL, x = NULL) +
-     theme_custom()
-  }
-) %>%
-  compact()
-p2
 ```
 
 ## Save
