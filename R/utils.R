@@ -258,6 +258,8 @@ integrate_multisamples <- function(x, labels = names(x)) {
         into = c("Type", "Patient", "Barcode"),
         sep = "_"
     )
+    res$sample <- NULL
+    res$Patient <- paste0(res$Type, res$Patient)
 
     Idents(res) <- "Patient"
     return(res)
@@ -463,7 +465,7 @@ plot_mqc <- function(
         x,
         features = c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal", "percent_hemoglobin"),
         file = NULL,
-        ncol = 2,
+        nrow = 2,
         digits = 3,
         ...
     ) {
@@ -488,7 +490,7 @@ plot_mqc <- function(
         x,
         features = features,
         normalize = rep(10, length(features)),
-        ncol = ncol,
+        nrow = 2,
         ...
     )
 }
