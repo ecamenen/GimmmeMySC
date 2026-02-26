@@ -51,10 +51,26 @@ if (assay != "ATAC") {
 
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
-seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
-Idents(seurat) <- seurat[[]][, snn_cluster]
 
-seurat <- subsampling_sc(seurat)
+seurat_subset <- subsampling_sc(seurat) %>%
+  subset(subset = Type == target_type)
+  
+if (split.by != "Type") {
+  load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+  pal_discrete_sc <- palette_continuous()(nlevels(Idents(seurat)))
+  seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
+}
+seurat_subset$cell_subtype_formatted <-  fct_drop(seurat_subset$cell_subtype_formatted)
+
+if (split.by == "Type") {
+  seurat <- subset(
+      seurat,
+      subset = Type == target_type
+  )
+  seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
+} else {
+  pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
+}
 ```
 
 ## Annotation (1)
@@ -65,7 +81,9 @@ cell_types_low <- rownames(tab)[apply(tab, 1, function(x) any(x < lim))]
 
 seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2 %in% cell_types_low] <- NA
 seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
+```
 
+```{r}
 bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
@@ -74,10 +92,10 @@ bar_group_ident(
 )
 
 list.map(
-  unique(seurat[[]][, split.by]),
+  unique(seurat_subset[[]][, split.by]),
   f(i) ~{
-  tmp <- seurat
-  tmp[[]][, split.by][seurat[[]][, split.by] != i] <- NA
+  tmp <- seurat_subset
+  tmp[[]][, split.by][seurat_subset[[]][, split.by] != i] <- NA
   plot_dim(
     tmp,
     group.by = split.by,
@@ -99,21 +117,15 @@ bar_group_ident(
 )
 ```
 
-```{r}
-seurat <- subset(seurat, subset = Type == target_type )
-seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
-seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
-```
-
 ## UMAP
 ```{r}
 plot_dim(
-    seurat,
+    seurat_subset,
     label = FALSE,
     cols = pal_discrete_sc
 )
 plot_dim(
-    seurat,
+    seurat_subset,
     split.by = "Patient",
     label = FALSE,
     cols = pal_discrete_sc
@@ -129,7 +141,7 @@ plot_grid(plotlist = p, nrow = 2, align = "hv")
 
 ## Cell cycle
 ```{r, fig.width = 5}
-plot_dim_cycle(seurat)
+plot_dim_cycle(seurat_subset)
 ```
 
 ```{r, message = FALSE}
@@ -151,12 +163,12 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim_cell(seurat, col = pal_discrete_sc)
+plot_dim_cell(seurat_subset, col = pal_discrete_sc)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
 plot_dim_cell(
-    seurat,
+    seurat_subset,
     group.by = cell_label,
     split.by = cell_label,
     ncol = 3,
@@ -167,13 +179,13 @@ plot_dim_cell(
 
 ### B cells
 ```{r, message = FALSE, fig.width = 5}
-cells <- WhichCells(seurat, expression = cell_type_formatted == "B cell")
-plot_dim_cell(seurat, cols = pal_discrete_sc, cells = cells, group.by = "cell_subtype_formatted2")
+cells <- WhichCells(seurat_subset, expression = cell_type_formatted == "B cell")
+plot_dim_cell(seurat_subset, cols = pal_discrete_sc, cells = cells, group.by = "cell_subtype_formatted2")
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim_cell(
-    seurat,
+    seurat_subset,
     group.by = "cell_subtype_formatted",
     split.by = "cell_subtype_formatted",
     cells = cells,
@@ -192,17 +204,18 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_subcells.png"))
 ```
+
 ```{r, fig.width = 5}
-plot_dim_cell(seurat, cols = pal_discrete_sc2)
+plot_dim_cell(seurat_subset, cols = pal_discrete_sc2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
-top_cells <- seurat$cell_subtype_formatted2 %>% fct_infreq() %>% levels() %>% head(12) %>% reorder_celltype()
-seurat$cell_subtype_formatted3 <- seurat$cell_subtype_formatted2
-seurat$cell_subtype_formatted3[!seurat$cell_subtype_formatted3 %in% top_cells] <- NA
-Idents(seurat) <- "cell_subtype_formatted3"
+top_cells <- seurat_subset$cell_subtype_formatted2 %>% fct_infreq() %>% levels() %>% head(12) %>% reorder_celltype()
+seurat_subset$cell_subtype_formatted3 <- seurat_subset$cell_subtype_formatted2
+seurat_subset$cell_subtype_formatted3[!seurat_subset$cell_subtype_formatted3 %in% top_cells] <- NA
+Idents(seurat_subset) <- "cell_subtype_formatted3"
 plot_dim_cell(
-    seurat,
+    seurat_subset,
     split.by = "cell_subtype_formatted3",
     label = FALSE,
     ncol = 3, 
@@ -212,19 +225,19 @@ plot_dim_cell(
 ```
 
 ```{r, fig.width = 5}
-plot_dim_cell(seurat, cols = pal_discrete_sc2)
+plot_dim_cell(seurat_subset, cols = pal_discrete_sc2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
-cell_categories <- seurat$cell_type_formatted %>% unique() %>% na.omit()
+cell_categories <- seurat_subset$cell_type_formatted %>% unique() %>% na.omit()
 
 list.map(
   cell_categories,
     f(x, y, z) ~ {
-      cells <- WhichCells(seurat, expression = cell_type_formatted == x)
+      cells <- WhichCells(seurat_subset, expression = cell_type_formatted == x)
       if(length(cells) > 50)
         plot_dim(
-            seurat,
+            seurat_subset,
             group.by = "cell_subtype_formatted",
             cells = cells,
             cols = rep(palette_discrete(), 5),
@@ -251,6 +264,7 @@ p <- list.map(
 n_max <- min(length(p), 9)
 plot_grid(plotlist = p[seq(n_max)])
 ```
+
 ```{r, fig.height = 5, fig.width = 10}
 Idents(seurat) <- cell_label
 plot_sc_violin(
@@ -264,7 +278,7 @@ plot_sc_violin(
       c(0.1, 0.5, 1, 2.5, 5, 10),
       c(0.1, 1, 5, 10, 25, 50, 1e3)
     ),
-    col = pal_discrete_sc
+    col = pal_discrete_sc2
 )
 ```
 

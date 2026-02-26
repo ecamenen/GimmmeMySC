@@ -23,8 +23,6 @@ library("GimmmeMySC")
 library("Seurat")
 library("GimmeMyPlot")
 
-# pal_discrete_sc <- palette_continuous()(length(levels(Idents(seurat))))
-
 source(
   file.path(file.path(
   dirname(getwd()),
@@ -38,13 +36,28 @@ cell_label <- "cell_subtype_formatted"
 ## Load data
 ```{r data}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
-seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
-seurat <- subsampling_sc(seurat) %>%
-  subset(
-    subset = Type == target_type
-)
-seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
+seurat_subset <- subsampling_sc(seurat) %>%
+  subset(subset = Type == target_type)
+  
+if (split.by != "Type") {
+  load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+  seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
+  n_idents <- nlevels(Idents(seurat))
+  if (n_idents > length(pal_discrete_sc))
+    pal_discrete_sc <- palette_continuous()(n_idents)
+}
+seurat_subset$cell_subtype_formatted <-  fct_drop(seurat_subset$cell_subtype_formatted)
+
+if (split.by == "Type") {
+  seurat <- subset(
+      seurat,
+      subset = Type == target_type
+  )
+  seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
+} else {
+  pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
+}
 ```
 
 ```{r}
@@ -52,15 +65,13 @@ lim <- 25
 tab <- table(seurat$cell_subtype_formatted)
 cell_types_low <- names(tab)[tab < lim]
 
-seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2%in% cell_types_low] <- NA
+seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2 %in% cell_types_low] <- NA
 
 seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
 ```
 
 ## Clustering
 ```{r, clus_int_res}
-Idents(seurat) <- seurat[[]][, snn_cluster]
-
 Idents(seurat) %>% 
     cluster_size() %>%
     kable_sc(file = file.path(path_fig, "table_cell_cluster.png"))
@@ -79,13 +90,13 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ```
 
 ```{r}
-p2 <- plot_dim(seurat, cols = pal_discrete_sc)
+p2 <- plot_dim(seurat_subset, cols = pal_discrete_sc)
 p2
 
-p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
+p2 + plot_dim_cell(seurat_subset, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
 
 plot_dim(
-    seurat,
+    seurat_subset,
     split.by = snn_cluster,
     cols = rep("black", 100),
     label = FALSE,
@@ -104,7 +115,7 @@ heatmap_celltype(seurat, snn_cluster, cell_label, margin = 2)
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim(
-    seurat,
+    seurat_subset,
     split.by = "cell_subtype_formatted2",
     cols = pal_discrete_sc,
     ncol = 3,
@@ -114,7 +125,7 @@ plot_dim(
 
 ```{r, fig.height = 5, fig.width = 10}
 plot_dim(
-    seurat,
+    seurat_subset,
     split.by = "cell_type_formatted",
     ncol = 3,
     col = pal_discrete_sc
@@ -123,13 +134,7 @@ plot_dim(
 
 ## Condition effect
 ```{r}
-seurat_subset <- subsampling_sc(seurat)
-
-plot_dim(
-  object = seurat_subset,
-  group.by = "Patient",
-  col = pal_discrete_sc
-)
+plot_dim(object = seurat_subset, group.by = "Patient")
 
 bar_ident_group(
   seurat_subset,
@@ -185,18 +190,13 @@ plot_module(seurat, jcb_markers, cols = pal_discrete_sc)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-DefaultAssay(seurat) <- assay2
-if (split.by == "Type") {
-  plot_markers(seurat, jcb_markers, cols = pal_discrete_sc)
-}
+plot_markers(seurat, jcb_markers, cols = pal_discrete_sc)
 ```
 
 ### B cell markers
 ```{r, fig.height = 6, fig.width = 12}
-if (split.by == "Type") {
-  data("l_bcell_markers")
-  plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
-}
+data("l_bcell_markers")
+plot_markers(seurat, l_bcell_markers, cols = pal_discrete_sc)
 ```
 
 

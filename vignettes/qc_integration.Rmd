@@ -33,10 +33,10 @@ source(
   "extdata"
 ), "conf.R"))
 
-# new_ident <- "predicted.labels"
 old_ident <- snn_cluster
 new_ident <- snn_cluster
 # old_ident <- "old_labels"
+# new_ident <- "predicted.labels"
 ```
 
 ```{r}
@@ -45,8 +45,7 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- reorder_idents(seurat, new_ident)
-seurat <- subsampling_sc(seurat)
-seurat_old <- seurat
+seurat_subset <- subsampling_sc(seurat)
 plot_dim(seurat, cols = pal_discrete_sc)
 ```
 
@@ -63,7 +62,7 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ## UMAP per Type
 ```{r}
 plot_dim(
-  object = seurat,
+  object = seurat_subset,
   split.by = 'Type',
   col = pal_discrete_sc
 ) + NoLegend()
@@ -82,6 +81,28 @@ bar_group_ident(
 )
 ```
 
+## UMAP per Patient
+```{r}
+subsampling_sc(seurat, group.by = "Patient") %>%
+  plot_dim(
+    split.by = 'Patient',
+    col = pal_discrete_sc
+  ) + NoLegend()
+
+bar_ident_group(
+  seurat, 
+  group.by = "Patient", 
+  idents = new_ident
+)
+
+bar_group_ident(
+  seurat,
+  group.by = "Patient",
+  idents = new_ident,
+  colour = pal_discrete_sc
+)
+```
+
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 DefaultAssay(seurat) <- assay2
 data("l_bcell_markers")
@@ -95,14 +116,13 @@ plot_marker_split(seurat, jcb_markers, normalize = TRUE)
 
 ## Cell per cluster
 ```{r}
-seurat <- subset(
-    seurat_old, 
-    subset = Type == target_type
-)
+seurat_subset <- subsampling_sc(seurat) %>%
+  subset(subset = Type == target_type)
+seurat <- subset(seurat, subset = Type == target_type)
 
 seurat <- reorder_idents(seurat, old_ident)
 plot_dim(
-    seurat, 
+    seurat_subset, 
     split.by = old_ident,
     col = pal_discrete_sc,
     pt.size = .25,
@@ -112,7 +132,7 @@ plot_dim(
 
 Idents(seurat) <- new_ident
 plot_dim(
-    seurat, 
+    seurat_subset, 
     split.by = new_ident,
     col = pal_discrete_sc,
     pt.size = .25,
@@ -135,8 +155,7 @@ plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ```{r}
 plot_dim(tmp, cols = pal_discrete_sc)
 seurat <- reorder_idents(seurat, new_ident)
-seurat_old <- seurat
-plot_dim(seurat, cols = pal_discrete_sc)
+plot_dim(seurat_subset, cols = pal_discrete_sc)
 ```
 
 ## Scores
