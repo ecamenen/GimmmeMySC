@@ -35,9 +35,13 @@ source(
   "extdata"
 ), "conf.R"))
 
-integration_method <- "RPCA"
+if (split.by == "Type") {
+  integration_method <- "RPCA"
+} else {
+  integration_method <- "Harmony"
+}
 if (assay == "ATAC") {
-  slot <- "data" 
+  slot <- "data"
 } else {
   slot <- "scale.data"
 }
@@ -47,7 +51,8 @@ if (assay == "ATAC") {
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 # seurat@assays$SCT@scale.data <- matrix()
-seurat <- subset(seurat, subset = Type == target_type)
+if (split.by == "Patient")
+  seurat <- subset(seurat, subset = Type == target_type)
 DefaultAssay(seurat) <- assay
 ```
 
@@ -65,18 +70,21 @@ if (assay == "ATAC") {
     ggtitle("Correlation between sequencing depth and components") +
     labs(subtitle = NULL)
 } else {
-  if (isFALSE(SCT)) {
-  seurat <- NormalizeData(seurat) %>%
-    FindVariableFeatures() %>%
-    ScaleData()
-  } else {
-    seurat <- SCTransform(seurat)
-  }
-  seurat <- RunPCA(
-    seurat,
-    reduction_key = "Dim. ",
-    npcs = max_dim
-  )
+  # if (split.by == "Type") {
+  #     DefaultAssay(seurat) <- "RNA"
+  #     if (isFALSE(SCT)) {
+  #     seurat <- NormalizeData(seurat) %>%
+  #       FindVariableFeatures() %>%
+  #       ScaleData()
+  #     } else {
+  #       seurat <- SCTransform(seurat)
+  #     }
+  #     seurat <- RunPCA(
+  #       seurat,
+  #       reduction_key = "Dim. ",
+  #       npcs = max_dim
+  #     )
+  # }
 }
 ```
 
@@ -155,17 +163,15 @@ if (assay == "ATAC") {
   seurat <- ScaleData(seurat)
   seurat[["ATAC_v5"]] <- split(
     seurat[["ATAC_v5"]], 
-    f = seurat$Patient,
+    f = seurat[[]][, split.by],
     layers = c("counts","data")
   )
 } else {
-  if (is.null(seurat[["RNA"]]@layers$data.1)) {
-    seurat[["RNA"]] <- split(
-        seurat[["RNA"]],
+    seurat[[assay]] <- split(
+        seurat[[assay]],
         f = seurat[[]][, split.by],
         layers = c("counts", "data")
     )
-  }
 }
 gc()
 ```
@@ -183,7 +189,6 @@ if (assay == "ATAC") {
     verbose = TRUE
   )
 } else {
-  if (integration_method != "Harmony") {
     seurat <- IntegrateLayers(
         object = seurat,
         method = get(paste0(integration_method, "Integration")),
@@ -193,18 +198,7 @@ if (assay == "ATAC") {
         normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
         verbose = TRUE
     )
-    seurat[[assay]] <- JoinLayers(seurat[[assay]])
-  } else {
-    seurat <- RunHarmony(
-      object = seurat,
-      group.by.vars = split.by,
-      reduction.save = integration_method,
-      reduction = reduction,
-      assay.use = assay,
-      dims.to.integrate = dims,
-      verbose = TRUE
-    )
-  }
+    seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 }
 
 Idents(seurat) <- split.by
@@ -302,8 +296,8 @@ plot_res(
 
 # Markers
 ```{r}
+DefaultAssay(seurat) <- "RNA"
 if (split.by == "Type" && assay == "ATAC") {
-  DefaultAssay(seurat) <- "RNA"
   seurat <- NormalizeData(seurat) %>%
       FindVariableFeatures() %>%
       ScaleData()
@@ -311,7 +305,6 @@ if (split.by == "Type" && assay == "ATAC") {
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-DefaultAssay(seurat) <- assay2
 data("jcb_markers")
 plot_mfeature(seurat, jcb_markers, nrow = 3)
 ```
@@ -325,7 +318,11 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 ```{r}
 DefaultAssay(seurat) <- assay
 Idents(seurat) <- seurat[[]][, snn_cluster]
-save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
+if (split.by == "Patient") {
+  save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+} else {
+  save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
+}
 ```
 
 ## Session information
