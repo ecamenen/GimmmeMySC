@@ -59,6 +59,15 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
   )
 ```
 
+```{r}
+p2 <- plot_dim(seurat, cols = pal_discrete_sc)
+p2
+
+p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
+
+p2 + plot_dim_cycle0(seurat) %>% pluck(1)
+```
+
 ## UMAP per Type
 ```{r}
 plot_dim(
@@ -106,12 +115,14 @@ bar_group_ident(
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 DefaultAssay(seurat) <- assay2
 data("l_bcell_markers")
-plot_marker_split(seurat, l_bcell_markers, normalize = TRUE)
+plot_marker_split(seurat, l_bcell_markers)
+plot_feature_split(seurat_subset, l_bcell_markers, normalize = TRUE)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
-plot_marker_split(seurat, jcb_markers, normalize = TRUE)
+plot_marker_split(seurat, jcb_markers)
+plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE)
 ```
 
 ## Cell per cluster

@@ -592,7 +592,12 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
     )
     print(p1)
 
-    p2 <- list.map(
+    plot_mviolin(x, markers, split.by = split.by, cols = cols, ...)
+}
+
+#' @export
+plot_feature_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), ...) {
+    list.map(
         markers,
         f(i, j, k) ~ {
             head(i, 12) %>% unique() %>%
@@ -617,9 +622,6 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
                 )
         }
     )
-    print(p2)
-
-    plot_mviolin(x, markers, split.by = split.by, cols = cols)
 }
 
 #' @export
