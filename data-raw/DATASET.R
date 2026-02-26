@@ -78,6 +78,9 @@ seurat <- list.map(
     f(x) ~{
         gc()
         load(file.path(path_data, paste0(str_to_lower(assay), "_allcell_", x, ".rda")))
+        # if (!is.null(seurat@assays$SCT)) {
+            # seurat@assays$SCT@scale.data <- matrix()
+        # }
         subset(
             seurat,
             subset = cell_type_formatted %in% "B cell" &
@@ -85,24 +88,11 @@ seurat <- list.map(
         )
     }
 ) %>% Reduce(function(x, y) merge(x, y), .)
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 save(seurat, file = file.path(path_data, paste0(str_to_lower(assay), "_bcell_integrated.rda")))
-
-# wt@assays$SCT@scale.data <- matrix()
-# ko@assays$SCT@scale.data <- matrix()
-
-# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-# usethis::use_data(bcell_integrated, overwrite = TRUE)
-seurat <- subset(seurat, cell_type_formatted == "B cell")
-save(seurat, file = file.path(path_data, "integrated_bcells2.rda"))
-
-################################################
-
-seurat <- merge(wt, ko)
-# seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
-
 
 ################################################
 library("readxl")
