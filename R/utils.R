@@ -774,8 +774,8 @@ plot_bar_kept <- function(x, y, l_samples) {
 }
 
 #' @export
-pct_peak_per_chr <- function(x) {
-    chrY_ranges <- GRanges(x, IRanges(start = 1, end = 5e8))
+peak_per_chr <- function(x, chr) {
+    chrY_ranges <- GRanges(chr, IRanges(start = 1, end = 5e8))
 
     chrY_counts <- FeatureMatrix(
         fragments = Fragments(x),
@@ -784,6 +784,22 @@ pct_peak_per_chr <- function(x) {
     )
 
     Matrix::colSums(chrY_counts)
+}
+
+#' @export
+pct_peak_per_chr <- function(x, chr) {
+    peaks <- granges(x)
+
+    y_peaks <- peaks[seqnames(peaks) == chr]
+    y_peak_names <- paste0(seqnames(y_peaks), "-", start(y_peaks), "-", end(y_peaks))
+
+    atac_counts <- GetAssayData(x, assay = "ATAC", slot = "counts")
+    atac_y <- atac_counts[y_peak_names, ]
+
+    total_fragments <- Matrix::colSums(atac_counts)
+    chrY_fragments <- Matrix::colSums(atac_y)
+
+    (chrY_fragments / total_fragments) * 100
 }
 
 #' @export

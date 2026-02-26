@@ -42,10 +42,13 @@ l_samples <- list.dirs(path_data, recursive = FALSE) %>% basename() %>% .[!str_d
 
 # techno <- "atac_"
 techno <- ""
+
+filter <- dplyr::filter
+select <- dplyr::select
 ```
 
 ## Annotation
-```{r annotations, eval = FALSE}
+```{r annotations}
 genome_version <- 98
 
 if (species == "mouse") {
@@ -106,7 +109,6 @@ l_peaks <- list.map(
   makeGRangesFromDataFrame(peaks)
 })
 
-# combined.peaks <- GenomicRanges::reduce(x = Reduce(c, l_peaks))
 combined.peaks <- GenomicRanges::reduce(x = Reduce(c, l_peaks))
 peakwidths <- width(combined.peaks)
 print_sc_stats(list(peakwidths = peakwidths), "peakwidths")
@@ -341,7 +343,6 @@ seurat[["RNA"]] <- CreateAssayObject(counts = gene.activities)
 seurat <- NormalizeData(
   object = seurat,
   assay = "RNA",
-  normalization.method = "LogNormalize",
   scale.factor = median(seurat@meta.data[, "nCount_RNA"])
 )
 ```
@@ -397,10 +398,10 @@ map(
   )
 )
 
-seurat$percent_chromosom_X <- pct_peak_per_chr("chrX")
-seurat$percent_chromosom_Y <- pct_peak_per_chr("chrY")
-seurat$chrX_counts <- pct_peak_per_chr("chrX")
-seurat$chrY_counts <- pct_peak_per_chr("chrY")
+seurat$percent_chromosom_X <- pct_peak_per_chr(seurat, "chrX")
+seurat$percent_chromosom_Y <- pct_peak_per_chr(seurat, "chrY")
+seurat$chrX_counts <- peak_per_chr(seurat, "chrX")
+seurat$chrY_counts <- peak_per_chr(seurat, "chrY")
 
 seurat$chrXY_ratio <- seurat$chrX_counts / seurat$chrY_counts
 
@@ -445,7 +446,7 @@ seurat <- NormalizeData(seurat) %>%
     ScaleData()
 ```
 
-```{r, eval = FALSE}
+```{r}
 save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
