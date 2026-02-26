@@ -4,18 +4,21 @@ options(ggrepel.max.overlaps = 1000)
 max_dim <- 100
 n_dim <- 50
 dims <- seq(30)
-dims <- dims[-c(1)]
 species <- "mouse"
-assay <- "SCT"
-SCT <- TRUE
-reduction <- "pca"
+assay <- "RNA"
+SCT <- FALSE
 if (assay == "ATAC") {
     assay2 <- "RNA"
     SCT <- FALSE
     reduction <- "lsi"
     path <- "ATAC"
+    dims <- dims[-c(1)]
 } else {
+    if (SCT) {
+        assay <- "SCT"
+    }
     assay2 <- assay
+    reduction <- "pca"
     path <- "RNA"
 }
 
@@ -28,8 +31,6 @@ if (species == "human") {
 target_type <- "KO"
 split.by <- "Type"
 pal_discrete_sc <- palette_discrete()[-7] -> pal_discrete_sc2
-# pal_discrete_sc <- palette_continuous()(15)
-# pal_discrete_sc2 <-  palette_continuous()(29)
 
 best_resolution <- 0.35
 snn_cluster <- paste0(
