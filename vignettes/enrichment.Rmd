@@ -174,7 +174,7 @@ l_plot_enrich <- function(regex = NULL) {
   list.map(
   l_enrich,
   f(i, j, k) ~{
-  list.map(
+  res <- list.map(
       i,
       f(x, y, z) ~ {
         x <- filter_gsea(
@@ -199,8 +199,9 @@ l_plot_enrich <- function(regex = NULL) {
         )
       }
   ) %>% 
-    compact() %>%
-    plot_grid(plotlist = ., ncol = 3, nrow = 2, align = "hv") %>%
+    compact()
+  if(length(res) > 0)
+    plot_grid(plotlist = res, ncol = 3, nrow = 2, align = "hv") %>%
           plot_grid(
             ggdraw() + 
               draw_label(
