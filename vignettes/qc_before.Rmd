@@ -117,7 +117,7 @@ cell_subtype <- SingleR(
 )
 
 annotation <- list(cell_type = cell_type, cell_subtype = cell_subtype)
-save(annotation, file = file.path(path_data, "annotation.rda"))
+save(annotation, file = file.path(path_data, paste0(seurat_dataset, "_annotation.rda")))
 ```
 
 ### Visualization

@@ -264,9 +264,9 @@ omics2excel(
 
 ```{r}
 if (isFALSE(pseudo)) {
-  save(l_deg, file = file.path(path_data, "clustering_markers.rda"))
+  save(l_deg, file = file.path(path_data, paste0(seurat_dataset, "_clustering_markers.rda")))
 } else {
-  save(l_deg, file = file.path(path_data, "pseudo.rda"))
+  save(l_deg, file = file.path(path_data, paste0(seurat_dataset, "_pseudo.rda")))
 }
 ```
 

@@ -65,9 +65,9 @@ pseudo <- FALSE
 ## Load data
 ```{r}
 if (!pseudo) {
-  load(file.path(path_data, "clustering_markers.rda"))
+  load(file.path(path_data,  paste0(seurat_dataset, "_clustering_markers.rda")))
 } else {
-  load(file.path(path_data, "pseudo.rda"))
+  load(file.path(path_data,  paste0(seurat_dataset, "_pseudo.rda")))
 }
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
