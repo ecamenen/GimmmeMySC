@@ -77,12 +77,11 @@ plot_cells(
       colors = pal_sc, 
       name = "Pseudotime"
     )
-
-# seurat <- as.Seurat(cds, assay = "integrated")
 ```
 
 ## Slingshot
 ```{r}
+seurat@assays$SCT <- NULL
 sce <- as.SingleCellExperiment(seurat)
 reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") -> reduc_coords
 
@@ -101,9 +100,11 @@ lineage_probs <- list.map(curves, .$w) %>%
 pseudotime <- slingPseudotime(sce) %>%
   .[cbind(seq_len(nrow(.)), lineage_probs)]
 
+pseudotime_rev <- max(pseudotime) - pseudotime
+
 p <- as.data.frame(reduc_coords) %>%
   mutate(pseudotime = pseudotime) %>%
-  ggplot(aes(x = umap_1, y = umap_2, colour = pseudotime)) +
+  ggplot(aes(x = umap_1, y = umap_2, colour = pseudotime_rev)) +
   geom_point(alpha = 0.8)
 
 p <- purrr::reduce(
@@ -121,7 +122,7 @@ p <- purrr::reduce(
 )
 theme_sc_dim(p)  + 
     scale_color_gradientn(
-      colors = rev(pal_sc), 
+      colors = pal_sc, 
       name = "Pseudotime"
     )
 ```
