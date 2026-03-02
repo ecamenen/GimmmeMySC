@@ -132,7 +132,6 @@ Idents(seurat_subset) <- snn_cluster
 
 ## Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-DefaultAssay(seurat) <- assay2
 data("l_bcell_markers")
 plot_marker_split(seurat, l_bcell_markers)
 plot_feature_split(seurat_subset, l_bcell_markers, normalize = TRUE)

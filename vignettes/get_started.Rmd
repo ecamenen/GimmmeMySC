@@ -297,11 +297,9 @@ plot_res(
 # Markers
 ```{r}
 DefaultAssay(seurat) <- "RNA"
-if (split.by == "Type" && assay == "ATAC") {
-  seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures() %>%
-      ScaleData()
-}
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData()
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
@@ -316,7 +314,6 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 
 ## Save data
 ```{r}
-DefaultAssay(seurat) <- assay
 Idents(seurat) <- seurat[[]][, snn_cluster]
 if (split.by == "Patient") {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))

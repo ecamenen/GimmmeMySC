@@ -51,6 +51,7 @@ pseudo <- TRUE
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
+assay <- "RNA" -> assay
 ```
 
 ## Differentially Expressed Genes
@@ -62,11 +63,6 @@ Idents(seurat) <- snn_cluster
 ids <- NULL
     
 if (isFALSE(pseudo)) {
-  
-  if (isTRUE(SCT)) {
-    seurat <- PrepSCTFindMarkers(seurat)
-  }
-  
   cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var, assay = assay2)
   
   l_dea_raw <- cluster_marker_genes %>%

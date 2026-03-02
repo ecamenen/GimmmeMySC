@@ -38,8 +38,6 @@ n_cores <- detectCores() - 1
 
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
-Idents(seurat) <- snn_cluster
-# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 ```
 
 ```{r}
