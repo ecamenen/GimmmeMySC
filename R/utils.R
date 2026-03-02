@@ -596,7 +596,7 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
 }
 
 #' @export
-plot_feature_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), ...) {
+plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), ...) {
     list.map(
         markers,
         f(i, j, k) ~ {

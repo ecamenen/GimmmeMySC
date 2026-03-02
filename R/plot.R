@@ -443,7 +443,7 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
     if (str_detect(levels(Idents(x)), "B\\.") %>% any()) {
         sort <- reorder_celltype(levels(Idents(x)))
     } else {
-        sort <- TRUE
+        sort <- colnames(res) %>% as.numeric() %>% sort()
     }
 
         plot_bar_2cat(

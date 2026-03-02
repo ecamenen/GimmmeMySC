@@ -369,7 +369,8 @@ plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc
 ```
 
 ```{r}
-plot_marker_split(seurat, markers, normalize = TRUE, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]))
 ```
 
 ## Session information
