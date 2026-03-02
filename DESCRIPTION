@@ -25,6 +25,7 @@ Suggests:
     presto,
     readxl,
     rmarkdown,
+    scales,
     SeuratWrappers,
     slingshot,
     testthat (>= 3.0.0)

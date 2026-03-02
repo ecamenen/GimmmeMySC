@@ -175,7 +175,8 @@ plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 
 ## DoubletFinder
 ```{r}
-n_cores1 <- min(n_cores, length(list_seurat))
+seurat <- SplitObject(seurat, split.by = "Patient")
+n_cores1 <- min(n_cores, length(seurat))
 
 multiplet_rates_10x <- data.frame(
   multiplet_rate = c(0.004, 0.008, 0.0160, 0.023, 0.031, 0.039, 0.046, 0.054, 0.061, 0.069, 0.076),
@@ -188,8 +189,8 @@ if (.Platform$OS.type == "windows") {
     n_cores2 <- n_cores
 }
 
-list_seurat <- list.map(
-    list_seurat,
+seurat <- list.map(
+    seurat,
     f(i) ~{
         doublet_finder <- paramSweep(i, PCs = seq(n_dim), sct = SCT, num.cores = n_cores2)
         
@@ -233,6 +234,7 @@ list_seurat <- list.map(
         return(i)
     }
 )
+seurat <- integrate_multisamples(seurat, cell_id)
 ```
 
 ```{r, fig.height = 8}
