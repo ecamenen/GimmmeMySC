@@ -123,9 +123,11 @@ bar_group_ident(
 
 Idents(seurat) <- "cell_subtype_formatted2"
 plot_bar_sc(seurat)
-
-plot_dim_cell(seurat_subset, col = pal_discrete_sc)
 Idents(seurat) <- snn_cluster
+
+Idents(seurat_subset) <- "cell_subtype_formatted2"
+plot_dim_cell(seurat_subset, split.by = "Type", col = pal_discrete_sc)
+Idents(seurat_subset) <- snn_cluster
 ```
 
 ## Markers

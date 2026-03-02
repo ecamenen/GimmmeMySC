@@ -137,6 +137,7 @@ seurat <- format_celltype(seurat, annotation, type = "cell_subtype", path_fig = 
 
 seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 ```
 
 ```{r}
