@@ -112,6 +112,23 @@ bar_group_ident(
 )
 ```
 
+## Annotation
+```{r}
+bar_group_ident(
+    seurat,
+    idents = "cell_subtype_formatted2",
+    group.by = "Type",
+    colour = pal_discrete_sc
+)
+
+Idents(seurat) <- "cell_subtype_formatted2"
+plot_bar_sc(seurat)
+
+plot_dim_cell(seurat_subset, col = pal_discrete_sc)
+Idents(seurat) <- snn_cluster
+```
+
+## Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 DefaultAssay(seurat) <- assay2
 data("l_bcell_markers")

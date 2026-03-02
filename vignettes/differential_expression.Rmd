@@ -60,7 +60,6 @@ Idents(seurat) <- snn_cluster
 #     id.2 = c(6, 2, 5, 7, 0, 1, 4, 8, 0)
 # )
 ids <- NULL
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
     
 if (isFALSE(pseudo)) {
   
