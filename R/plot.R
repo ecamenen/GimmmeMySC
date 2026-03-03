@@ -363,17 +363,27 @@ plot_dim <- function(
             alpha = alpha,
             repel = TRUE,
             label = label,
-            na.value = "white",
+            na.value = na.value,
+            combine = combine,
             ...
-        ) %>%
-            theme_sc_dim()
-        if (isFALSE(title)) {
-            p <- p + labs(title = NULL)
+        )
+
+        func <- function(p) {
+            p <- theme_sc_dim(p)
+            if (isFALSE(title)) {
+                p <- p + labs(title = NULL)
+            }
+            if (isFALSE(axis)) {
+                p <- p + labs(x = NULL, y = NULL)
+            }
+            return(p)
         }
-        if (isFALSE(axis)) {
-            p <- p + labs(x = NULL, y = NULL)
+
+        if (isTRUE(combine)) {
+            func(p)
+        } else {
+            list.map(p, ~func(.))
         }
-        return(p)
 }
 
 #' @export

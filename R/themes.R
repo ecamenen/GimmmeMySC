@@ -1,8 +1,7 @@
 #' @export
 pal_sc <- c(
     rev(brewer.pal(9, "Blues")[-c(1, 3, 5, 7, 9)]),
-    "white",
-    # "grey90",
+    "grey90",
     brewer.pal(9, "Reds")[-c(1, 3, 5, 7, 9)]
 )
 

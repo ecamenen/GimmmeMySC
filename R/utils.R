@@ -9,10 +9,9 @@ plot_dim_cycle <- function(x, ncol = 2, ...) {
     ) %>% list.map(
         f(x) ~x + labs(title = NULL, color = "S to G2/M")
     )
+    print(p1)
 
-    p2 <- plot_dim_cycle0(x, ncol = ncol, ...)
-
-    plot_grid(plotlist = c(p1, p2), ncol = ncol, align = "hv")
+    plot_dim_cycle0(x, ncol = ncol, ...)
 }
 
 #' @export
