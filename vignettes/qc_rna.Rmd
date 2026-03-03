@@ -92,91 +92,9 @@ list_seurat <- list.map(
 )
 ```
 
-## scDblFinder
+## Doublets
+### DoubletFinder
 ```{r}
-seurat <- integrate_multisamples(list_seurat, cell_id)
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-
-if (.Platform$OS.type == "windows") {
-  bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
-} else {
-  bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
-}
-
-sce <- scDblFinder(
-  GetAssayData(seurat[["RNA"]], slot = "counts"),
-  samples = seurat$Patient,
-  aggregateFeatures = FALSE,
-  k = NULL,
-  processing = "normFeatures",
-  dims = 20,
-  BPPARAM = bp_param
-)
-
-seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class %>% str_to_sentence()
-seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
-```
-
-### QC
-```{r, fig.height = 8}
-kable_doublet(seurat, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
-
-plot_bar_doublet(seurat)
-```
-
-```{r}
-plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
-Idents(seurat) <- "doublets"
-plot_violin_doublet(seurat)
-Idents(seurat) <- "Patient"
-plot_violin_doublet(seurat)
-```
-
-```{r}
-seurat <- subset(seurat, subset = doublets == "Singlet")
-```
-
-## Gene filtering
-```{r filter_mark}
-if (isFALSE(SCT)) {
-      seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures()
-    variable_plot(seurat)
-}
-```
-
-## PCA
-```{r pca}
-if (!SCT) {
-  if (assay == "sketch") {
-    seurat <- SketchData(seurat, over.write = TRUE)
-    DefaultAssay(seurat) <- "sketch"
-  }
-  seurat <- ScaleData(seurat)
-} else {
-  seurat <- SCTransform(seurat, method = "glmGamPoi", assay = "RNA")
-  assay <- "SCT"
-  DefaultAssay(seurat) <- "SCT"
-  if (assay == "sketch") {
-     seurat <- SketchData(seurat, over.write = TRUE)
-    DefaultAssay(seurat) <- "sketch"
-  }
-}
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
-```
-
-## QC after
-```{r qc_sub, fig.height = 8}
-(ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
-
-plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
-```
-
-## DoubletFinder
-```{r}
-seurat <- SplitObject(seurat, split.by = "Patient")
-n_cores1 <- min(n_cores, length(seurat))
-
 multiplet_rates_10x <- data.frame(
   multiplet_rate = c(0.004, 0.008, 0.0160, 0.023, 0.031, 0.039, 0.046, 0.054, 0.061, 0.069, 0.076),
   recovered_cells = c(500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
@@ -188,8 +106,8 @@ if (.Platform$OS.type == "windows") {
     n_cores2 <- n_cores
 }
 
-seurat <- list.map(
-    seurat,
+list_seurat <- list.map(
+    list_seurat,
     f(i) ~{
         doublet_finder <- paramSweep(i, PCs = seq(n_dim), sct = SCT, num.cores = n_cores2)
         
@@ -233,7 +151,46 @@ seurat <- list.map(
         return(i)
     }
 )
-seurat <- integrate_multisamples(seurat, cell_id)
+seurat <- integrate_multisamples(list_seurat, cell_id)
+```
+
+### scDblFinder
+```{r}
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+
+if (.Platform$OS.type == "windows") {
+  bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
+} else {
+  bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
+}
+
+sce <- scDblFinder(
+  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  samples = seurat$Patient,
+  aggregateFeatures = FALSE,
+  k = NULL,
+  processing = "normFeatures",
+  dims = 20,
+  BPPARAM = bp_param
+)
+
+seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class %>% str_to_sentence()
+seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
+```
+
+### QC
+```{r, fig.height = 8}
+kable_doublet(seurat, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
+
+plot_bar_doublet(seurat)
+```
+
+```{r}
+plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
+Idents(seurat) <- "doublets"
+plot_violin_doublet(seurat)
+Idents(seurat) <- "Patient"
+plot_violin_doublet(seurat)
 ```
 
 ```{r, fig.height = 8}
@@ -262,6 +219,46 @@ table(seurat$doublets, seurat$doubletFinder) %>%
         file = file.path(path_fig, "table_scdblFinder_doubletFinder.png"),
         zoom = 2
     )
+```
+
+```{r}
+seurat <- subset(seurat, subset = doublets == "Singlet")
+```
+
+## Gene filtering
+```{r filter_mark}
+if (isFALSE(SCT)) {
+      seurat <- NormalizeData(seurat) %>%
+      FindVariableFeatures()
+    variable_plot(seurat)
+}
+```
+
+## PCA
+```{r pca}
+if (!SCT) {
+  if (assay == "sketch") {
+    seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+  seurat <- ScaleData(seurat)
+} else {
+  seurat <- SCTransform(seurat, method = "glmGamPoi", assay = "RNA")
+  assay <- "SCT"
+  DefaultAssay(seurat) <- "SCT"
+  if (assay == "sketch") {
+     seurat <- SketchData(seurat, over.write = TRUE)
+    DefaultAssay(seurat) <- "sketch"
+  }
+}
+seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+```
+
+## QC after
+```{r qc_sub, fig.height = 8}
+(ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
+
+plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 ```
 
 ## Save data
