@@ -37,7 +37,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-path_project <- file.path(path_data, "cellranger_old")
 l_samples <- list.files(path_project) %>%  
   .[sapply(., function(x) dir.exists(file.path(path_project, x)))]
 n_cores <- detectCores() - 1

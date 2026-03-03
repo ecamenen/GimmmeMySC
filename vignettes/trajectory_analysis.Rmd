@@ -41,7 +41,7 @@ source(
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
 
-# seurat <- subset(seurat, subset = Type == target_type )
+seurat <- subset(seurat, subset = Type == target_type)
 start_cluster <- 6
 ```
 
