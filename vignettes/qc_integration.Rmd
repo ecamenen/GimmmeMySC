@@ -77,7 +77,7 @@ plot_dim(
 ) + NoLegend()
 
 bar_ident_group(
-  seurat, 
+  seurat_subset, 
   group.by = "Type", 
   idents = new_ident
 )
