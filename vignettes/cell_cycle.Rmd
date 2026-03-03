@@ -40,13 +40,16 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 DefaultAssay(seurat) <- "RNA"
 
 if (isFALSE(SCT)) {
-seurat <- NormalizeData(seurat) %>%
+  seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
     ScaleData()
 } else {
+    seurat[["RNA"]] <- split(
+      seurat[["RNA"]],
+      f = seurat[[]][, split.by],
+      layers = c("counts", "data")
+  )
   seurat <- SCTransform(seurat)
-  assay <- "SCT"
-  DefaultAssay(seurat) <- "SCT"
 }
 seurat <- RunPCA(seurat, features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
 
