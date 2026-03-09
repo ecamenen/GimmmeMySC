@@ -109,6 +109,12 @@ if (.Platform$OS.type == "windows") {
 list_seurat <- list.map(
     list_seurat,
     f(i) ~{
+        if (isFALSE(SCT)) {
+          i <- NormalizeData(i) %>%
+            FindVariableFeatures() %>%
+            ScaleData() %>%
+            RunPCA(npcs = max_dim)
+        }
         doublet_finder <- paramSweep(i, PCs = seq(n_dim), sct = SCT, num.cores = n_cores2)
         
         doublet_finder_stats <- summarizeSweep(doublet_finder)
