@@ -179,6 +179,7 @@ sce <- scDblFinder(
   k = NULL,
   processing = "normFeatures",
   dims = 20,
+  cluster = as.factor(seurat$clusters),
   BPPARAM = bp_param
 )
 
@@ -217,6 +218,18 @@ plot_violin_doublet(seurat)
 ```
 
 ```{r}
+df <- rename(seurat[[]], doublets = "scDblFinder") %>%
+  select(scDblFinder, doubletFinder)
+pivot_longer(
+      df,
+      cols = everything(),
+      names_to = "groupe",
+      values_to = "Group"
+    ) %>% 
+    relocate(Group) %>%
+    plot_bar_2cat(stats = FALSE, legend = c("Singlet", "Doublet"))
+plot_alluvial(df)
+
 table(seurat$doublets, seurat$doubletFinder) %>%
     as.data.frame.matrix() %>%
     kable() %>%
@@ -230,7 +243,7 @@ table(seurat$doublets, seurat$doubletFinder) %>%
 ```
 
 ```{r}
-seurat <- subset(seurat, subset = doublets == "Singlet")
+seurat <- subset(seurat, subset = doubletFinder == "Singlet")
 ```
 
 ## Gene filtering
