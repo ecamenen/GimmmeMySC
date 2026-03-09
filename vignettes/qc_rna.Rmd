@@ -132,17 +132,19 @@ list_seurat <- list.map(
             select(multiplet_rate) %>%
             as.character() %>%
             as.numeric()
-        
         nExp <- round(multiplet_rate * nrow(i@meta.data))
+        
+        homotypic.prop <- modelHomotypic(i$clusters)
+        nExp_adj <- round(nExp * (1 - homotypic.prop))
         
         i <- doubletFinder(
             i,
             PCs = seq(n_dim),
             pK = pK, 
-            nExp = nExp,
+            nExp = nExp_adj,
             sct = SCT
         )
-        doublet_name <- paste(0.25, pK, nExp, sep = "_")
+        doublet_name <- paste(0.25, pK, nExp_adj, sep = "_")
         i@meta.data <- i@meta.data %>% 
             rename_with(
                 ~"doubletFinder", 
