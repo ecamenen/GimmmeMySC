@@ -41,10 +41,12 @@ source(
 l_samples <- list.files(path_project) %>%  
   .[sapply(., function(x) dir.exists(file.path(path_project, x)))]
 n_cores <- detectCores() - 1
+soupex <- TRUE
 ```
 
 ## Load data
 ```{r data}
+if (!isTRUE(soupex))
 list_seurat <- list.map(
     l_samples,
     f(x) ~{
@@ -58,34 +60,61 @@ list_seurat <- list.map(
 )
 ```
 
+## Ambiant RNA
 ```{r}
-cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
-seurat <- list.map(list_seurat, .$seurat) %>%
-  integrate_multisamples(cell_id)
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-sc <- list.map(list_seurat, .$sc)
+if (isTRUE(soupex))
+list_seurat <- list.map(
+  l_samples,
+  f(i) ~ {
+    sc <- file.path(path_project, i, "outs") %>%
+      load10X() %>%
+      autoEstCont(doPlot = FALSE)
+    spx <- adjustCounts(sc, roundToInt = TRUE) %>%
+      CreateSeuratObject() %>%
+      set_percent() %>%
+      AddMetaData(metadata = sc$metaData)
+    spx[["raw"]] <- CreateAssayObject(sc$toc)
+    return(list(sc = sc, seurat = spx))
+  }
+)
 ```
 
 ```{r}
-(sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)) %>% as.data.frame() %>%
-kable0() %>%
-  save_kable(file.path(path_fig, "pct_change.png"), zoom = 2)
+cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
+
+if (isTRUE(soupex)) {
+  sc <- list.map(list_seurat, .$sc)
+  list_seurat <- list.map(list_seurat, .$seurat)
+} else {
+  seurat <- integrate_multisamples(list_seurat, cell_id)
+}
+
+seurat <- integrate_multisamples(list_seurat, cell_id)
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+```
+
+```{r}
+if (isTRUE(soupex)) {
+  (sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)) %>% as.data.frame() %>%
+  kable0() %>%
+    save_kable(file.path(path_fig, "pct_change.png"), zoom = 2)
+    
   
-
-before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
-before.data@x[before.data@x > 0] <- 1
-after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA")
-after.data@x[after.data@x > 0] <- 1
-
-diff <- before.data - after.data
-
-changed <- (diff == 1) * 1
-markers <- Matrix::rowSums(changed) %>% 
-  sort(decreasing = TRUE)
-
-markers %>% 
-  head(20) %>%
-  plot_bar(label_x  = "value", title = "", cex = 0.8)
+  before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
+  before.data@x[before.data@x > 0] <- 1
+  after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA")
+  after.data@x[after.data@x > 0] <- 1
+  
+  diff <- before.data - after.data
+  
+  changed <- (diff == 1) * 1
+  markers <- Matrix::rowSums(changed) %>% 
+    sort(decreasing = TRUE)
+  
+  markers %>% 
+    head(20) %>%
+    plot_bar(label_x  = "value", title = "", cex = 0.8)
+}
 ```
 
 ## Filter cells with low or too high genes
@@ -96,7 +125,7 @@ plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
 ```{r}
 seurat_old <- seurat
 features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial")
-list_seurat <- list.map(list_seurat, .$seurat) %>%
+list_seurat <- list_seurat %>%
   list.map(
     f(i) ~{
       stats_qc <- sapply(
