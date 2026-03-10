@@ -68,10 +68,10 @@ seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 
 ### QC
 ```{r, fig.height = 8}
-kable_doublet(seurat, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
+kable_doublet(seurat, split_by = snn_cluster, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
 
 plot_bar_doublet(seurat)
-plot_bar_doublet(seurat, pct = FALSE)
+plot_bar_doublet(seurat, split_by = snn_cluster, pct = FALSE)
 ```
 
 ```{r}
@@ -155,10 +155,10 @@ seurat <- integrate_multisamples(seurat)
 
 ### QC
 ```{r, fig.height = 8}
-kable_doublet(seurat, label = "doubletFinder", file = file.path(path_fig, "table_doublets_doubletFinder.png"))
+kable_doublet(seurat, split_by = snn_cluster, label = "doubletFinder", file = file.path(path_fig, "table_doublets_doubletFinder.png"))
 
 plot_bar_doublet(seurat, label = "doubletFinder")
-plot_bar_doublet(seurat, pct = FALSE, label = "doubletFinder")
+plot_bar_doublet(seurat, split_by = snn_cluster, pct = FALSE, label = "doubletFinder")
 ```
 
 ```{r}
