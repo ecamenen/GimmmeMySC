@@ -228,7 +228,7 @@ if (.Platform$OS.type == "windows") {
 }
 
 sce <- scDblFinder(
-  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  GetAssayData(seurat[["RNA"]], layer = "counts"),
   samples = seurat$Patient,
   aggregateFeatures = FALSE,
   k = NULL,
@@ -238,7 +238,7 @@ sce <- scDblFinder(
   BPPARAM = bp_param
 )
 
-seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class %>% str_to_sentence()
+seurat$scDblFinder <- sce[, row.names(seurat[[]])]$scDblFinder.class %>% str_to_sentence()
 seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 ```
 
@@ -251,7 +251,7 @@ plot_bar_doublet(seurat)
 
 ```{r}
 plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
-Idents(seurat) <- "doublets"
+Idents(seurat) <- "scDblFinder"
 plot_violin_doublet(seurat)
 Idents(seurat) <- "Patient"
 plot_violin_doublet(seurat)
@@ -273,8 +273,7 @@ plot_violin_doublet(seurat)
 ```
 
 ```{r}
-df <- rename(seurat[[]], doublets = "scDblFinder") %>%
-  select(scDblFinder, doubletFinder)
+df <- select(seurat[[]], scDblFinder, doubletFinder)
 pivot_longer(
       df,
       cols = everything(),
@@ -285,7 +284,7 @@ pivot_longer(
     plot_bar_2cat(stats = FALSE, legend = c("Singlet", "Doublet"))
 plot_alluvial(df)
 
-table(seurat$doublets, seurat$doubletFinder) %>%
+table(seurat$scDblFinder, seurat$doubletFinder) %>%
     as.data.frame.matrix() %>%
     kable() %>%
     pack_rows("scDblFinder", 1, 2) %>%

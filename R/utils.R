@@ -697,7 +697,7 @@ set_percent <- function(x) {
 }
 
 #' @export
-calculate_doublet_by_condition <- function(x, split_by = "Patient", total = TRUE, label = "doublets") {
+calculate_doublet_by_condition <- function(x, split_by = "Patient", total = TRUE, label = "scDblFinder") {
     res <- list.map(
         unique(x[[]][, split_by]) %>% as.character() %>% sort(),
         f(i) ~ filter(x[[]], !!sym(split_by) == i) %>% pull(all_of(label)) %>% table()
