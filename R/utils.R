@@ -301,12 +301,13 @@ dea_sc <- function(
         x,
         ids = NULL,
         group.by = "ident",
-        grouping.var = "Patient",
+        grouping.var = "Type",
         assay = "RNA"
     ) {
     cts <- AverageExpression(
         x,
         group.by = group.by,
+        slot = ifelse(assay == "SCT", "data", "counts"),
         return.seurat = FALSE
     ) %>%
         pluck(assay) %>%

@@ -41,7 +41,7 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-grouping.var <- "Patient"
+grouping.var <- "Type"
 cell_label <- snn_cluster
 # cell_label <- "predicted.labels"
 
@@ -51,7 +51,7 @@ pseudo <- TRUE
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
-assay <- "RNA" -> assay
+assay <- "RNA" -> assay2
 ```
 
 ## Differentially Expressed Genes
