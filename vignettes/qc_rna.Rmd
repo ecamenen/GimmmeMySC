@@ -42,6 +42,7 @@ l_samples <- list.files(path_project) %>%
   .[sapply(., function(x) dir.exists(file.path(path_project, x)))]
 n_cores <- detectCores() - 1
 soupex <- TRUE
+doublet_method <- "doubletFinder"
 ```
 
 ## Load data
@@ -297,7 +298,8 @@ table(seurat$scDblFinder, seurat$doubletFinder) %>%
 ```
 
 ```{r}
-seurat <- subset(seurat, subset = doubletFinder == "Singlet")
+if (!isFALSE(doublet_method))
+  seurat <- seurat[, seurat[[doublet_method]][,1] == "Singlet"]
 ```
 
 ## Gene filtering
@@ -318,9 +320,12 @@ if (!SCT) {
   }
   seurat <- ScaleData(seurat)
 } else {
+  seurat[["RNA"]] <- split(
+      seurat[["RNA"]],
+      f = seurat[[]][, split.by],
+      layers = c("counts", "data")
+  )
   seurat <- SCTransform(seurat, method = "glmGamPoi", assay = "RNA")
-  assay <- "SCT"
-  DefaultAssay(seurat) <- "SCT"
   if (assay == "sketch") {
      seurat <- SketchData(seurat, over.write = TRUE)
     DefaultAssay(seurat) <- "sketch"
