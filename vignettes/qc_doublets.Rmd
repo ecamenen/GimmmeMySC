@@ -23,7 +23,10 @@ library("GimmeMyOmics")
 library("GimmmeMySC")
 library("GimmeMyPlot")
 library("Seurat")
+library("cowplot")
+library("kableExtra")
 library("scDblFinder")
+library("DoubletFinder")
 library("BiocParallel")
 library("parallel")
 
@@ -80,6 +83,208 @@ plot_violin_doublet <- function(x)
 plot_violin_doublet(seurat)
 Idents(seurat) <- "doublets"
 plot_violin_doublet(seurat)
+```
+
+```{r, eval = FALSE}
+seurat <- SplitObject(seurat, split.by = "Patient")
+n_cores1 <- min(n_cores, length(seurat))
+
+multiplet_rates_10x <- data.frame(
+  multiplet_rate = c(0.004, 0.008, 0.0160, 0.023, 0.031, 0.039, 0.046, 0.054, 0.061, 0.069, 0.076),
+  recovered_cells = c(500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
+)
+
+init <- Sys.time()
+seurat <- list.map(
+    seurat,
+    f(i) ~{
+        if (.Platform$OS.type == "windows") {
+            n_cores2 <- 1
+        } else {
+            n_cores2 <- n_cores
+        }
+        print(Sys.time())
+        doublet_finder <- paramSweep(i, PCs = seq(n_dim), sct = SCT, num.cores = n_cores2)
+        finish <- Sys.time()
+        finish - init
+        
+        doublet_finder_stats <- summarizeSweep(doublet_finder)
+        doublet_finder_best <- find.pK(doublet_finder_stats)
+        
+        pK <- doublet_finder_best %>%
+            filter(BCmetric == max(BCmetric)) %>%
+            pull(pK) %>%
+            as.character() %>%
+            as.numeric()
+        
+        multiplet_rate <- multiplet_rates_10x %>% 
+            filter(recovered_cells < nrow(i@meta.data)) %>% 
+            dplyr::slice(which.max(recovered_cells)) %>%
+            select(multiplet_rate) %>%
+            as.character() %>%
+            as.numeric()
+        nExp <- round(multiplet_rate * nrow(i@meta.data))
+        
+        homotypic.prop <- modelHomotypic(i[[]][, snn_cluster])
+        nExp_adj <- round(nExp * (1 - homotypic.prop))
+        
+        i <- doubletFinder(
+            i,
+            PCs = seq(n_dim),
+            pK = pK, 
+            nExp = nExp_adj,
+            sct = SCT
+        )
+        doublet_name <- paste(0.25, pK, nExp_adj, sep = "_")
+        i@meta.data <- i@meta.data %>% 
+            rename_with(
+                ~"doubletFinder", 
+                all_of(paste0("DF.classifications_", doublet_name))
+            ) %>%
+            rename_with(
+                ~"pANN", 
+                all_of(paste0("pANN_", doublet_name))
+            )
+        
+        gc()
+        return(i)
+    }
+)
+Sys.time - init
+
+seurat <- integrate_multisamples(seurat)
+```
+
+```{r, fig.height = 8}
+kable_doublet(seurat, split_by = snn_cluster, label = "doubletFinder", file = file.path(path_fig, "table_doublets_doubletFinder.png"))
+
+plot_bar_doublet(seurat, label = "doubletFinder")
+plot_bar_doublet(seurat, split_by = snn_cluster, pct = FALSE, label = "doubletFinder")
+```
+
+```{r}
+plot_violin_doublet <- function(x) plot_sc_violin(x, features = "pANN", ncol = 1, nrow = 1)
+plot_violin_doublet(seurat)
+Idents(seurat) <- "doubletFinder"
+plot_violin_doublet(seurat)
+```
+
+```{r}
+seurat$doublets <- str_to_sentence(seurat$doublets)
+table(seurat$doublets, seurat$doubletFinder) %>%
+  as.data.frame.matrix() %>%
+  kable() %>%
+    pack_rows("scDblFinder", 1, 2) %>%
+    add_header_above(c(" " = 1, "DoubletFinder" = 2)) %>%
+    kable_styling(full_width = FALSE) %>%
+    save_kable(
+      file = file.path(path_fig, "table_scdblFinder_doubletFinder.png"),
+      zoom = 2
+    )
+```
+
+```{r, fig.width = 8, fig.height = 3.7}
+WhichCells(seurat, expression = doublets == "Doublet" & doubletFinder == "Doublet") %>%
+  plot_dim_selected(seurat, cells = .)
+```
+
+```{r, eval = FALSE}
+library("SoupX")
+# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+l_seurat <- SplitObject(seurat, split.by = "Patient")
+
+l_seurat <- list.map(
+  names(l_seurat),
+  f(i) ~ {
+    sample_path <- file.path(path_data, "cellranger", i, "outs")
+    raw <- Read10X(file.path(sample_path, "raw_feature_bc_matrix"))
+    # cts <- Read10X(file.path(sample_path, "filtered_feature_bc_matrix"))
+    cts <- l_seurat[[i]][["RNA"]]$counts
+    # cls <- read_csv(file.path(sample_path, "analysis", "clustering", "gene_expression_graphclust", "clusters.csv")) %>%
+    #   pull("Cluster")
+    cls <- l_seurat[[i]][[]][, snn_cluster] %>% as.character()
+    
+    sc <- SoupChannel(raw, cts) %>%
+      setClusters(cls) %>%
+      autoEstCont(doPlot = FALSE)
+    spx <- adjustCounts(sc, roundToInt = TRUE)
+    
+    l_seurat[[i]][["raw"]] <- GetAssayData(l_seurat[[i]], assay = "RNA", layer = "counts") %>%
+     CreateAssayObject(counts = .)
+    l_seurat[[i]][["RNA"]]@layers$counts <- spx
+    return(list(sc = sc, seurat = l_seurat[[i]]))
+  }
+)
+
+seurat <- list.map(l_seurat, .$seurat) %>%
+  integrate_multisamples()
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+sc <- list.map(l_seurat, .$sc)
+```
+
+```{r, eval = FALSE}
+# before.data <- GetAssayData(seurat, layer = "counts", assay = "raw") %>%
+#   rowSums(. > 0)
+# after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA") %>%
+#   rowSums(. > 0)
+# diff <- ((before.data - after.data)/before.data) %>%
+#   sort(decreasing = TRUE)
+
+sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)
+
+before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
+before.data@x[before.data@x > 0] <- 1
+after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA")
+after.data@x[after.data@x > 0] <- 1
+
+diff <- before.data - after.data
+
+changed <- (diff == 1) * 1
+markers <- Matrix::rowSums(changed) %>% 
+  sort(decreasing = TRUE)
+
+markers %>% 
+  head(20) %>%
+  plot_bar(label_x  = "value", title = "", cex = 0.8)
+```
+
+```{r, message = FALSE, fig.height = 8, fig.width = 16, eval = FALSE}
+markers %>% head(4) %>% names() %>%
+plot_feature(seurat, ., pt.size = .25, cols = brewer.pal(9, "Reds")) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r, eval = FALSE, fig.width = 8, fig.height = 3.7}
+cells <- Matrix::colSums(changed) %>% 
+  sort(decreasing = TRUE)
+
+cells %>%
+  head(2e2) %>% 
+  names() %>%
+  plot_dim_selected(seurat, cells = .)
+```
+
+```{r, eval = FALSE, fig.width = 8, fig.height = 3.7}
+sc <- mapply(
+  function(soup, seu) {
+    setDR(soup, Embeddings(seu$seurat, reduction = "umap"))
+  },
+  sc, 
+  l_seurat,
+  SIMPLIFY = FALSE
+)
+
+i <- 1
+counts_corrected <- l_seurat[[i]]$seurat[["RNA"]]$counts
+
+p <- plotChangeMap(
+  sc[[i]], 
+  counts_corrected,
+  names(markers)[3],
+  pointSize  = 0.5
+) + scale_color_gradientn(colors = viridis(100)) +
+  ggtitle(NULL)
+theme_sc_dim(p)
 ```
 
 ```{r}
