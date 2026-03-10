@@ -29,6 +29,9 @@ library("scDblFinder")
 library("DoubletFinder")
 library("BiocParallel")
 library("parallel")
+library("SoupX")
+library("RColorBrewer")
+library("viridis")
 
 source(
   file.path(file.path(
@@ -197,20 +200,16 @@ WhichCells(seurat, expression = scDblFinder == "Doublet" & doubletFinder == "Dou
   plot_dim_selected(seurat, cells = .)
 ```
 
-```{r, eval = FALSE}
-library("SoupX")
-# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+## Ambiant RNA
+```{r}
 l_seurat <- SplitObject(seurat, split.by = "Patient")
 
 l_seurat <- list.map(
   names(l_seurat),
   f(i) ~ {
-    sample_path <- file.path(path_data, "cellranger", i, "outs")
+    sample_path <- file.path(path_project, i, "outs")
     raw <- Read10X(file.path(sample_path, "raw_feature_bc_matrix"))
-    # cts <- Read10X(file.path(sample_path, "filtered_feature_bc_matrix"))
     cts <- l_seurat[[i]][["RNA"]]$counts
-    # cls <- read_csv(file.path(sample_path, "analysis", "clustering", "gene_expression_graphclust", "clusters.csv")) %>%
-    #   pull("Cluster")
     cls <- l_seurat[[i]][[]][, snn_cluster] %>% as.character()
     
     sc <- SoupChannel(raw, cts) %>%
@@ -218,8 +217,7 @@ l_seurat <- list.map(
       autoEstCont(doPlot = FALSE)
     spx <- adjustCounts(sc, roundToInt = TRUE)
     
-    l_seurat[[i]][["raw"]] <- GetAssayData(l_seurat[[i]], assay = "RNA", layer = "counts") %>%
-     CreateAssayObject(counts = .)
+    l_seurat[[i]][["raw"]] <- CreateAssayObject(sc$toc)
     l_seurat[[i]][["RNA"]]@layers$counts <- spx
     return(list(sc = sc, seurat = l_seurat[[i]]))
   }
@@ -231,15 +229,10 @@ seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 sc <- list.map(l_seurat, .$sc)
 ```
 
-```{r, eval = FALSE}
-# before.data <- GetAssayData(seurat, layer = "counts", assay = "raw") %>%
-#   rowSums(. > 0)
-# after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA") %>%
-#   rowSums(. > 0)
-# diff <- ((before.data - after.data)/before.data) %>%
-#   sort(decreasing = TRUE)
-
-sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)
+```{r}
+(sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)) %>% as.data.frame() %>%
+  kable0() %>%
+    save_kable(file.path(path_fig, "pct_change.png"), zoom = 2)
 
 before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
 before.data@x[before.data@x > 0] <- 1
@@ -257,13 +250,13 @@ markers %>%
   plot_bar(label_x  = "value", title = "", cex = 0.8)
 ```
 
-```{r, message = FALSE, fig.height = 8, fig.width = 16, eval = FALSE}
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
 markers %>% head(4) %>% names() %>%
 plot_feature(seurat, ., pt.size = .25, cols = brewer.pal(9, "Reds")) %>%
     plot_grid(plotlist = ., align = "hv")
 ```
 
-```{r, eval = FALSE, fig.width = 8, fig.height = 3.7}
+```{r, fig.width = 8, fig.height = 3.7}
 cells <- Matrix::colSums(changed) %>% 
   sort(decreasing = TRUE)
 
@@ -273,7 +266,7 @@ cells %>%
   plot_dim_selected(seurat, cells = .)
 ```
 
-```{r, eval = FALSE, fig.width = 8, fig.height = 3.7}
+```{r, fig.width = 8, fig.height = 3.7}
 sc <- mapply(
   function(soup, seu) {
     setDR(soup, Embeddings(seu$seurat, reduction = "umap"))
