@@ -48,7 +48,7 @@ if (.Platform$OS.type == "windows") {
 }
 
 sce <- scDblFinder(
-  GetAssayData(seurat[["RNA"]], slot = "counts"),
+  GetAssayData(seurat[["RNA"]], layer = "counts"),
   samples = seurat$Patient,
   aggregateFeatures = FALSE,
   k = NULL,
@@ -70,7 +70,13 @@ plot_bar_doublet(seurat, split_by = snn_cluster, pct = FALSE)
 ```
 
 ```{r}
-plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
+plot_violin_doublet <- function(x)
+  plot_sc_violin(
+    x,
+    features = "doublet_score",
+    ncol = 1,
+    nrow = 1
+)
 plot_violin_doublet(seurat)
 Idents(seurat) <- "doublets"
 plot_violin_doublet(seurat)
