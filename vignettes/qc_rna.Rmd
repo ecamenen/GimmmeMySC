@@ -69,7 +69,8 @@ list_seurat <- list.map(
   f(i) ~ {
     sc <- file.path(path_project, i, "outs") %>%
       load10X() %>%
-      autoEstCont(doPlot = FALSE)
+      autoEstCont(doPlot = FALSE) %>%
+      setDR(.$metaData[, c("tSNE1", "tSNE2")])
     spx <- adjustCounts(sc, roundToInt = TRUE) %>%
       CreateSeuratObject() %>%
       set_percent() %>%
@@ -86,8 +87,6 @@ cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_sam
 if (isTRUE(soupex)) {
   sc <- list.map(list_seurat, .$sc)
   list_seurat <- list.map(list_seurat, .$seurat)
-} else {
-  seurat <- integrate_multisamples(list_seurat, cell_id)
 }
 
 seurat <- integrate_multisamples(list_seurat, cell_id)
@@ -116,6 +115,88 @@ if (isTRUE(soupex)) {
     head(20) %>%
     plot_bar(label_x  = "value", title = "", cex = 0.8)
 }
+```
+
+```{r}
+tsne_matrix <- as.matrix(seurat@meta.data[, c("tSNE1", "tSNE2")])
+rownames(tsne_matrix) <- Cells(seurat)
+
+seurat[["tsne"]] <-  CreateDimReducObject(
+  embeddings = tsne_matrix,
+  key = "tSNE_"
+)
+
+list.map(
+  unique(seurat$Patient),
+  f(x) ~ {
+  cells <- WhichCells(seurat, expression = Patient == x)
+  markers %>% head(4) %>% names() %>%
+  plot_feature(seurat, .,  cells = cells, pt.size = .25, cols = brewer.pal(9, "Reds"), slot = "counts") %>%
+    plot_grid(plotlist = ., ncol = 2) %>%
+          plot_grid(
+            ggdraw() + 
+              draw_label(
+                x,
+                color = "#2F5496",
+                size = 20,
+                fontface = "bold.italic"
+              ),
+            .,
+            ncol = 1,
+            rel_heights = c(0.1, 1)
+          )
+  }
+)
+```
+
+```{r}
+list.map(
+  unique(seurat$Patient),
+  f(x) ~ {
+    cols <- unique(seurat$clusters) %>% length() %>% palette_continuous()(.)
+plot_dim(
+    seurat,
+    group.by = "clusters",
+    cells = WhichCells(seurat, expression = Patient == x),
+    cols = cols,
+    label = FALSE
+) +
+      ggtitle(x) +
+  NoLegend()
+  }
+) %>% plot_grid(plotlist = ., ncol = 2)
+```
+
+```{r, fig.width = 8, fig.height = 3.7}
+list.map(
+  names(markers)[seq(4)],
+  f(x) ~{
+list.map(
+  unique(seurat$Patient),
+  f(i) ~ {
+p <- plotChangeMap(
+  sc[[i]], 
+  list_seurat[[i]][["RNA"]]$counts,
+  x,
+  pointSize  = 0.5
+) + scale_color_gradientn(colors = viridis(100)) +
+  ggtitle(i)
+theme_sc_dim(p)
+  }
+) %>% plot_grid(plotlist = ., ncol = 2) %>%
+          plot_grid(
+            ggdraw() + 
+              draw_label(
+                x,
+                color = "#2F5496",
+                size = 20,
+                fontface = "bold.italic"
+              ),
+            .,
+            ncol = 1,
+            rel_heights = c(0.1, 1)
+          )
+  })
 ```
 
 ## Filter cells with low or too high genes
@@ -295,6 +376,11 @@ table(seurat$scDblFinder, seurat$doubletFinder) %>%
         file = file.path(path_fig, "table_scdblFinder_doubletFinder.png"),
         zoom = 2
     )
+```
+
+```{r}
+WhichCells(seurat, expression = scDblFinder == "Doublet" & doubletFinder == "Doublet") %>%
+  plot_dim_selected(seurat, cells = .)
 ```
 
 ```{r}
