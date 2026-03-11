@@ -30,6 +30,9 @@ library("parallel")
 library("BiocParallel")
 library("kableExtra")
 library("SoupX")
+library("cowplot")
+library("RColorBrewer")
+library("viridis")
 
 source(
   file.path(file.path(
@@ -93,6 +96,7 @@ seurat <- integrate_multisamples(list_seurat, cell_id)
 seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 ```
 
+### QC
 ```{r}
 if (isTRUE(soupex)) {
   (sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)) %>% as.data.frame() %>%
@@ -113,11 +117,12 @@ if (isTRUE(soupex)) {
   
   markers %>% 
     head(20) %>%
-    plot_bar(label_x  = "value", title = "", cex = 0.8)
+    plot_bar(sample_size  = length(Cells(seurat)), title = "", cex = 0.8)
 }
 ```
 
 ```{r}
+if (isTRUE(soupex)) {
 tsne_matrix <- as.matrix(seurat@meta.data[, c("tSNE1", "tSNE2")])
 rownames(tsne_matrix) <- Cells(seurat)
 
@@ -147,9 +152,11 @@ list.map(
           )
   }
 )
+}
 ```
 
 ```{r}
+if (isTRUE(soupex)) {
 list.map(
   unique(seurat$Patient),
   f(x) ~ {
@@ -165,11 +172,32 @@ plot_dim(
   NoLegend()
   }
 ) %>% plot_grid(plotlist = ., ncol = 2)
+}
+```
+
+```{r}
+if (isTRUE(soupex)) {
+cells <- Matrix::colSums(changed) %>% 
+  sort(decreasing = TRUE) %>%
+  names()
+
+list.map(
+  unique(seurat$Patient),
+  f(x) ~ {
+    cell2 <- WhichCells(seurat, expression = Patient == x)
+intersect(cell2, cells) %>%
+  head(5e2) %>%
+  plot_dim_selected(seurat, selected = ., cells = cell2) +
+      ggtitle(x)
+  }) %>% 
+  plot_grid(plotlist = ., ncol = 2)
+}
 ```
 
 ```{r, fig.width = 8, fig.height = 3.7}
+if (isTRUE(soupex)) {
 list.map(
-  names(markers)[seq(4)],
+  names(markers)[seq(10)],
   f(x) ~{
 list.map(
   unique(seurat$Patient),
@@ -197,6 +225,7 @@ theme_sc_dim(p)
             rel_heights = c(0.1, 1)
           )
   })
+}
 ```
 
 ## Filter cells with low or too high genes
@@ -379,8 +408,18 @@ table(seurat$scDblFinder, seurat$doubletFinder) %>%
 ```
 
 ```{r}
-WhichCells(seurat, expression = scDblFinder == "Doublet" & doubletFinder == "Doublet") %>%
-  plot_dim_selected(seurat, cells = .)
+if (isTRUE(soupex)) {
+list.map(
+  unique(seurat$Patient),
+  f(x) ~ {
+    selected <- WhichCells(seurat, expression = scDblFinder == "Doublet" & doubletFinder == "Doublet")
+    cells <- WhichCells(seurat, expression = Patient == x)
+intersect(selected, cells) %>%
+  plot_dim_selected(seurat, selected = ., cells = cells) +
+      ggtitle(x)
+  }) %>% 
+  plot_grid(plotlist = ., ncol = 2)
+}
 ```
 
 ```{r}
