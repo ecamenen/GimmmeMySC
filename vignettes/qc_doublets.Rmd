@@ -263,7 +263,7 @@ cells <- Matrix::colSums(changed) %>%
 cells %>%
   head(2e2) %>% 
   names() %>%
-  plot_dim_selected(seurat, cells = .)
+  plot_dim_selected(seurat, selected = .)
 ```
 
 ```{r, fig.width = 8, fig.height = 3.7}
