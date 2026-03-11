@@ -642,13 +642,14 @@ plot_heatmap2 <- function(x, markers, lines.width = NULL, ...) {
 }
 
 #' @export
-plot_dim_selected <- function(x, cells) {
+plot_dim_selected <- function(x, selected, ...) {
     plot_dim(
         x,
-        cells.highlight =  cells,
+        cells.highlight =  selected,
         sizes.highlight = .5,
         cols = NULL,
-        label = FALSE
+        label = FALSE,
+        ...
     )  +
         scale_color_manual(
             labels = c("Other", "Selected"),
