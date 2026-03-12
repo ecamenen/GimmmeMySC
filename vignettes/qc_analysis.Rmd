@@ -33,7 +33,11 @@ source(
   "extdata"
 ), "conf.R"))
 
-cell_label <- "cell_subtype_formatted"
+if (split.by == "Type") {
+  cell_label <- "cell_subtype_formatted"
+} else {
+  cell_label <- "cell_type_formatted"
+}
 
 if (assay != "ATAC") {
   features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal", "percent_hemoglobin")
@@ -138,7 +142,7 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim_cell(seurat_subset, col = pal_discrete_sc)
+plot_dim(seurat_subset, col = pal_discrete_sc)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -159,13 +163,18 @@ plot_dim_cell(seurat_subset, cols = pal_discrete_sc, cells = cells, group.by = "
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
+subtypes_b <- seurat_subset[[]][cells, "cell_subtype_formatted"] %>% as.character() %>% unique()
+seurat_subset$cell_subtype_formatted3 <- seurat_subset$cell_subtype_formatted
+seurat_subset$cell_subtype_formatted3[!seurat_subset$cell_subtype_formatted3 %in% subtypes_b] <- NA
+seurat_subset$cell_subtype_formatted3 <- fct_drop(seurat_subset$cell_subtype_formatted3)
+
 plot_dim_cell(
     seurat_subset,
-    group.by = "cell_subtype_formatted",
-    split.by = "cell_subtype_formatted",
+    group.by = "cell_subtype_formatted3",
+    split.by = "cell_subtype_formatted3",
     cells = cells,
     label = FALSE,
-    ncol = 3, 
+    ncol = 3,
     cols = rep("black", 100)
 ) +
     NoLegend()
@@ -181,7 +190,7 @@ Idents(seurat) %>%
 ```
 
 ```{r, fig.width = 5}
-plot_dim_cell(seurat_subset, cols = pal_discrete_sc2)
+plot_dim(seurat_subset, cols = pal_discrete_sc2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
