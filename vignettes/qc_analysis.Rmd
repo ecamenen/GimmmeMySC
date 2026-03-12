@@ -50,39 +50,14 @@ if (assay != "ATAC") {
 ```
 
 ```{r}
-load(file.path(path_data, paste0(seurat_dataset, ".rda")))
-
-seurat_subset <- subsampling_sc(seurat) %>%
-  subset(subset = Type == target_type)
-  
-if (split.by != "Type") {
-  load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
-  pal_discrete_sc <- palette_continuous()(nlevels(Idents(seurat)))
-  seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
-}
-seurat_subset$cell_subtype_formatted <-  fct_drop(seurat_subset$cell_subtype_formatted)
-
-if (split.by == "Type") {
-  seurat <- subset(
-      seurat,
-      subset = Type == target_type
-  )
-  seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
-} else {
-  pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
-}
+list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2) 
+seurat <- list_param$seurat
+seurat_subset <- list_param$seurat_subset
+pal_discrete_sc <- list_param$pal_discrete_sc
+pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)) + 3)
 ```
 
 ## Annotation (1)
-```{r}
-lim <- 25
-tab <- table(seurat$cell_subtype_formatted, seurat[[]][, split.by])
-cell_types_low <- rownames(tab)[apply(tab, 1, function(x) any(x < lim))]
-
-seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2 %in% cell_types_low] <- NA
-seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
-```
-
 ```{r}
 bar_group_ident(
     seurat,

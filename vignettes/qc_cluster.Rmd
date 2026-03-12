@@ -35,39 +35,11 @@ cell_label <- "cell_subtype_formatted"
 
 ## Load data
 ```{r data}
-load(file.path(path_data, paste0(seurat_dataset, ".rda")))
-
-seurat_subset <- subsampling_sc(seurat) %>%
-  subset(subset = Type == target_type)
-  
-if (split.by != "Type") {
-  load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
-  seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
-  n_idents <- nlevels(Idents(seurat))
-  if (n_idents > length(pal_discrete_sc))
-    pal_discrete_sc <- palette_continuous()(n_idents)
-}
-seurat_subset$cell_subtype_formatted <-  fct_drop(seurat_subset$cell_subtype_formatted)
-
-if (split.by == "Type") {
-  seurat <- subset(
-      seurat,
-      subset = Type == target_type
-  )
-  seurat$cell_subtype_formatted <-  fct_drop(seurat$cell_subtype_formatted)
-} else {
-  pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
-}
-```
-
-```{r}
-lim <- 25
-tab <- table(seurat$cell_subtype_formatted)
-cell_types_low <- names(tab)[tab < lim]
-
-seurat$cell_subtype_formatted2[seurat$cell_subtype_formatted2 %in% cell_types_low] <- NA
-
-seurat$cell_subtype_formatted2 <- fct_drop(seurat$cell_subtype_formatted2)
+list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2) 
+seurat <- list_param$seurat
+seurat_subset <- list_param$seurat_subset
+pal_discrete_sc <- list_param$pal_discrete_sc
+pal_discrete_sc2 <- list_param$pal_discrete_sc2
 ```
 
 ## Clustering

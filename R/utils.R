@@ -831,3 +831,43 @@ downsample_by_cluster <- function(x, group_by = "Type") {
     subset(x, cells = selected_cells)
 }
 
+#' @export
+remove_low_cells <- function(x, label = "cell_subtype_formatted", n = 25) {
+    cell_counts <- table(x@meta.data[, label])
+    cell_types_low <- names(cell_counts[cell_counts < n])
+
+    x@meta.data[, label][x@meta.data[, label] %in% cell_types_low] <- NA
+    x@meta.data[, label] <- fct_drop(x@meta.data[, label])
+
+    return(x)
+}
+
+#' @export
+load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2) {
+    load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+
+    seurat_subset <- subsampling_sc(seurat) %>%
+        subset(subset = Type == target_type)
+
+    if (split.by != "Type") {
+        load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+        seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
+        n_idents <- nlevels(Idents(seurat))
+        if (n_idents > length(pal_discrete_sc))
+            pal_discrete_sc <- palette_continuous()(n_idents)
+    }
+    seurat_subset$cell_subtype_formatted <- fct_drop(seurat_subset$cell_subtype_formatted)
+
+    if (split.by == "Type") {
+        seurat <- subset(seurat,bsubset = Type == target_type)
+    }
+    seurat$cell_subtype_formatted <- fct_drop(seurat$cell_subtype_formatted)
+
+    seurat <- remove_low_cells(seurat) %>%
+        remove_low_cells("cell_subtype_formatted2")
+
+    if (split.by != "Type") {
+        pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
+    }
+    list(seurat = seurat, seurat_subset = seurat_subset, pal_discrete_sc = pal_discrete_sc, pal_discrete_sc2 = pal_discrete_sc2)
+}
