@@ -357,7 +357,7 @@ if (!pseudo) {
 if (pseudo) {
   n_line <- length(l_dea_proc)
 } else {
-  n_line <- length(Idents(seurat))
+  n_line <- nlevels(Idents(seurat))
 }
 
 plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
