@@ -871,3 +871,42 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
     }
     list(seurat = seurat, seurat_subset = seurat_subset, pal_discrete_sc = pal_discrete_sc, pal_discrete_sc2 = pal_discrete_sc2)
 }
+
+#' @export
+plot_feature_soupex <- function(x, markers, tsne_matrix, assay = "RNA") {
+
+    DefaultAssay(seurat) <- assay
+    seurat[["tsne"]] <-  CreateDimReducObject(
+        embeddings = tsne_matrix,
+        key = "tSNE_",
+        assay = assay
+    )
+
+    list.map(
+        unique(x$Patient),
+        f(i) ~ {
+            WhichCells(x, expression = Patient == i) %>%
+                plot_feature(
+                    x,
+                    markers,
+                    cells = .,
+                    pt.size = .25,
+                    cols = brewer.pal(9, "Reds"),
+                    slot = "counts"
+                ) %>%
+                plot_grid(plotlist = ., ncol = 3) %>%
+                plot_grid(
+                    ggdraw() +
+                        draw_label(
+                            i,
+                            color = "#2F5496",
+                            size = 20,
+                            fontface = "bold.italic"
+                        ),
+                    .,
+                    ncol = 1,
+                    rel_heights = c(0.1, 1)
+                )
+        }
+    )
+}

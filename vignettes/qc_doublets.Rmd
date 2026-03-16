@@ -234,6 +234,11 @@ sc <- list.map(l_seurat, .$sc)
   kable0() %>%
     save_kable(file.path(path_fig, "pct_change.png"), zoom = 2)
 
+  list.map(sc, .$fit$rhoEst) %>%
+    as.data.frame() %>%
+    kable0()  %>%
+    save_kable(file.path(path_fig, "pct_change_sample.png"), zoom = 2)
+
 before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
 before.data@x[before.data@x > 0] <- 1
 after.data <- GetAssayData(seurat, layer = "counts", assay = "RNA")
@@ -251,6 +256,12 @@ markers %>%
 ```
 
 ```{r, message = FALSE, fig.height = 8, fig.width = 16}
+DefaultAssay(seurat) <- "raw"
+markers %>% head(4) %>% names() %>%
+plot_feature(seurat, ., pt.size = .25, cols = brewer.pal(9, "Reds")) %>%
+    plot_grid(plotlist = ., align = "hv")
+
+DefaultAssay(seurat) <- "RNA"
 markers %>% head(4) %>% names() %>%
 plot_feature(seurat, ., pt.size = .25, cols = brewer.pal(9, "Reds")) %>%
     plot_grid(plotlist = ., align = "hv")

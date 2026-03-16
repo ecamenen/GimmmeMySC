@@ -103,6 +103,10 @@ if (isTRUE(soupex)) {
   kable0() %>%
     save_kable(file.path(path_fig, "pct_change.png"), zoom = 2)
     
+  list.map(sc, .$fit$rhoEst) %>%
+    as.data.frame() %>%
+    kable0()  %>%
+    save_kable(file.path(path_fig, "pct_change_sample.png"), zoom = 2)
   
   before.data <- GetAssayData(seurat, layer = "counts", assay = "raw")
   before.data@x[before.data@x > 0] <- 1
@@ -123,35 +127,69 @@ if (isTRUE(soupex)) {
 
 ```{r}
 if (isTRUE(soupex)) {
-tsne_matrix <- as.matrix(seurat@meta.data[, c("tSNE1", "tSNE2")])
-rownames(tsne_matrix) <- Cells(seurat)
+  tsne_matrix <- as.matrix(seurat@meta.data[, c("tSNE1", "tSNE2")])
+  rownames(tsne_matrix) <- Cells(seurat)
+  
+  DefaultAssay(seurat) <- "raw"
+  seurat[["tsne"]] <-  CreateDimReducObject(
+    embeddings = tsne_matrix,
+    key = "tSNE_",
+    assay = "raw"
+  )
+  
+  list.map(
+    unique(seurat$Patient),
+    f(x) ~ {
+    cells <- WhichCells(seurat, expression = Patient == x)
+    markers %>% head(4) %>% names() %>%
+    plot_feature(seurat, .,  cells = cells, pt.size = .25, cols = brewer.pal(9, "Reds"), slot = "counts") %>%
+      plot_grid(plotlist = ., ncol = 2) %>%
+            plot_grid(
+              ggdraw() + 
+                draw_label(
+                  x,
+                  color = "#2F5496",
+                  size = 20,
+                  fontface = "bold.italic"
+                ),
+              .,
+              ncol = 1,
+              rel_heights = c(0.1, 1)
+            )
+    }
+  )
+}
+DefaultAssay(seurat) <- "RNA"
+```
 
-seurat[["tsne"]] <-  CreateDimReducObject(
-  embeddings = tsne_matrix,
-  key = "tSNE_"
-)
-
-list.map(
-  unique(seurat$Patient),
-  f(x) ~ {
-  cells <- WhichCells(seurat, expression = Patient == x)
-  markers %>% head(4) %>% names() %>%
-  plot_feature(seurat, .,  cells = cells, pt.size = .25, cols = brewer.pal(9, "Reds"), slot = "counts") %>%
-    plot_grid(plotlist = ., ncol = 2) %>%
-          plot_grid(
-            ggdraw() + 
-              draw_label(
-                x,
-                color = "#2F5496",
-                size = 20,
-                fontface = "bold.italic"
-              ),
-            .,
-            ncol = 1,
-            rel_heights = c(0.1, 1)
-          )
-  }
-)
+```{r}
+if (isTRUE(soupex)) {
+  seurat[["tsne"]] <-  CreateDimReducObject(
+    embeddings = tsne_matrix,
+    key = "tSNE_"
+  )
+  
+  list.map(
+    unique(seurat$Patient),
+    f(x) ~ {
+    cells <- WhichCells(seurat, expression = Patient == x)
+    markers %>% head(4) %>% names() %>%
+    plot_feature(seurat, .,  cells = cells, pt.size = .25, cols = brewer.pal(9, "Reds"), slot = "counts") %>%
+      plot_grid(plotlist = ., ncol = 2) %>%
+            plot_grid(
+              ggdraw() + 
+                draw_label(
+                  x,
+                  color = "#2F5496",
+                  size = 20,
+                  fontface = "bold.italic"
+                ),
+              .,
+              ncol = 1,
+              rel_heights = c(0.1, 1)
+            )
+    }
+  )
 }
 ```
 
@@ -196,37 +234,39 @@ intersect(cell2, cells) %>%
 
 ```{r, fig.width = 8, fig.height = 3.7}
 if (isTRUE(soupex)) {
-list.map(
-  names(markers)[seq(10)],
-  f(x) ~{
-list.map(
-  unique(seurat$Patient),
-  f(i) ~ {
-p <- plotChangeMap(
-  sc[[i]], 
-  list_seurat[[i]][["RNA"]]$counts,
-  x,
-  pointSize  = 0.5
-) + scale_color_gradientn(colors = viridis(100)) +
-  ggtitle(i)
-theme_sc_dim(p)
-  }
-) %>% plot_grid(plotlist = ., ncol = 2) %>%
-          plot_grid(
-            ggdraw() + 
-              draw_label(
-                x,
-                color = "#2F5496",
-                size = 20,
-                fontface = "bold.italic"
-              ),
-            .,
-            ncol = 1,
-            rel_heights = c(0.1, 1)
-          )
-  })
+  list.map(
+    names(markers)[seq(10)],
+    f(x) ~{
+  list.map(
+    unique(seurat$Patient),
+    f(i) ~ {
+  p <- plotChangeMap(
+      sc[[i]], 
+      list_seurat[[i]][["RNA"]]$counts,
+      x,
+      pointSize  = 0.5
+    ) + scale_color_gradientn(colors = viridis(100)) +
+      ggtitle(i)
+    theme_sc_dim(p)
+      }
+    ) %>% plot_grid(plotlist = ., ncol = 2) %>%
+              plot_grid(
+                ggdraw() + 
+                  draw_label(
+                    x,
+                    color = "#2F5496",
+                    size = 20,
+                    fontface = "bold.italic"
+                  ),
+                .,
+                ncol = 1,
+                rel_heights = c(0.1, 1)
+              )
+    }
+  )
 }
 ```
+
 
 ## Filter cells with low or too high genes
 ```{r qc_plot, fig.height = 5, fig.width = 10}
