@@ -875,8 +875,8 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
 #' @export
 plot_feature_soupex <- function(x, markers, tsne_matrix, assay = "RNA") {
 
-    DefaultAssay(seurat) <- assay
-    seurat[["tsne"]] <-  CreateDimReducObject(
+    DefaultAssay(x) <- assay
+    x[["tsne"]] <-  CreateDimReducObject(
         embeddings = tsne_matrix,
         key = "tSNE_",
         assay = assay
