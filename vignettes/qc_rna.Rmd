@@ -44,22 +44,45 @@ source(
 l_samples <- list.files(path_project) %>%  
   .[sapply(., function(x) dir.exists(file.path(path_project, x)))]
 n_cores <- detectCores() - 1
-soupex <- TRUE
+soupex <- FALSE
 doublet_method <- "doubletFinder"
 ```
 
 ## Load data
 ```{r data}
+dr <- "umap"
 if (!isTRUE(soupex))
 list_seurat <- list.map(
     l_samples,
     f(x) ~{
-      count_matrix <- file.path(path_project, x, "outs") %>% 
-        list.files(full.names = TRUE) %>% 
-        .[str_detect(., "filtered_feature_bc_matrix.h5")]
-      tmp <- Read10X_h5(count_matrix) %>%
+      l_files <- file.path(path_project, x, "outs") %>% 
+        list.files(full.names = TRUE)
+      cls <- file.path(path_project, x, "outs", "analysis", "clustering") %>%
+    list.files(full.names = TRUE) %>%
+    .[str_detect(., "graphclust$")] %>%
+    list.files(full.names = TRUE) %>%
+        read_csv() %>%
+        rename(Cluster = "clusters")
+      meta_data <- file.path(path_project, x, "outs", "analysis", dr) %>%
+    list.files(full.names = TRUE) %>%
+    .[str_detect(., "2_components$")] %>%
+    list.files(full.names = TRUE) %>%
+        read_csv() %>% left_join(cls, by = "Barcode")
+      tmp <- l_files %>% 
+        .[str_detect(., "filtered_feature_bc_matrix$")] %>%
+        Read10X() %>%
       CreateSeuratObject() %>%
+      AddMetaData(metadata = meta_data) %>%
       set_percent()
+      tmp[[dr]] <- column_to_rownames(meta_data, "Barcode") %>% 
+          .[, paste0(toupper(dr), "-", seq(2))] %>% 
+          as.matrix() %>%
+        CreateDimReducObject(
+          embeddings = .,
+          key = paste0(toupper(dr), "_"),
+          assay = DefaultAssay(tmp)
+        )
+      return(tmp)
     }
 )
 ```
@@ -119,7 +142,7 @@ if (isTRUE(soupex)) {
   markers <- Matrix::rowSums(changed) %>% 
     sort(decreasing = TRUE)
   
-  markers %>% 
+  markers %>%
     head(20) %>%
     plot_bar(sample_size  = length(Cells(seurat)), title = "", cex = 0.8)
   
