@@ -2,8 +2,8 @@ set.seed(1234)
 options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
 max_dim <- 100
-n_dim <- 50
-dims <- seq(30)
+n_dim <- 30
+dims <- seq(n_dim)
 species <- "mouse"
 assay <- "RNA"
 SCT <- FALSE

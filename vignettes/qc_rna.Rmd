@@ -371,7 +371,7 @@ sce <- scDblFinder(
   aggregateFeatures = FALSE,
   k = NULL,
   processing = "normFeatures",
-  dims = 20,
+  dims = n_dim,
   cluster = as.factor(seurat$clusters),
   BPPARAM = bp_param
 )
