@@ -71,13 +71,14 @@ usethis::use_data(jcb_markers, overwrite = TRUE)
 #### Data integration
 
 assay <- "ATAC"
+id <- 8
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", assay)
 
 seurat <- list.map(
     c("WT", "KO"),
     f(x) ~{
         gc()
-        load(file.path(path_data, paste0(str_to_lower(assay), "_allcell_", x, ".rda")))
+        load(file.path(path_data, paste0(str_to_lower(assay), "_allcell", id, "b_", x, ".rda")))
         # if (!is.null(seurat@assays$SCT)) {
             # seurat@assays$SCT@scale.data <- matrix()
         # }
@@ -92,7 +93,7 @@ seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
-save(seurat, file = file.path(path_data, paste0(str_to_lower(assay), "_bcell_integrated.rda")))
+save(seurat, file = file.path(path_data, paste0(str_to_lower(assay), "_bcell_integrated", id, "a.rda")))
 
 ################################################
 library("readxl")

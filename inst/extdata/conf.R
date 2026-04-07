@@ -42,7 +42,7 @@ snn_cluster <- paste0(
 path_root <- file.path("C:", "Users", "etien")
 path_root_data <- file.path(path_root, "DATA")
 path_data <- file.path(path_root_data, "dobino", path)
-path_project <- file.path(path_data, "cellranger_pasteur")
+path_project <- file.path(path_data, "cellranger")
 path_fig <- file.path(path_root, "bin", "GimmmeMySC", "vignettes",  knitr::opts_chunk$get("fig.path"))
 seurat_dataset <- "rna_allcell4"
 # seurat_dataset <- "rna_bcell_integrated2abc"
