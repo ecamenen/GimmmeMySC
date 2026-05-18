@@ -137,6 +137,8 @@ plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
     )
 
     score_cols <- paste0(names(markers), seq_along(names(markers)))
+    df_medians <- res[[]] %>%
+        summarise(across(all_of(score_cols), \(x) median(x, na.rm = TRUE)))
 
     list.map(
         score_cols,
@@ -148,7 +150,12 @@ plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
                 ...
             ) %>%
                 pluck(1) +
-                labs(title = names(markers)[j])
+                labs(title = names(markers)[j]) +
+                geom_hline(
+                    yintercept = df_medians[[j]],
+                    linetype = "dashed",
+                    linewidth = 1
+                )
         }
     ) %>%
     plot_grid(
