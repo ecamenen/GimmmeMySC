@@ -497,7 +497,7 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
     if ("0" %in% levels(Idents(x))) {
         legend <- reorder_celltype(rownames(res))
     } else if ("0" %in% levels(x[[]][, cell_label])) {
-        legend <- rownames(res) %>% as.numeric() %>% sort()
+        legend <- rownames(res)
     } else {
         legend <- NULL
     }
@@ -505,7 +505,7 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
     if (str_detect(levels(Idents(x)), "B\\.") %>% any()) {
         sort <- reorder_celltype(levels(Idents(x)))
     } else {
-        sort <- colnames(res) %>% as.numeric() %>% sort()
+        sort <- FALSE
     }
 
         plot_bar_2cat(
@@ -567,7 +567,7 @@ bar_ident_group <- function(
         ...
     ) {
     if ("0" %in% levels(x[[]][, idents])) {
-        sort <- levels(x[[]][, idents])
+        sort <- FALSE
     } else {
         sort <- TRUE
     }
@@ -590,7 +590,7 @@ bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35
         bar_ident_group0(
             colour = colour,
             legend = legend
-            )
+        )
 }
 
 #' @export
