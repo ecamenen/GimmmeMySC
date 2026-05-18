@@ -181,6 +181,8 @@ plot_feature <- function(
      limits = NULL,
      normalize = FALSE,
      split.by = NULL,
+     cluster = FALSE,
+     label = FALSE,
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
@@ -191,7 +193,7 @@ plot_feature <- function(
         limits <- replicate(length(features), NULL, simplify = FALSE)
     }
 
-    if(!is.null(split.by)) {
+    if (!is.null(split.by)) {
         n_groups <- length(unique(object[[]][, split.by]))
     } else {
         n_groups <- 1
@@ -199,7 +201,7 @@ plot_feature <- function(
 
     limits <- set_names(limits, features)
 
-    FeaturePlot(
+    p <- FeaturePlot(
         object = object,
         features =  features,
         pt.size = pt.size,
@@ -207,7 +209,56 @@ plot_feature <- function(
         combine = FALSE,
         split.by = split.by,
         ...
-    ) %>%
+    )
+
+    if (cluster) {
+        umap_coords <- Embeddings(object, reduction = "umap") %>%
+            as.data.frame() %>%
+            mutate(cluster = Idents(object))
+
+        hulls <- umap_coords %>%
+            group_by(cluster) %>%
+            mutate(
+                centroid_x = mean(umap_1),
+                centroid_y = mean(umap_2),
+                dist = sqrt((umap_1 - centroid_x)^2 + (umap_2 - centroid_y)^2)
+            ) %>%
+            filter(dist <= quantile(dist, 0.95)) %>%
+            dplyr::slice(chull(umap_1, umap_2)) %>%
+            ungroup()
+
+        centroids <- umap_coords %>%
+            group_by(cluster) %>%
+            summarise(umap_1 = mean(umap_1), umap_2 = mean(umap_2))
+
+        p <- p %>%
+            list.map(
+            f(i) ~ i +
+            geom_polygon(
+                data = hulls,
+                aes(x = umap_1, y = umap_2, group = cluster),
+                fill = NA,
+                color = "black",
+                linewidth = 0.8,
+                inherit.aes = FALSE
+            )
+            )
+        if (label)
+            p <- p %>%
+            list.map(
+                f(i) ~ i +
+                    geom_text(
+                data = centroids,
+                aes(x = umap_1, y = umap_2, label = cluster),
+                size = 5,
+                color = "black",
+                fontface = "bold",
+                inherit.aes = FALSE
+            )
+            )
+    }
+
+    p %>%
         set_names(rep(features, n_groups)) %>%
         list.map(
             f(i, j, k) ~theme_sc_dim(i) +

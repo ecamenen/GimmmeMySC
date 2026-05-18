@@ -343,7 +343,7 @@ markers <- top50  %>%
     list.map(~pull(., gene_name) %>% unique())
 
 if (!pseudo) {
-  plot_mfeature(seurat, markers, nrow = 3)
+  plot_mfeature(seurat, markers, nrow = 3, cluster = TRUE)
 }
 ```
 
@@ -366,7 +366,7 @@ plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc
 
 ```{r}
 plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
-plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
 ```
 
 ## Session information

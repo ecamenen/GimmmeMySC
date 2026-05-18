@@ -134,13 +134,13 @@ Idents(seurat_subset) <- snn_cluster
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
 plot_marker_split(seurat, l_bcell_markers)
-plot_feature_split(seurat_subset, l_bcell_markers, normalize = TRUE)
+plot_feature_split(seurat_subset, l_bcell_markers, normalize = TRUE, cluster = TRUE)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
 plot_marker_split(seurat, jcb_markers)
-plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE)
+plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE)
 ```
 
 ## Cell per cluster
