@@ -922,3 +922,14 @@ plot_feature_soupex <- function(x, markers, tsne_matrix, assay = "RNA") {
         }
     )
 }
+
+#' @export
+format_gene <- function(x) {
+    str_to_lower(x) %>%
+        str_replace_all("(^|\\-)([a-z])", function(x) toupper(x))
+}
+
+#' @export
+inverser_vs <- function(texte) {
+    str_replace(texte, "(.*) vs (.*)", "\\2 vs \\1")
+}
