@@ -224,6 +224,10 @@ l_plot_enrich()
 l_plot_enrich(pathway_keywords()$immunity_additional)
 ```
 
+```{r, message = FALSE, fig.height = 10, fig.width = 20}
+l_plot_enrich("B [Cc]ell")
+```
+
 ## Heatmap
 ```{r, message = FALSE, fig.height = 8, fig.width = 16}
 l_heatmap_enrich <- function(regex = NULL) {
@@ -264,12 +268,17 @@ l_heatmap_enrich <- function(regex = NULL) {
 
 l_heatmap_enrich()
 ```
+
 ```{r, message = FALSE, fig.height = 8, fig.width = 16}
 l_heatmap_enrich(pathway_keywords()$immunity_additional)
 ```
 
 ```{r, message = FALSE, fig.height = 8, fig.width = 16}
 l_heatmap_enrich(pathway_keywords()$cell)
+```
+
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+l_heatmap_enrich("B [Cc]ell")
 ```
 
 ## Nb DEG
