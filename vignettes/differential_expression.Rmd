@@ -135,6 +135,8 @@ l_dea_proc <- list.map(
         gene_count <- pluck(cts, name_cl) %>%
             round()
         
+if (ncol(gene_count) != nrow(metadata_samples))
+          return(NULL)
         dea_df <- DESeqDataSetFromMatrix(
             countData = gene_count,
             colData = metadata_samples,
@@ -174,7 +176,10 @@ l_dea_proc <- list.map(
 
 ## Volcano plots
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
-l_deg <- l_dea_proc %>% discard(~ nrow(.x) == 0)
+l_deg <- l_dea_proc %>%
+  compact() %>% 
+  discard(~ nrow(.x) == 0) %>% 
+  set_names(names(.) %>% inverser_vs())
 kable_dea(l_deg, file = file.path(path_fig, "table_dea.png"))
 
 l_deg_top <- list.map(

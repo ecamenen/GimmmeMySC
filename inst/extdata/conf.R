@@ -6,7 +6,7 @@ n_dim <- 30
 dims <- seq(n_dim)
 species <- "mouse"
 assay <- "RNA"
-SCT <- FALSE
+SCT <- TRUE
 if (assay == "ATAC") {
     assay2 <- "RNA"
     SCT <- FALSE
@@ -25,7 +25,7 @@ if (assay == "ATAC") {
 if (species == "human") {
     func_format <- identity
 } else {
-    func_format <- str_to_sentence
+    func_format <- format_gene
 }
 
 target_type <- "KO"
