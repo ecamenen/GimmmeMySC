@@ -760,7 +760,7 @@ plot_bar_doublet <- function(x, normalize = FALSE, pct = TRUE, ...) {
 }
 
 #' @export
-plot_bar_kept <- function(x, y, l_samples) {
+plot_bar_kept <- function(x, y, l_samples, ...) {
     list.map(
         l_samples,
         f(i) ~ list.map(
@@ -782,7 +782,8 @@ plot_bar_kept <- function(x, y, l_samples) {
     set_rownames(c("Kept", "Removed"))  %>%
     plot_bar_2cat(
         count = TRUE,
-        stats = FALSE
+        stats = FALSE,
+        ...
     )
 }
 
@@ -870,7 +871,7 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
     seurat_subset$cell_subtype_formatted <- fct_drop(seurat_subset$cell_subtype_formatted)
 
     if (split.by == "Type") {
-        seurat <- subset(seurat,bsubset = Type == target_type)
+        seurat <- subset(seurat, subset = Type == target_type)
     }
     seurat$cell_subtype_formatted <- fct_drop(seurat$cell_subtype_formatted)
 
