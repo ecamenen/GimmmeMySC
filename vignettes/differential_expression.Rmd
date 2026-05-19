@@ -201,12 +201,6 @@ plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
 
 # Save DEG
 ```{r}
-if (isFALSE(pseudo)) {
-  metadata <- TRUE
-} else {
-  metadata <- FALSE
-}
-
 l_deg2 <- list.map(
     l_deg,
     f(x) ~ {
@@ -214,7 +208,7 @@ l_deg2 <- list.map(
         x <- mutate(x, description = "")
       }
       x %>%
-        print_dea(metadata = metadata, f = desc, rank_by = "rank_fc") %>%
+        print_dea(metadata = TRUE, f = desc, rank_by = "rank_fc", return_rank = TRUE) %>%
         mutate(Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
         split(.$Expression)
     }

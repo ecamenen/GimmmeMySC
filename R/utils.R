@@ -430,7 +430,7 @@ dea2deseq <- function(
         func <- as.numeric
     }
     x %>%
-    mutate(cluster = factor(cluster, levels = as.character(sort(func(cls))))
+    mutate(cluster = factor(cluster, levels = as.character(func(cls)))
         ) %>%
     group_split(cluster, .keep = TRUE) %>%
     set_names(map_chr(., ~as.character(first(.x$cluster)))) %>%
@@ -441,9 +441,13 @@ dea2deseq <- function(
                     !((pct.1 < pct_threshold | exp.1 < exp_threshold) & (pct.2 < pct_threshold | exp.2 < exp_threshold)),
                     Expression,
                     "ns"
-                )
+                ),
+                pfc = -log10(padj) * log2FoldChange,
+                rank_p = dense_rank(log10(padj)),
+                rank_fc = dense_rank(desc(abs(log2FoldChange))),
+                rank_pfc = dense_rank((rank_p + rank_fc) / 3)
             )
-    )
+        )
 }
 
 #' @export
