@@ -48,6 +48,57 @@ l_bcell_markers <- list(
 usethis::use_data(l_bcell_markers, overwrite = TRUE)
 
 
+l_bcell_markers2 <- list(
+
+    FrB = c(
+        "Enpep",
+        "Il7r", "Kit", "Spn",
+         "Dntt", "Igll1",
+        "Lef1", "Rag1", "Rag2", "Vpreb1a", "Vpreb1b"
+    ),
+
+    FrC = c( "Cdkn3",
+        "Mki67", "Ccna2", "Ccnb1", "Ccne1", "Pcna", "Top2a", "Il2ra"
+    ),
+
+    FrD = c(
+        "Reln"
+    ),
+
+    FrE = c(
+        "Polm", # bof
+        "Spib",
+        "Ccnd2",
+        # "Bcl6",
+          "Igkc", "Iglc2", "Iglc3",
+        # "Il4i1",
+        "Ms4a1",
+        # "Nfkbiz",
+        "Notch2", "Ptk2b", "Ptprj", "Tlr9",
+        "Pou2f2",
+        "Ikzf3", "Hdac9",
+        "Ptprc",
+        "Pou2f2"
+    ),
+
+    General = c(
+        "Cd19", "Cd79a", "Cd79b",
+        "Pax5", "Ebf1",
+        # "Spi1",
+        # "Ikzf1",
+        # "Ptprc",
+        # "Fnip1",
+        # "Hdac5",
+        "Ighm",
+        "Ets1",
+        "Bach2"
+    )
+) %>%
+    map(sort)
+
+usethis::use_data(l_bcell_markers2, overwrite = TRUE)
+
+
 ##### Microarray markers
 path <- file.path(
     golem::get_golem_wd(),
@@ -70,7 +121,7 @@ usethis::use_data(jcb_markers, overwrite = TRUE)
 
 #### Data integration
 
-assay <- "ATAC"
+assay <- "RNA"
 id <- 8
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", assay)
 
