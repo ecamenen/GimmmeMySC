@@ -294,7 +294,9 @@ l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
     by = "Cluster"
   ) %>% 
     mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
-    kable0()
+    kable_sc(
+      file =  file.path(path_fig, "table_nb_pathways.png")
+    )
   
 } else {
   l_enrich_proc <- list(up = l_enrich)
@@ -302,7 +304,9 @@ l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
   list.map(l_enrich, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
     list.cbind() %>%
     set_rownames("# Pathway") %>%
-    kable0()
+    kable_sc(
+      file =  file.path(path_fig, "table_nb_pathways.png")
+    )
 }
 ```
 
