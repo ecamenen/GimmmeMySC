@@ -1,0 +1,378 @@
+---
+title: "enrichment2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{enrichment2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/enrichment2/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r}
+library("GimmeMyOmics")
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("magrittr")
+library("rlist")
+library("Seurat")
+library("cowplot")
+library("kableExtra")
+library("openxlsx")
+library("clusterProfiler")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+fc_threshold  <- log2(1.5)
+p_threshold <- .05
+
+if (species == "human") {
+  org_lib <- "org.Hs.eg.db"
+} else {
+    org_lib <- "org.Mm.eg.db"
+}
+library(org_lib, character.only = TRUE)
+filter <- dplyr::filter
+select <- dplyr::select
+rename <- dplyr::rename
+
+method <- "ora"
+
+if (method == "ora") {
+  label_x <- "generatio"
+} else {
+  label_x <- "NES"
+}
+
+pseudo <- FALSE
+```
+
+## Load data
+```{r}
+if (!pseudo) {
+  load(file.path(path_data,  paste0(seurat_dataset, "_clustering_markers.rda")))
+} else {
+  load(file.path(path_data,  paste0(seurat_dataset, "_pseudo.rda")))
+}
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+```
+
+```{r}
+data("term2gene_microarray")
+term2gene <- term2gene_microarray
+```
+
+## Analysis
+```{r}
+if (method == "ora") {
+  l_deg_proc <- list.map(
+    l_deg,
+    f(x) ~ {
+        filter(x, Expression != "ns") %>%
+        mutate(Expression = if_else(log2FoldChange > 0, "up", "down")) %>%
+        split(.$Expression)
+    }
+  ) %>%
+    set_names(names(l_deg)) %>%
+    list_flatten(name_spec = "{outer}_{inner}") %>%
+    list.map(
+      f(x) ~ top_genes(
+        x,
+        fc_threshold = fc_threshold,
+        p_threshold = p_threshold,
+        return_rank = TRUE,
+        n = 300
+      )
+  )
+  
+  l_enrich <- list.map(
+    l_deg_proc,
+    f(i) ~enricher(
+            gene = pull(i, "gene_name"),
+            # OrgDb = get(org_lib),
+            # keyType = "ALIAS",
+            # ont = "ALL",
+            pvalueCutoff = 1,
+            qvalueCutoff = 1,
+            universe = Features(seurat),
+            TERM2GENE = term2gene
+        )
+    ) %>% compact()
+} else {
+  var <- "gene_name"
+  
+  l_deg_proc <- list.map(
+      l_deg,
+      f(x) ~ {
+          metric <- "log2FoldChange"
+          de_genes_ranked <- top_genes(x, .Machine$double.xmin, 1, n = Inf, expression = TRUE) %>% #, rank = TRUE) %>%
+              # mutate(ranked_padj = sign(log2FoldChange) * (log10(padj))) %>%
+              pull(metric, name = var) %>%
+              sort(decreasing = TRUE) %>%
+              .[!is.na(names(.))] %>%
+              .[is.finite(.)] %>%
+              .[!duplicated(.)]
+      }
+  )
+  l_enrich <- list.map(
+    l_deg_proc,
+    f(i) ~GSEA(
+            i,
+            # OrgDb = get(org_lib),
+            # keyType = "ALIAS",
+            # ont = "ALL",
+            verbose = FALSE,
+            TERM2GENE = term2gene
+        ) %>%
+      suppressWarnings() %>%
+      invisible() %>%
+      compact()
+)
+}
+```
+
+```{r}
+cou <- list.map(
+  l_enrich, 
+  f(x) ~GimmeMyOmics:::extract_pathway_genes(x, method = "ora") %>%
+    unlist() %>%
+    unname()
+  )  %>% 
+  split(str_extract(names(l_enrich), "down|up")) %>%
+  list.map(~set_names(., str_remove(names(.), "_down|_up")))
+
+if (names(cou$up) %>% str_detect("vs") %>% any()) {
+  
+  l_deg_top_all <- list.map(
+    cou,
+    f(x, y, z) ~
+    list.map(
+      x, f(i, j, k) ~ filter(l_deg[[k]], gene %in% i) %>%
+      arrange(rank_pfc)
+    ) %>% set_names(paste0(names(.), "_", z))
+    )
+  
+  l_deg_top_all <- c(l_deg_top_all[[1]], l_deg_top_all[[2]])
+
+ } else if (isTRUE(pseudo)) {
+  l_deg_top_all <- l_deg_proc
+} else {
+  l_deg_top_all <- map2(
+   l_deg,
+    cou$up, \(x, y) filter(x, gene %in% y) %>%
+      arrange(rank_pfc)
+    ) %>% 
+       discard(~ nrow(.x) == 0)
+}
+
+top50 <- list.map(
+    l_deg_top_all,  
+    f(x, xx, xxx) ~head(x, 50) %>%
+        mutate(cluster = xxx)) %>%
+    list.rbind() %>%
+  mutate(cluster = factor(cluster, levels = names(l_deg_top_all)))
+
+top5_filtered <- top50 %>%
+  # list.map(
+    filter(!duplicated(gene_name)) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5) %>%
+    ungroup()
+  # )
+markers <- top50  %>%
+    split(.$cluster) %>%
+    list.map(~pull(., gene_name) %>% unique()) %>%
+  compact()
+```
+
+## Markers
+```{r, fig.height=6, fig.width=12}
+if (pseudo) {
+  n_line <- length(l_dea_proc)
+} else {
+  n_line <- nlevels(Idents(seurat))
+}
+levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
+
+list.map(
+  top5_filtered,
+  f(x) ~
+  plot_dot2(seurat, x, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+      geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
+)
+```
+
+```{r, fig.height=6, fig.width=12}
+plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
+```
+
+## Plot
+```{r, message = FALSE, fig.height = 10, fig.width = 20}
+l_plot_enrich <- function(l_enrich, regex = NULL) {
+  list.map(
+  l_enrich,
+  f(i, j, k) ~{
+        i <- filter_gsea(
+          i,
+          pathway_keywords()$cell_cycle,
+          negate = TRUE
+        )
+      tmp <- print_enrich(
+        i, 
+        method = method,
+        regex = regex
+      )
+      if (nrow(tmp) > 0)
+        plot_enrich(
+          i,
+          cex = 0.65,
+          label_x = label_x,
+          method = method,
+          regex = regex,
+          n = 15,
+          title = k
+        )
+      }
+  ) %>% 
+    compact()
+}
+p <- list.map(
+  c("_up", "_down"),
+  f(x) ~
+  l_enrich %>% 
+    keep_at(~ str_ends(.x, x)) %>%
+    set_names(str_remove_all(names(.), x)) %>%
+    l_plot_enrich() %>%
+    plot_grid(plotlist = ., ncol = 4, align = "hv") %>%
+          plot_grid(
+            ggdraw() + 
+              draw_label(
+                str_remove_all(x, "_") %>%
+                  str_to_upper(),
+                color = "#2F5496",
+                size = 50,
+                fontface = "bold.italic"
+              ),
+            .,
+            ncol = 1,
+            rel_heights = c(0.1, 1)
+          )
+  )
+p
+```
+
+## Heatmap
+```{r, message = FALSE, fig.height = 2, fig.width = 16}
+l_heatmap_enrich <- function(l_enrich, l_deg_proc = l_deg_proc) {
+  list.map(
+  l_enrich,
+  f(i, j, k) ~ {
+    tmp <- print_enrich(i, method = method)
+    if (nrow(tmp) > 0)
+    heatmap_enrich_full(
+      i,
+      l_deg_proc[[j]],
+      method = method,
+      width_text = 100
+    ) + 
+      labs(
+        title = str_replace(k, "(.*)_(.*)", "\\1 (\\2)") %>%
+          str_to_title(),
+        y = NULL, 
+        x = NULL
+      ) +
+     theme_custom() +
+     theme(
+      plot.title = element_text(
+        color = "#2F5496",
+        size = 50,
+        face = "bold"
+      )
+    )
+  }
+) %>%
+  compact()
+}
+
+p <- list.map(
+    c("_up", "_down"),
+    f(x) ~
+        list.map(
+            list(l_enrich, l_deg_proc),
+            f(i) ~ i %>% 
+                keep_at(~ str_ends(.x, x)) %>%
+                set_names(str_remove(names(.), x))
+        ) %>%
+        purrr::reduce(l_heatmap_enrich)
+)
+p
+```
+
+## Nb DEG
+```{r}
+if (method == "ora") {
+l_enrich_proc <- l_enrich %>%
+  split(str_extract(names(l_enrich), "down|up")) %>%
+    list.map(~set_names(., str_remove(names(.), "_down|_up")))
+  
+l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
+    list.map(~set_names(., str_remove(names(.), "_down|_up")))
+  
+  tmp <- list.map(
+    l_enrich_proc, 
+    ~list.map(., f(i) ~print_enrich(i, method = method) %>% nrow())
+  )
+   data.frame(
+    Cluster = names(tmp$up),
+    Up = unlist(tmp$up)
+  ) %>%
+  left_join(
+    data.frame(Cluster = names(tmp$down), Down = unlist(tmp$down)),
+    by = "Cluster"
+  ) %>% 
+    mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
+    kable_sc(
+      file =  file.path(path_fig, "table_nb_pathways.png")
+    )
+  
+} else {
+  l_enrich_proc <- list(up = l_enrich)
+  l_deg_proc <- list(up = l_deg_proc)
+  list.map(l_enrich, f(i) ~print_enrich(i, method = method) %>% nrow()) %>%
+    list.cbind() %>%
+    set_rownames("# Pathway") %>%
+    kable_sc(
+      file =  file.path(path_fig, "table_nb_pathways.png")
+    )
+}
+```
+
+## Save
+```{r}
+omics2excel(
+  l_enrich, 
+  file = file.path(path_fig, paste0(method, "2.xlsx")), 
+  func = function(i) print_enrich(i, method = method) %>% select(-ID)
+)
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
