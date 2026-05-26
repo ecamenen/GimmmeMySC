@@ -54,6 +54,16 @@ Idents(seurat) <- snn_cluster
 assay <- "RNA" -> assay2
 ```
 
+```{r}
+ids <- data.frame(
+    id.1 = c(6, 6, 1, 1, 2, 0, 5, 3, 5, 5, 4),
+    id.2 = c(1, 2, 2, 0, 0, 7, 3, 7, 7, 4, 8)
+)
+# ids <- NULL
+seurat_all <- seurat
+seurat <- subset(seurat, subset = Type == target_type)
+```
+
 ## Differentially Expressed Genes
 ```{r}
 # ids <- data.frame(
@@ -188,7 +198,8 @@ l_deg_top <- list.map(
     x,
     fc_threshold = fc_threshold,
     p_threshold = p_threshold,
-    n = 15
+    n = Inf,
+    return_rank  = TRUE
   )
 )
 
@@ -202,6 +213,14 @@ p <- volcano_sc(
 n <- length(p)
 plot_grid(plotlist = p[seq(ceiling(n/2))], align = "hv", nrow = 2)
 plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
+
+volcano_plot_custom(l_deg_top)
+
+list.map(l_deg_top, filter(., log2FoldChange > 0)) %>%
+  volcano_plot_custom()
+
+list.map(l_deg_top, ~ filter(., log2FoldChange < 0)) %>%
+  volcano_plot_custom()
 ```
 
 # Save DEG
@@ -259,14 +278,29 @@ omics2excel(
 
 ```{r}
 if (isFALSE(pseudo)) {
-  save(l_deg, file = file.path(path_data, paste0(seurat_dataset, "_clustering_markers.rda")))
+  if (is.null(ids)) {
+    save(l_deg, file = file.path(path_data, paste0(seurat_dataset, "_clustering_markers.rda")))
+  } else {
+    save(l_deg, file = file.path(path_data, paste0(seurat_dataset,  "_", target_type, "_clustering_markers_close.rda")))
+  }
 } else {
   save(l_deg, file = file.path(path_data, paste0(seurat_dataset, "_pseudo.rda")))
 }
 ```
 
 ```{r}
-gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% sort())
+l_deg_top <- list.map(
+  l_deg,
+  f(x) ~ top_genes(
+    x,
+    fc_threshold = fc_threshold,
+    p_threshold = p_threshold,
+    n = Inf,
+    return_rank  = TRUE
+  ) %>%
+    filter(log2FoldChange > 0)
+)
+gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% head(15) %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
 custom_upset_barplot(gene_lists, ratio = 1, only_intersect = "inverse")
 
@@ -356,16 +390,16 @@ if (!pseudo) {
 if (pseudo) {
   n_line <- length(l_dea_proc)
 } else {
-  n_line <- nlevels(Idents(seurat))
+  n_line <- nlevels(Idents(seurat_all))
 }
 
-plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+plot_dot2(seurat_all, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
     geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
 ```
 
 ```{r}
-plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
-plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
+plot_marker_split(seurat_all, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat_all, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
 ```
 
 ## Session information
