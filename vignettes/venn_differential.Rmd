@@ -1,0 +1,166 @@
+---
+title: "venn_differential"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{venn_differential}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/venn_differential/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r}
+library("GimmeMyOmics")
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("magrittr")
+library("rlist")
+library("Seurat")
+library("cowplot")
+library("kableExtra")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+fc_threshold  <- log2(1.5)
+p_threshold <- .05
+pseudo <- FALSE
+```
+
+## Load data
+```{r}
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+Idents(seurat) <- snn_cluster
+assay <- "RNA" -> assay2
+levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
+seurat[[]][, snn_cluster] <- Idents(seurat)
+```
+
+```{r}
+load(file.path(path_data, paste0(seurat_dataset,  "_wt_clustering_markers_close.rda")))
+l_deg_type <- list(wt = l_deg)
+load(file.path(path_data, paste0(seurat_dataset,  "_ko_clustering_markers_close.rda")))
+l_deg_type$ko <- l_deg
+```
+
+```{r}
+l_deg_type <- list.map(
+  l_deg_type,
+  list.map(
+    .,
+    top_genes(
+        .,
+        fc_threshold = fc_threshold,
+        p_threshold = p_threshold,
+        n = Inf,
+        return_rank  = TRUE
+      )
+    )
+)
+```
+
+```{r}
+top50 <- map(
+  list(
+    up = \(x) x > 0,
+    down = \(x) x < 0
+  ), 
+  function(critere_fc) {
+    map2(
+      l_deg_type$wt, 
+      l_deg_type$ko, 
+      function(df_wt, df_ko) {
+        
+        df_wt_filtre <- df_wt %>% filter(critere_fc(log2FoldChange))
+        df_ko_filtre <- df_ko %>% filter(critere_fc(log2FoldChange))
+        
+        df_wt_filtre %>%
+          inner_join(
+            df_ko_filtre, 
+            by = "gene_name", 
+            suffix = c("_WT", "_KO")
+          ) %>%
+          mutate(
+            gene = gene_name,
+            median_rank = (rank_pfc_WT + rank_pfc_KO) / 2
+          ) %>%
+          arrange(median_rank) %>%
+          slice_min(order_by = median_rank, n = 50, with_ties = FALSE)
+      }
+    )
+  }
+)
+```
+
+```{r}
+format_markers <- function(i) {
+  list.map(i, f(x, xx, xxx) ~ mutate(x, cluster = xxx)) %>%
+    list.rbind() %>%
+    mutate(cluster = factor(cluster, levels = names(i)))
+}
+
+top5_filtered <- list.map(
+  top50,
+  f(i) ~ format_markers(i) %>% 
+    filter(!duplicated(gene_name)) %>%
+    mutate(cluster = factor(cluster, levels = unique(top50$cluster))) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5) %>%
+    ungroup()
+  )
+
+markers <- map(top50, ~format_markers(.x)) %>%
+  imap(
+    function(x, y) {
+  x %>% 
+    mutate(
+      cluster = fct_relabel(cluster, ~ paste0(.x, "_", y))
+    )
+})  %>%
+    list.rbind() %>%
+  split(.$cluster) %>%
+  map(~head(.x, 50)) %>%
+  list.map(~pull(., gene_name) %>% unique()) %>%
+  compact()
+```
+
+## Markers
+```{r, fig.height=6, fig.width=12}
+if (pseudo) {
+  n_line <- length(l_dea_proc)
+} else {
+  n_line <- nlevels(Idents(seurat))
+}
+levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
+
+list.map(
+  top5_filtered,
+  f(x) ~
+  plot_dot2(seurat, x, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+      geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
+)
+```
+
+```{r, fig.height=6, fig.width=12}
+plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
