@@ -168,6 +168,59 @@ if (method == "ora") {
 }
 ```
 
+
+```{r}
+regex <- list(
+    "([Ee]rythro)|([Hh]eme)|([Rr]ed [Bb]lood)|([Mm]egakaryocyte)|([Hh]emangioblast)",
+    "(eutrophil)|(acrophage)|(onocyte)|(endritic [Cc]ell)|((atural killer)|((NK)) [Cc]ell)|([Mm]yeloid)|(ranulocyte)"
+    )
+l_deg_path <- l_enrich[c("8_up", "9_up")] %>%
+    list.map(
+        f(i, j) ~ bind_gsea(i) %>%
+    GimmeMyOmics:::extract_pathway_genes(method = "ora", regex = regex[[j]]) %>%
+    unlist() %>% unname() %>% unique()
+    )
+
+l_deg_top_all <- map2(
+    l_deg[c("8", "9")],
+    l_deg_path, \(x, y) filter(x, gene %in% y) %>%
+        arrange(rank_pfc)
+) %>% 
+    discard(~ nrow(.x) == 0)
+
+top50 <- list.map(
+    l_deg_top_all,  
+    f(x, xx, xxx) ~head(x, 50) %>%
+        mutate(cluster = xxx)) %>%
+    list.rbind() %>%
+  mutate(cluster = factor(cluster, levels = names(l_deg_top_all)))
+
+top5_filtered <- top50 %>%
+    filter(!duplicated(gene_name)) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5) %>%
+    ungroup()
+markers <- top50  %>%
+    split(.$cluster) %>%
+    list.map(~pull(., gene_name) %>% unique())
+```
+
+```{r, fig.height=6, fig.width=6}
+if (pseudo) {
+  n_line <- length(l_dea_proc)
+} else {
+  n_line <- nlevels(Idents(seurat))
+}
+levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
+
+plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+    geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
+```
+
+```{r, fig.height=6, fig.width=12}
+plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]))
+```
 ## Plot
 ```{r, message = FALSE, fig.height = 10, fig.width = 20}
 l_plot_enrich <- function(regex = NULL) {
