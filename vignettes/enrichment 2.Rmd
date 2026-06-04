@@ -157,56 +157,59 @@ cou <- list.map(
   list.map(~set_names(., str_remove(names(.), "_down|_up")))
 
 if (names(cou$up) %>% str_detect("vs") %>% any()) {
-  
   l_deg_top_all <- list.map(
     cou,
     f(x, y, z) ~
-    list.map(
-      x, f(i, j, k) ~ filter(l_deg[[k]], gene %in% i) %>%
-      arrange(rank_pfc)
-    ) %>% set_names(paste0(names(.), "_", z))
+      list.map(
+        x, f(i, j, k) ~ filter(l_deg[[k]], gene %in% i) %>%
+        arrange(rank_pfc)
+      ) %>% set_names(paste0(names(.), "_", z))
     )
   
+  l_deg_top_all2 <- l_deg_top_all
   l_deg_top_all <- c(l_deg_top_all[[1]], l_deg_top_all[[2]])
-
  } else if (isTRUE(pseudo)) {
   l_deg_top_all <- l_deg_proc
+  l_deg_top_all2 <- l_deg_proc %>%
+    split(str_extract(names(.), "down|up"))
 } else {
-  l_deg_top_all <- map2(
-   l_deg,
-    cou$up, \(x, y) filter(x, gene %in% y) %>%
+    l_deg_top_all2 <- list.map(
+      cou,
+      f(i) ~ list.map(
+        compact(i) %>% names(),
+      f(x) ~ filter(l_deg[[x]], gene %in% i[[x]]) %>%
       arrange(rank_pfc)
-    ) %>% 
+      ) %>% 
        discard(~ nrow(.x) == 0)
+    )
+    l_deg_top_all <- l_deg_top_all2$up
 }
 
-top50 <- list.map(
-    l_deg_top_all,  
-    f(x, xx, xxx) ~head(x, 50) %>%
-        mutate(cluster = xxx)) %>%
+format_markers <- function(i) {
+  list.map(i, f(x, xx, xxx) ~ mutate(x, cluster = xxx)) %>%
     list.rbind() %>%
-  mutate(cluster = factor(cluster, levels = names(l_deg_top_all)))
+    mutate(cluster = factor(cluster, levels = names(i)))
+}
 
-top5_filtered <- top50 %>%
-  # list.map(
+top5_filtered <- list.map(
+  l_deg_top_all2,
+  f(i) ~ format_markers(i) %>% 
     filter(!duplicated(gene_name)) %>%
     group_by(cluster) %>%
     slice_head(n = 5) %>%
     ungroup()
-  # )
-markers <- top50  %>%
+  )
+
+markers <- format_markers(l_deg_top_all)  %>%
     split(.$cluster) %>%
+    map(~head(.x, 50)) %>%
     list.map(~pull(., gene_name) %>% unique()) %>%
   compact()
 ```
 
 ## Markers
 ```{r, fig.height=6, fig.width=12}
-if (pseudo) {
-  n_line <- length(l_dea_proc)
-} else {
-  n_line <- nlevels(Idents(seurat))
-}
+n_line <- nlevels(seurat)
 levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 
 list.map(

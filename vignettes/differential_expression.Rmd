@@ -61,17 +61,13 @@ ids <- data.frame(
 )
 # ids <- NULL
 seurat_all <- seurat
-seurat <- subset(seurat, subset = Type == target_type)
+if (isFALSE(pseudo)) {
+  seurat <- subset(seurat, subset = Type == target_type)
+}
 ```
 
 ## Differentially Expressed Genes
 ```{r}
-# ids <- data.frame(
-#     id.1 = c(3, 6, 2, 5, 7, 0, 1, 7, 5),
-#     id.2 = c(6, 2, 5, 7, 0, 1, 4, 8, 0)
-# )
-ids <- NULL
-    
 if (isFALSE(pseudo)) {
   cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var, assay = assay2)
   
@@ -288,6 +284,18 @@ if (isFALSE(pseudo)) {
 }
 ```
 
+```{r, eval = FALSE}
+if (isFALSE(pseudo)) {
+  if (is.null(ids)) {
+    load(file = file.path(path_data, paste0(seurat_dataset, "_clustering_markers.rda")))
+  } else {
+    load(file = file.path(path_data, paste0(seurat_dataset,  "_", target_type, "_clustering_markers_close.rda")))
+  }
+} else {
+  load(file = file.path(path_data, paste0(seurat_dataset, "_pseudo.rda")))
+}
+```
+
 ```{r}
 l_deg_top <- list.map(
   l_deg,
@@ -327,7 +335,7 @@ list.map(
 top50 <- list.map(
     l_deg_top_all,  
     f(x, xx, xxx) ~head(x, 50) %>%
-        mutate(cluster = xxx)) %>%
+        mutate(cluster = factor(xxx, levels = unique(names(l_deg_top_all))))) %>%
     list.rbind()
 
 top5_filtered <- top50 %>%
@@ -371,7 +379,7 @@ if (!pseudo) {
 ```
 
 ```{r}
-markers <- top50  %>%
+markers <- top50 %>%
     split(.$cluster) %>%
     list.map(~pull(., gene_name) %>% unique())
 
@@ -387,11 +395,7 @@ if (!pseudo) {
 ```
 
 ```{r}
-if (pseudo) {
-  n_line <- length(l_dea_proc)
-} else {
-  n_line <- nlevels(Idents(seurat_all))
-}
+n_line <- nlevels(Idents(seurat_all))
 
 plot_dot2(seurat_all, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
     geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
