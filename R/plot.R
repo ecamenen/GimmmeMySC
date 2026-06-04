@@ -567,6 +567,7 @@ bar_ident_group <- function(
         ...
     ) {
     if ("0" %in% levels(x[[]][, idents])) {
+        # sort <- levels(x[[]][, idents])
         sort <- FALSE
     } else {
         sort <- TRUE

@@ -1,0 +1,152 @@
+---
+title: "multimodal_integration"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{multimodal_integration}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/multimodal/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+```{r setup}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("Signac")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+integration_method <- "RPCA"
+```
+
+## Data
+```{r}
+# load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
+load(file.path(path_root, "rna_bcell_wt.rda"))
+seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.2"]
+seurat <- reorder_idents(seurat, "labels")
+seurat$modality <- "RNA"
+rna <- seurat
+rna@meta.data[, "labels"] <- Idents(rna)
+# load(file.path(path_root, "atac_bcell_integrated2.rda"))
+load(file.path(path_root, "atac_bcell_wt.rda"))
+seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.15"]
+seurat <- reorder_idents(seurat, "labels")
+seurat$modality <- "ATAC"
+atac <- seurat
+atac@assays$ATAC_v5 <- NULL
+```
+
+```{r, eval = FALSE}
+options(future.globals.maxSize = 5 * 1024^3)
+seurat <- subset(seurat, subset = Type == target_type)
+
+DefaultAssay(seurat) <- "RNA"
+seurat[["RNA"]] <- split(
+  seurat[["RNA"]],
+  f = seurat[[]][, "Patient"],
+  layers = c("counts", "data")
+)
+seurat <- SCTransform(seurat, vars.to.regress = c("S.Score", "G2M.Score"))   seurat <- RunPCA(seurat, npcs = max_dim, features = VariableFeatures(seurat))
+
+seurat <- IntegrateLayers(
+    object = seurat,
+    method = get(paste0(integration_method, "Integration")),
+    new.reduction = integration_method,
+    orig.reduction = reduction,
+    dims.to.integrate = dims,
+    normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+    verbose = TRUE
+)
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+
+resolution2 <- seq(.1, .4, 0.05)
+resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
+resolution_tot <- c(resolution2, resolution)
+seurat <- FindNeighbors(
+  seurat,
+  reduction = integration_method, 
+  dims = dims
+)
+
+seurat <- FindClusters(
+  seurat,
+  verbose = FALSE,
+  algorithm = 3,
+  resolution = resolution_tot,
+  graph.name = tail(names(seurat@graphs), 1)
+)
+
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData()
+
+save(seurat, file = file.path(path_root, "atac_bcell_wt.rda"))
+```
+
+## Learning
+```{r}
+rna@assays$SCT@scale.data <- matrix()
+atac@assays$SCT@scale.data <- matrix()
+seurat <- merge(rna, y = atac)
+seurat <- JoinLayers(seurat, assay = "RNA")
+
+anchors <- FindTransferAnchors(
+  reference = rna,
+  query = seurat,
+  # query.assay = assay,
+  # normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+  reference.reduction = integration_method,
+  # reduction = tolower(integration_method),
+  dims = dims
+)
+```
+
+## Transfer
+```{r}
+rna2 <- RunUMAP(
+  rna,
+  dims = dims,
+  reduction = integration_method,
+  return.model = TRUE
+)
+
+seurat <- MapQuery(
+    anchorset = anchors,
+    query = seurat,
+    reference = rna2,
+    refdata = list(labels = "labels"),
+    reduction.model = "umap"
+)
+
+cl_trans <- TransferData(
+    anchorset = anchors,
+    dims = dims,
+    refdata = Idents(rna)
+  )
+seurat <- AddMetaData(seurat, metadata = cl_trans)
+seurat <- reorder_idents(seurat, "predicted.labels")
+seurat$modality <- fct_relevel(seurat$modality, "RNA")
+```
+
+## Session information
+```{r end, echo = FALSE}
+save(seurat, file = file.path(path_root, "integrated_bcell_wt.rda"))
+sessionInfo()
+```
