@@ -13,21 +13,28 @@ URL: https://github.com/ecamenen/GimmmeMySC
 BugReports: https://github.com/ecamenen/GimmmeMySC/issues
 Suggests:
     AnnotationHub,
+    BiocParallel,
     BPCells,
+    DoubletFinder,
+    clusterProfiler,
     GenomicRanges,
     GimmeMyCluster,
     glmGamPoi,
+    harmony,
     hdf5r,
     igraph,
     irlba,
     knitr,
+    openxlsx,
     monocle3,
+    parallel,
     presto,
     readxl,
     rmarkdown,
     scales,
     SeuratWrappers,
     slingshot,
+    SoupX,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
