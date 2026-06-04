@@ -35,6 +35,7 @@ source(
 
 old_ident <- snn_cluster
 new_ident <- snn_cluster
+reorder_ident <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 # old_ident <- "old_labels"
 # new_ident <- "predicted.labels"
 ```
@@ -45,6 +46,10 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
 seurat <- reorder_idents(seurat, new_ident)
+levels(seurat) <- reorder_ident
+seurat[[]][, "reorder_ident"] <- Idents(seurat)
+new_ident <- "reorder_ident" -> snn_cluster -> old_ident
+
 seurat_subset <- subsampling_sc(seurat)
 plot_dim(seurat, cols = pal_discrete_sc)
 ```
@@ -79,13 +84,13 @@ plot_dim(
 bar_ident_group(
   seurat_subset, 
   group.by = "Type", 
-  idents = new_ident
+  idents = snn_cluster
 )
 
 bar_group_ident(
   seurat,
   group.by = "Type",
-  idents = new_ident,
+  idents = snn_cluster,
   colour = pal_discrete_sc
 )
 ```
@@ -95,19 +100,20 @@ bar_group_ident(
 subsampling_sc(seurat, group.by = "Patient") %>%
   plot_dim(
     split.by = 'Patient',
-    col = pal_discrete_sc
+    col = pal_discrete_sc,
+    ncol = 2
   ) + NoLegend()
 
 bar_ident_group(
   seurat, 
   group.by = "Patient", 
-  idents = new_ident
+  idents = snn_cluster
 )
 
 bar_group_ident(
   seurat,
   group.by = "Patient",
-  idents = new_ident,
+  idents = snn_cluster,
   colour = pal_discrete_sc
 )
 ```
@@ -132,9 +138,9 @@ Idents(seurat_subset) <- snn_cluster
 
 ## Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-data("l_bcell_markers")
-plot_marker_split(seurat, l_bcell_markers)
-plot_feature_split(seurat_subset, l_bcell_markers, normalize = TRUE, cluster = TRUE)
+data("l_bcell_markers2")
+plot_marker_split(seurat, l_bcell_markers2)
+plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}

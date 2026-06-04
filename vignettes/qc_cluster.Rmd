@@ -22,6 +22,7 @@ knitr::opts_chunk$set(
 library("GimmmeMySC")
 library("Seurat")
 library("GimmeMyPlot")
+library("RColorBrewer")
 
 source(
   file.path(file.path(
@@ -75,9 +76,10 @@ plot_dim(
     ncol = 4
 ) + NoLegend()
 
-plot_ident_celltype(seurat, cell_label = cell_label, col = pal_discrete_sc2)
+plot_ident_celltype(seurat, cell_label = cell_label, col = brewer.pal(5, "Reds") %>% rev)
 Idents(seurat) <- "cell_subtype_formatted2"
-plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc)
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = colorRampPalette(brewer.pal(11, "RdBu"))(length(pal_discrete_sc2)))
 Idents(seurat) <- seurat[[]][, snn_cluster]
 
 heatmap_celltype(seurat, snn_cluster, cell_label, as_percent = FALSE)

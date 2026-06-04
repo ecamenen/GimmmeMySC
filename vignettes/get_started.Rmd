@@ -129,6 +129,7 @@ VizDimLoadings(seurat, dims = 1:2, reduction = reduction)
 
 ## UMAP before
 ```{r umap}
+gc()
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
@@ -188,6 +189,7 @@ if (assay == "ATAC") {
     dims.to.integrate = dims,
     verbose = TRUE
   )
+  seurat@assays$ATAC_v5 <- NULL
 } else {
     seurat <- IntegrateLayers(
         object = seurat,
