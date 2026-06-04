@@ -74,7 +74,7 @@ l_deg_type <- list.map(
 ```
 
 ```{r}
-top50 <- map(
+common_genes <- map(
   list(
     up = \(x) x > 0,
     down = \(x) x < 0
@@ -98,12 +98,13 @@ top50 <- map(
             gene = gene_name,
             median_rank = (rank_pfc_WT + rank_pfc_KO) / 2
           ) %>%
-          arrange(median_rank) %>%
-          slice_min(order_by = median_rank, n = 50, with_ties = FALSE)
+          arrange(median_rank) # %>%
+          # slice_min(order_by = median_rank, n = 50, with_ties = FALSE)
       }
     )
   }
 )
+
 ```
 
 ```{r}
@@ -113,25 +114,43 @@ format_markers <- function(i) {
     mutate(cluster = factor(cluster, levels = names(i)))
 }
 
-top5_filtered <- list.map(
-  top50,
-  f(i) ~ format_markers(i) %>% 
+common_genes <- map2(common_genes$up, common_genes$down, function(up_df, down_df) {
+  bind_rows(up_df, down_df) %>%
+  arrange(median_rank)
+})
+
+
+save(common_genes, file = file.path(path_data, "_clustering_markers_common.rda"))
+
+top50 <-  list.map(
+  common_genes,
+  slice_min(., order_by = median_rank, n = 50, with_ties = FALSE)
+)
+  
+top5_filtered <- 
+  # list.map(
+  top50 %>%
+  # f(i) ~ 
+  #   i %>%
+    format_markers() %>% 
     filter(!duplicated(gene_name)) %>%
-    mutate(cluster = factor(cluster, levels = unique(top50$cluster))) %>%
+    mutate(cluster = factor(cluster, levels = unique(names(top50)))) %>%
     group_by(cluster) %>%
     slice_head(n = 5) %>%
     ungroup()
-  )
+  # )
 
-markers <- map(top50, ~format_markers(.x)) %>%
-  imap(
-    function(x, y) {
-  x %>% 
-    mutate(
-      cluster = fct_relabel(cluster, ~ paste0(.x, "_", y))
-    )
-})  %>%
-    list.rbind() %>%
+markers <- 
+  top50 %>% format_markers() %>%
+  # map(top50, ~format_markers(.x)) %>%
+  # imap(
+  #   function(x, y) {
+  # x %>% 
+    # mutate(
+    #   cluster = fct_relabel(cluster, ~ paste0(.x, "_", y))
+    # )
+# })  %>%
+    # list.rbind() %>%
   split(.$cluster) %>%
   map(~head(.x, 50)) %>%
   list.map(~pull(., gene_name) %>% unique()) %>%
@@ -147,12 +166,12 @@ if (pseudo) {
 }
 levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 
-list.map(
-  top5_filtered,
-  f(x) ~
-  plot_dot2(seurat, x, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+# list.map(
+  top5_filtered %>%
+  # f(x) ~
+  plot_dot2(seurat, ., split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
       geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
-)
+# )
 ```
 
 ```{r, fig.height=6, fig.width=12}
