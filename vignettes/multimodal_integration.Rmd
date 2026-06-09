@@ -41,18 +41,20 @@ load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
 seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "RNA"
+DefaultAssay(seurat) <- "SCT"
 rna <- seurat
-DefaultAssay(rna) <- "SCT"
 rna@meta.data[, "labels"] <- Idents(rna)
 ```
 
 ```{r}
-load(file.path(path_root, "atac_bcell_integrated2.rda"))
+# load(file.path(path_root, "atac_bcell_integrated3.rda"))
+load(file.path(path_root, "atac_bcell_integrated4.rda"))
+seurat@assays$ATAC_v5 <- NULL
 # load(file.path(path_root, "atac_bcell_wt2.rda"))
-seurat$labels <- seurat@meta.data[, "ATAC_snn_res.0.35"]
+seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "ATAC"
-seurat@assays$ATAC_v5 <- NULL
+DefaultAssay(seurat) <- "SCT"
 atac <- seurat
 gc()
 ```
@@ -64,7 +66,7 @@ options(future.globals.maxSize = 5 * 1024^3)
 DefaultAssay(seurat) <- "RNA"
 seurat[["RNA"]] <- split(
   seurat[["RNA"]],
-  f = seurat[[]][, "Patient"],
+  f = seurat[[]][, "Type"],
   layers = c("counts", "data")
 )
 seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
@@ -97,13 +99,18 @@ seurat <- FindClusters(
   resolution = resolution_tot,
   graph.name = tail(names(seurat@graphs), 1)
 )
+seurat <- RunUMAP(
+  seurat, 
+  dims = dims,
+  reduction = integration_method
+)
 
 DefaultAssay(seurat) <- "RNA"
 seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
     ScaleData()
 
-save(seurat, file = file.path(path_root, "atac_bcell_wt2.rda"))
+save(seurat, file = file.path(path_root, "atac_bcell_integrated4.rda"))
 ```
 
 ## Learning
