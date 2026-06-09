@@ -36,25 +36,30 @@ integration_method <- "RPCA"
 
 ## Data
 ```{r}
-# load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
-load(file.path(path_root, "rna_bcell_wt.rda"))
-seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.2"]
+load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
+# load(file.path(path_root, "rna_bcell_wt.rda"))
+seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "RNA"
 rna <- seurat
+DefaultAssay(rna) <- "SCT"
 rna@meta.data[, "labels"] <- Idents(rna)
-# load(file.path(path_root, "atac_bcell_integrated2.rda"))
-load(file.path(path_root, "atac_bcell_wt.rda"))
-seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.15"]
-seurat <- reorder_idents(seurat, "labels")
-seurat$modality <- "ATAC"
-atac <- seurat
-atac@assays$ATAC_v5 <- NULL
 ```
 
-```{r, eval = FALSE}
+```{r}
+load(file.path(path_root, "atac_bcell_integrated2.rda"))
+# load(file.path(path_root, "atac_bcell_wt2.rda"))
+seurat$labels <- seurat@meta.data[, "ATAC_snn_res.0.35"]
+seurat <- reorder_idents(seurat, "labels")
+seurat$modality <- "ATAC"
+seurat@assays$ATAC_v5 <- NULL
+atac <- seurat
+gc()
+```
+
+```{r}
 options(future.globals.maxSize = 5 * 1024^3)
-seurat <- subset(seurat, subset = Type == target_type)
+# seurat <- subset(seurat, subset = Type == target_type)
 
 DefaultAssay(seurat) <- "RNA"
 seurat[["RNA"]] <- split(
@@ -62,7 +67,8 @@ seurat[["RNA"]] <- split(
   f = seurat[[]][, "Patient"],
   layers = c("counts", "data")
 )
-seurat <- SCTransform(seurat, vars.to.regress = c("S.Score", "G2M.Score"))   seurat <- RunPCA(seurat, npcs = max_dim, features = VariableFeatures(seurat))
+seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
+seurat <- RunPCA(seurat, npcs = max_dim)#, features = VariableFeatures(seurat))
 
 seurat <- IntegrateLayers(
     object = seurat,
@@ -97,7 +103,7 @@ seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
     ScaleData()
 
-save(seurat, file = file.path(path_root, "atac_bcell_wt.rda"))
+save(seurat, file = file.path(path_root, "atac_bcell_wt2.rda"))
 ```
 
 ## Learning
@@ -106,12 +112,13 @@ rna@assays$SCT@scale.data <- matrix()
 atac@assays$SCT@scale.data <- matrix()
 seurat <- merge(rna, y = atac)
 seurat <- JoinLayers(seurat, assay = "RNA")
+DefaultAssay(seurat) <- "SCT"
 
 anchors <- FindTransferAnchors(
   reference = rna,
   query = seurat,
   # query.assay = assay,
-  # normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+  normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
   reference.reduction = integration_method,
   # reduction = tolower(integration_method),
   dims = dims
@@ -147,6 +154,6 @@ seurat$modality <- fct_relevel(seurat$modality, "RNA")
 
 ## Session information
 ```{r end, echo = FALSE}
-save(seurat, file = file.path(path_root, "integrated_bcell_wt.rda"))
+save(seurat, file = file.path(path_root, "integrated_bcell_wt2.rda"))
 sessionInfo()
 ```
