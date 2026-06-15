@@ -31,35 +31,37 @@ source(
   "extdata"
 ), "conf.R"))
 
+SCT <- FALSE
 integration_method <- "RPCA"
 ```
 
 ## Data
 ```{r}
-load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
+# load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
+load(file.path(path_root, "rna_bcell_integrated5.rda"))
 # load(file.path(path_root, "rna_bcell_wt.rda"))
 seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "RNA"
-DefaultAssay(seurat) <- "SCT"
+DefaultAssay(seurat) <- "RNA"
 rna <- seurat
 rna@meta.data[, "labels"] <- Idents(rna)
 ```
 
 ```{r}
 # load(file.path(path_root, "atac_bcell_integrated3.rda"))
-load(file.path(path_root, "atac_bcell_integrated4.rda"))
+load(file.path(path_root, "atac_bcell_integrated5.rda"))
 seurat@assays$ATAC_v5 <- NULL
 # load(file.path(path_root, "atac_bcell_wt2.rda"))
-seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
+seurat$labels <- seurat@meta.data[, "RNA_snn_res.0.25"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "ATAC"
-DefaultAssay(seurat) <- "SCT"
+DefaultAssay(seurat) <- "RNA"
 atac <- seurat
 gc()
 ```
 
-```{r}
+```{r, eval = FALSE}
 options(future.globals.maxSize = 5 * 1024^3)
 # seurat <- subset(seurat, subset = Type == target_type)
 
@@ -69,7 +71,10 @@ seurat[["RNA"]] <- split(
   f = seurat[[]][, "Type"],
   layers = c("counts", "data")
 )
-seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
+# seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
+seurat <- NormalizeData(seurat) %>%
+  FindVariableFeatures() %>%
+  ScaleData()
 seurat <- RunPCA(seurat, npcs = max_dim)#, features = VariableFeatures(seurat))
 
 seurat <- IntegrateLayers(
@@ -105,30 +110,36 @@ seurat <- RunUMAP(
   reduction = integration_method
 )
 
-DefaultAssay(seurat) <- "RNA"
-seurat <- NormalizeData(seurat) %>%
-    FindVariableFeatures() %>%
-    ScaleData()
+# DefaultAssay(seurat) <- "RNA"
+# seurat <- NormalizeData(seurat) %>%
+#     FindVariableFeatures() %>%
+#     ScaleData()
 
-save(seurat, file = file.path(path_root, "atac_bcell_integrated4.rda"))
+save(seurat, file = file.path(path_root, "atac_bcell_integrated5.rda"))
 ```
 
 ## Learning
 ```{r}
 rna@assays$SCT@scale.data <- matrix()
-atac@assays$SCT@scale.data <- matrix()
-seurat <- merge(rna, y = atac)
-seurat <- JoinLayers(seurat, assay = "RNA")
-DefaultAssay(seurat) <- "SCT"
+# atac@assays$SCT@scale.data <- matrix()
+
+features <- SelectIntegrationFeatures(
+  object.list = list(rna, atac),
+  nfeatures = 3000,
+  assay = c("RNA", "RNA")
+)
 
 anchors <- FindTransferAnchors(
   reference = rna,
-  query = seurat,
-  # query.assay = assay,
+  query = atac,
+  query.assay = "RNA",
   normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
   reference.reduction = integration_method,
   # reduction = tolower(integration_method),
-  dims = dims
+  features = features,
+  dims = dims,
+  # k.filter = NA,
+  k.anchor = 50
 )
 ```
 
@@ -141,9 +152,9 @@ rna2 <- RunUMAP(
   return.model = TRUE
 )
 
-seurat <- MapQuery(
+atac <- MapQuery(
     anchorset = anchors,
-    query = seurat,
+    query = atac,
     reference = rna2,
     refdata = list(labels = "labels"),
     reduction.model = "umap"
@@ -154,9 +165,28 @@ cl_trans <- TransferData(
     dims = dims,
     refdata = Idents(rna)
   )
-seurat <- AddMetaData(seurat, metadata = cl_trans)
-seurat <- reorder_idents(seurat, "predicted.labels")
+atac <- AddMetaData(atac, metadata = cl_trans)
+atac <- reorder_idents(atac, "predicted.labels")
+atac[["umap"]] <- CreateDimReducObject(
+  embeddings = Embeddings(atac, "ref.umap"),
+  key = "umap_",
+  assay = DefaultAssay(atac)
+)
+
+rna[["umap"]] <- CreateDimReducObject(
+    embeddings = Embeddings(rna, "umap"),
+    key = "UMAP_",
+    assay = "RNA"
+)
+
+DefaultDimReduc(rna) <- "umap"
+
+seurat <- merge(rna, y = atac, merge.dr = TRUE)
+seurat <- JoinLayers(seurat, assay = "RNA")
 seurat$modality <- fct_relevel(seurat$modality, "RNA")
+DefaultDimReduc(seurat) <- "umap"
+plot_dim(seurat, split.by = "modality")
+plot_dim(rna) + plot_dim(seurat, group.by = "modality")
 ```
 
 ## Session information
