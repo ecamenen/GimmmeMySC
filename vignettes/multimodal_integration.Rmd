@@ -23,6 +23,7 @@ library("GimmmeMySC")
 library("GimmeMyPlot")
 library("Seurat")
 library("Signac")
+library("magrittr")
 
 source(
   file.path(file.path(
@@ -40,7 +41,12 @@ integration_method <- "RPCA"
 # load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
 load(file.path(path_root, "rna_bcell_integrated5.rda"))
 # load(file.path(path_root, "rna_bcell_wt.rda"))
-seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"]
+seurat$labels <- seurat@meta.data[, "RNA_snn_res.0.35"] -> Idents(seurat)
+seurat <- subset(
+    seurat,
+    idents = c("8", "9"),
+    invert = TRUE
+)
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "RNA"
 DefaultAssay(seurat) <- "RNA"
@@ -52,12 +58,18 @@ rna@meta.data[, "labels"] <- Idents(rna)
 # load(file.path(path_root, "atac_bcell_integrated3.rda"))
 load(file.path(path_root, "atac_bcell_integrated5.rda"))
 seurat@assays$ATAC_v5 <- NULL
+Idents(seurat) <- seurat@meta.data[, "ATAC_snn_res.0.35"]
+seurat <- subset(
+    seurat,
+    idents = c("6", "7"),
+    invert = TRUE
+)
 # load(file.path(path_root, "atac_bcell_wt2.rda"))
-seurat$labels <- seurat@meta.data[, "RNA_snn_res.0.25"]
+seurat$labels <- seurat@meta.data[, "RNA_snn_res.0.15"]
 seurat <- reorder_idents(seurat, "labels")
 seurat$modality <- "ATAC"
 DefaultAssay(seurat) <- "RNA"
-atac <- seurat
+atac <- seurat -> atac_old
 gc()
 ```
 
@@ -128,7 +140,10 @@ features <- SelectIntegrationFeatures(
   nfeatures = 3000,
   assay = c("RNA", "RNA")
 )
+```
 
+
+```{r}
 anchors <- FindTransferAnchors(
   reference = rna,
   query = atac,
@@ -143,15 +158,78 @@ anchors <- FindTransferAnchors(
 )
 ```
 
+```{r}
+n_anchors <- slot(anchors, "anchors") %>%
+  as.data.frame() %>% 
+  nrow() 
+Features(rna) %>% 
+  length() %>% 
+  divide_by(n_anchors, .) %>% 
+  multiply_by(100)
+
+anchor_df <- slot(anchors, "anchors") %>%
+  as.data.frame() %>% 
+  filter(score > 0.5)
+nrow(anchor_df)
+Features(rna) %>% 
+  length() %>% 
+  divide_by(nrow(anchor_df), .) %>%
+  multiply_by(100)
+```
+
+```{r, eval = FALSE}
+rna <- FindVariableFeatures(rna, nfeatures = 3000)
+atac <- FindVariableFeatures(atac, nfeatures = 3000)
+
+common_hvg <- intersect(VariableFeatures(rna), VariableFeatures(atac))
+length(common_hvg)
+```
+
+```{r, eval = FALSE}
+rna_expr <- GetAssayData(rna, assay = "RNA", layer = "data")[common_hvg, anchor_df$cell1]
+atac_expr <- GetAssayData(atac, assay = "RNA", layer = "data")[common_hvg, anchor_df$cell2]
+
+gene_cor <- sapply(common_hvg, function(g) {
+  cor(rna_expr[g, ], atac_expr[g, ], method = "spearman")
+})
+
+gene_cor_df <- data.frame(gene = common_hvg, cor = gene_cor) %>%
+  arrange(desc(cor))
+
+ggplot(gene_cor_df, aes(x = cor)) + geom_histogram(bins = 50)
+
+features_filtered <- gene_cor_df %>% 
+  filter(cor > 0.1) %>% 
+  pull(gene)
+
+length(features_filtered)
+```
+
+```{r, eval = FALSE}
+anchors2 <- FindTransferAnchors(
+  reference = rna,
+  query = atac,
+  query.assay = "RNA",
+  normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+  reference.reduction = integration_method,
+  # reduction = tolower(integration_method),
+  features = features_filtered,
+  dims = dims,
+  # k.filter = NA,
+  k.anchor = 50
+)
+```
+
+```{r, eval = FALSE}
+anchor_df <- slot(anchors2, "anchors") %>% as.data.frame()
+
+ggplot(anchor_df, aes(x = score)) +
+  geom_histogram(bins = 50) +
+  geom_vline(xintercept = 0.5, linetype = "dashed")
+```
+
 ## Transfer
 ```{r}
-rna2 <- RunUMAP(
-  rna,
-  dims = dims,
-  reduction = integration_method,
-  return.model = TRUE
-)
-
 atac <- MapQuery(
     anchorset = anchors,
     query = atac,
@@ -166,6 +244,15 @@ cl_trans <- TransferData(
     refdata = Idents(rna)
   )
 atac <- AddMetaData(atac, metadata = cl_trans)
+
+atac <- MappingScore(
+    anchorset = anchors,
+    ndim = length(dims)
+)
+
+VlnPlot(atac, "mapping.score")
+FeaturePlot(atac, "mapping.score")
+
 atac <- reorder_idents(atac, "predicted.labels")
 atac[["umap"]] <- CreateDimReducObject(
   embeddings = Embeddings(atac, "ref.umap"),
@@ -187,6 +274,96 @@ seurat$modality <- fct_relevel(seurat$modality, "RNA")
 DefaultDimReduc(seurat) <- "umap"
 plot_dim(seurat, split.by = "modality")
 plot_dim(rna) + plot_dim(seurat, group.by = "modality")
+
+table(seurat$Patient, seurat$modality) %>% 
+  rbind(Total = colSums(.)) %>% kable0()
+```
+
+## QC
+### Prediction scores
+```{r}
+median_score <- median(
+    seurat_atac$prediction.score.max,
+    na.rm = TRUE
+)
+
+plot_sc_violin(seurat_atac, features = "prediction.score.max", ncol = 1, nrow = 1)
+plot_feature(
+    seurat_atac,
+    features = "prediction.score.max",
+    reduction = "umap",
+    cluster = TRUE,
+    prob = .7,
+    label = TRUE
+)
+
+seurat_atac@meta.data %>%
+    group_by(predicted.labels) %>%
+    summarise(
+        median_score = median(prediction.score.max),
+        n = n()
+    )
+
+plot_sc_violin(
+    seurat,
+    features = paste0("prediction.score.", levels(Idents(seurat))),
+    nrow = 2,
+    ncol = 5
+)
+```
+
+### Correlation
+```{r}
+rna.pb <- AggregateExpression(
+    subset(seurat_rna, Type == "WT"),
+    group.by = "labels"
+)$RNA
+
+atac.pb <- AggregateExpression(
+    subset(seurat_atac, Type == "WT"),
+    group.by = "predicted.labels"
+)$RNA
+
+common <- intersect(
+    rownames(rna.pb),
+    rownames(atac.pb)
+)
+
+plot_cor(
+    rowMeans(rna.pb[common, ]),
+    rowMeans(atac.pb[common, ]),
+    method = "spearman"
+) + 
+  scale_x_log10() + 
+  scale_y_log10() +
+  labs(x = "RNA", y = "ATAC")
+```
+
+### Entropy
+```{r}
+score_cols <- grep(
+    "^prediction.score.",
+    colnames(seurat_atac@meta.data),
+    value = TRUE
+)
+
+entropy <- apply(
+    seurat_atac@meta.data[, score_cols],
+    1,
+    function(x) {
+        x <- x / sum(x)
+        -sum(x * log(x + 1e-12))
+    }
+)
+
+seurat_atac$prediction_entropy <- entropy
+
+plot_sc_violin(seurat_atac, features = "prediction_entropy", ncol = 1, nrow = 1)
+plot_feature(
+    seurat_atac,
+    features = "prediction_entropy",
+    reduction = "ref.umap"
+)
 ```
 
 ## Session information
