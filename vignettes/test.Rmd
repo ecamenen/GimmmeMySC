@@ -1,0 +1,132 @@
+---
+title: "test"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{test}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/test/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r setup, message=FALSE}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Signac")
+library("Seurat") 
+library("cowplot")
+library("rlist")
+library("scales")
+
+path <- file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+)
+
+source(file.path(path, "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "test")
+techno <- ""
+col_inds <- c("#FB9A99", "#E31A1C", "#B2DF8A", "#33A02C")
+```
+
+# Load data
+```{r}
+load(file.path(path_data, "atac_merged.rda"))
+seurat <- seurat_merged
+
+seurat$Patient <- paste0(seurat$Type, str_remove_all(seurat$Patient, "cellrangeronlyATACcount"))
+Idents(seurat) <- "Patient"
+seurat_old <- seurat
+
+load(file.path(path_data, "atac6.rda"))
+```
+
+## Quality control
+```{r}
+features_supp0 <- c("unmapped", ifelse(techno == "atac", "dup", "duplicate"), "mitochondrial")
+
+if (techno == "atac") {
+  metadata_reads <- "atac_raw_reads"
+  metadata_fragments <- "atac_fragments"
+  techno2 <- "atac_"
+} else{
+  metadata_reads <- "total"
+  metadata_fragments <- "passed_filters"
+  techno2 <- ""
+}
+
+features_atac <- c(
+  paste0("nCount", "_", assay),
+  paste0("nFeature", "_", assay),
+  "nucleosome_signal",
+  "TSS.enrichment",
+  "percent_reads_in_peaks",
+  "blacklist_ratio"
+)
+
+features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
+```
+
+```{r, fig.height = 5, fig.width = 10}
+plot_sc_violin(
+    seurat,
+    features = c(features_atac[-6], "passed_filters"),
+    assay = "ATAC",
+    cols = col_inds,
+    nrow = 2,
+    normalize = c(10, 10, 2, 10, 0, 10)
+)
+
+plot_sc_violin(
+    seurat,
+    features = c(features_supp, features_atac[6]),
+    assay = "ATAC",
+    cols = col_inds,
+    nrow = 2,
+    normalize = c(2, 10, 2, 10, 10, 0),
+    breaks = list(c(20, 10, 5, 1), c(100, 10, 1, .1), c(50, 25, 10, 1), c(10, 1, .5, 0), c(.01, 0))
+)
+
+list.map(
+        c("nCount_ATAC", "percent_mitochondrial"),
+        f(i, j) ~ {
+            density_scatter(
+                seurat,
+                x = i,
+                y = "nFeature_ATAC",
+                assay = "ATAC",
+                log_x = TRUE,
+                log_y = TRUE
+            )
+        }
+    ) %>% plot_grid(plotlist = ., align = "hv")
+```
+
+```{r}
+kable_stats(seurat, assay = "ATAC", features = c(features_atac, "passed_filters", features_supp), file = file.path(path_fig, "table_stats.png"))
+```
+
+```{r, fig.height = 8, eval = FALSE}
+plot_bar_doublet(seurat)
+```
+
+```{r, fig.height = 8, eval = FALSE}
+plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
+```
+
+```{r}
+sessionInfo()
+```

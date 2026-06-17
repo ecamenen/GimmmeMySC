@@ -1,0 +1,99 @@
+---
+title: "test2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{test2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/test2/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+## Setup
+```{r init, message = FALSE}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("rlist")
+library("cowplot")
+library("SingleR")
+library("RColorBrewer")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", "ATAC")
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "test2")
+```
+
+## Load data
+```{r}
+load(file.path(path_data, "atac8.rda"))
+load(file = file.path(path_data, "annotation.rda"))
+```
+
+```{r}
+array <- "RNA"
+DefaultAssay(seurat) <- "RNA"
+seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
+seurat <- set_percent(seurat)
+```
+
+### Visualization
+```{r}
+seurat <- format_celltype(seurat, annotation, path_fig = path_fig)
+```
+
+```{r}
+plotScoreHeatmap(
+  annotation[["cell_type"]],
+  color = colorRampPalette(brewer.pal(9, "Reds"))(100)
+)
+```
+
+```{r}
+seurat <- format_celltype(seurat, annotation, type = "cell_subtype", path_fig = path_fig)
+
+seurat$cell_type_formatted <- remove_parenthesis(seurat$cell_subtype)
+seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))
+```
+
+```{r}
+plotDeltaDistribution(
+    annotation[["cell_type"]],
+    labels.use = remove_parenthesis(seurat$cell_subtype_raw),
+    size = .5,
+    pruned.color = "red"
+)
+```
+
+```{r}
+plotDeltaDistribution(
+    annotation[["cell_subtype"]],
+    ncol = 10,
+    size = .5,
+    pruned.color = "red"
+)
+```
+
+## Save data
+```{r}
+save(seurat, file = file.path(path_data, "atac9.rda"))
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```

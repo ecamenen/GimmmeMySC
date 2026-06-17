@@ -1,0 +1,57 @@
+---
+title: "test6"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{test6}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r config, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/test6/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+## Setup
+```{r init, message = FALSE}
+library("GimmmeMySC")
+library("GimmeMyPlot")
+library("Seurat")
+library("rlist")
+library("clustree")
+library("magrittr")
+library("harmony")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+# basename(rstudioapi::getSourceEditorContext()$path)
+
+cell_label <- "cell_type_formatted"
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "test6")
+integration_method <- "Harmony"
+```
+
+## Load data
+```{r}
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+# seurat@assays$SCT@scale.data <- matrix()
+# seurat <- subset(seurat, subset = Type == target_type)
+DefaultAssay(seurat) <- assay
+```
+
+## QC
+```{r, fig.height = 5, fig.width = 10}
+plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
+```

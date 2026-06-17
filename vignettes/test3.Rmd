@@ -1,0 +1,83 @@
+---
+title: "test3"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{test3}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/test3/",
+  fig.width = 8,
+  fig.height = 3.7,
+  dpi = 300
+)
+```
+
+```{r setup}
+library("GimmmeMySC")
+library("Seurat")
+library("GimmeMyPlot")
+library("cowplot")
+library("RColorBrewer")
+library("viridis")
+
+source(
+  file.path(file.path(
+  dirname(getwd()),
+  "inst",
+  "extdata"
+), "conf.R"))
+
+path_fig <- file.path(dirname(getwd()), "vignettes", "figures", "qc_cluster")
+cell_label <- "cell_subtype_formatted"
+```
+
+```{r}
+load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+Idents(seurat) <- snn_cluster
+
+l_markers <- list(Myeloid = c("C1qa", "C1qb", "C1qc", "Vcam1"), `B cell` = c("Cd79a", "Cd79b", "Pax5"), Erythroid = c("Alas2", "Epb42", "Gypa", "Spta1", "Sptb", "Slfn14", "Snca", "Tmcc2", "Trim10", "Rsad2"), `T cell` = c("CD3E", "TRBC1", "TRAC") %>% func_format(), `NK cell` =  c("NCAM1", "ITGB2", "CX3CR1") %>% func_format())
+# NCAM1 = CD56
+markers <- unlist(l_markers) %>% unname() %>% .[. %in% Features(seurat)]
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_dot(seurat, features = markers)
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_mfeature(seurat, markers, pt.size = .25, ncol = 1)
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_violin_sc(seurat, features = markers) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r, message = FALSE, fig.height = 8, fig.width = 16}
+plot_feature(seurat, markers, pt.size = .25, cols = brewer.pal(9, "Reds")) %>%
+    plot_grid(plotlist = ., align = "hv")
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12, eval = FALSE}
+plot_mfeature(seurat, markers, , pt.size = .25, ncol = 1, cols = pal_gradient_sc)
+```
+
+```{r, message = FALSE, fig.height = 6, fig.width = 12}
+plot_marker_split(seurat, l_markers, normalize = TRUE, n_line = length(Idents(seurat)), cols = rev(pal_discrete_sc[seq(2)]))
+```
+
+```{r}
+plot_sc_violin(seurat, features = "percent_hemoglobin", ncol = 1, nrow = 1)
+print_sc_stats2(seurat, features = "percent_hemoglobin")
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
