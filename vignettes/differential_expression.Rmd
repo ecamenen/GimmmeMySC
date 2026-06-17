@@ -83,7 +83,7 @@ if (isFALSE(pseudo)) {
 ```{r}
 if (isTRUE(pseudo)) {
   library("DESeq2")
-  min_exp <- 10
+  min_exp <- 50
   
   table(Idents(seurat), seurat$Type) %>%
     kable_sc(file = file.path(path_fig, "table_cell_before.png"))
@@ -167,12 +167,12 @@ if (ncol(gene_count) != nrow(metadata_samples))
             name_id = "gene_name"
         ) %>%
             mutate(
-                Expression = ifelse(
-                    gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".WT")]] > pct_threshold] |
-                        gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".KO")]] > pct_threshold],
-                    Expression,
-                    "ns"
-                ),
+                # Expression = ifelse(
+                #     gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".WT")]] > pct_threshold] |
+                #         gene_name %in% cell_pct$gene_name[cell_pct[[paste0(name_cl, ".KO")]] > pct_threshold],
+                #     Expression,
+                #     "ns"
+                # ),
                 gene = gene_name
             )
     }
