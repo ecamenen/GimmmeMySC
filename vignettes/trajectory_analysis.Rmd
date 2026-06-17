@@ -49,10 +49,11 @@ start_cluster <- 6
 ## Monocle
 ```{r}
 cds <- as.cell_data_set(seurat)
-```
 
-```{r}
-names(cds@clusters$UMAP$partitions) <- colnames(cds)
+cds@clusters$UMAP$clusters <- factor(seurat$seurat_clusters)
+cds@clusters$UMAP$partitions <- factor(rep(1, ncol(cds)))
+names(cds@clusters$UMAP$clusters) <- colnames(cds) -> names(cds@clusters$UMAP$partitions)
+
 root_cells <- colnames(cds)[cds@clusters$UMAP$clusters == start_cluster]
 
 cds <- learn_graph(cds, use_partition = FALSE) %>%
