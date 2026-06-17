@@ -183,6 +183,7 @@ plot_feature <- function(
      split.by = NULL,
      cluster = FALSE,
      label = FALSE,
+     prob = 0.95,
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
@@ -211,10 +212,12 @@ plot_feature <- function(
         ...
     )
 
+    umap_coords <- Embeddings(object, reduction = "umap") %>%
+        set_colnames(str_to_lower(colnames(.))) %>%
+        as.data.frame() %>%
+        mutate(cluster = Idents(object))
+
     if (cluster) {
-        umap_coords <- Embeddings(object, reduction = "umap") %>%
-            as.data.frame() %>%
-            mutate(cluster = Idents(object))
 
         hulls <- umap_coords %>%
             group_by(cluster) %>%
@@ -223,13 +226,9 @@ plot_feature <- function(
                 centroid_y = mean(umap_2),
                 dist = sqrt((umap_1 - centroid_x)^2 + (umap_2 - centroid_y)^2)
             ) %>%
-            filter(dist <= quantile(dist, 0.95)) %>%
+            filter(dist <= quantile(dist, prob)) %>%
             dplyr::slice(chull(umap_1, umap_2)) %>%
             ungroup()
-
-        centroids <- umap_coords %>%
-            group_by(cluster) %>%
-            summarise(umap_1 = mean(umap_1), umap_2 = mean(umap_2))
 
         p <- p %>%
             list.map(
@@ -243,19 +242,26 @@ plot_feature <- function(
                 inherit.aes = FALSE
             )
             )
-        if (label)
-            p <- p %>%
-            list.map(
-                f(i) ~ i +
-                    geom_text(
-                data = centroids,
-                aes(x = umap_1, y = umap_2, label = cluster),
-                size = 5,
-                color = "black",
-                fontface = "bold",
-                inherit.aes = FALSE
-            )
-            )
+    }
+
+    if (label) {
+
+        centroids <- umap_coords %>%
+            group_by(cluster) %>%
+            summarise(umap_1 = mean(umap_1), umap_2 = mean(umap_2))
+
+        p <- p %>%
+        list.map(
+            f(i) ~ i +
+                geom_text(
+                    data = centroids,
+                    aes(x = umap_1, y = umap_2, label = cluster),
+                    size = 5,
+                    color = "black",
+                    fontface = "bold",
+                    inherit.aes = FALSE
+                )
+        )
     }
 
     p %>%
