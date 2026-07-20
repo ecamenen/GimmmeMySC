@@ -47,3 +47,4 @@ path_fig <- file.path(path_root, "bin", "GimmmeMySC", "vignettes",  knitr::opts_
 seurat_dataset <- "rna_allcell4"
 # seurat_dataset <- "rna_bcell_integrated2abc"
 # seurat_dataset <- paste0(seurat_dataset, "_", target_type)
+reorder_ident <- c("2", "5", "0", "1", "3", "4", "6", "7")

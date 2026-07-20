@@ -158,6 +158,7 @@ for (x in unique(Idents(seurat)))
 ## Markers
 ### From dataset
 ```{r, message = FALSE}
+DefaultAssay(seurat) <- "RNA"
 data("jcb_markers")
 plot_module(seurat, jcb_markers, cols = pal_discrete_sc)
 ```

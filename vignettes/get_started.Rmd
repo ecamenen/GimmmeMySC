@@ -63,7 +63,7 @@ if (assay == "ATAC") {
   library("Signac")
   seurat <- RunTFIDF(seurat)
   seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
-  seurat <- RunSVD(seurat, n = n_dim)
+  seurat <- RunSVD(seurat, n = max_dim)
   
   DepthCor(seurat, n = 20) + 
     theme_custom() + 

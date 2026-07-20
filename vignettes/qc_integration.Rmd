@@ -35,7 +35,6 @@ source(
 
 old_ident <- snn_cluster
 new_ident <- snn_cluster
-reorder_ident <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 # old_ident <- "old_labels"
 # new_ident <- "predicted.labels"
 ```
@@ -138,8 +137,10 @@ Idents(seurat_subset) <- snn_cluster
 
 ## Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
+DefaultAssay(seurat) <- "RNA"
 data("l_bcell_markers2")
 plot_marker_split(seurat, l_bcell_markers2)
+DefaultAssay(seurat_subset) <- "RNA"
 plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE)
 ```
 
@@ -151,6 +152,8 @@ plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE)
 
 ## Cell per cluster
 ```{r}
+DefaultAssay(seurat) <- assay
+DefaultAssay(seurat_subset) <- assay
 seurat_subset <- subsampling_sc(seurat) %>%
   subset(subset = Type == target_type)
 seurat <- subset(seurat, subset = Type == target_type)
@@ -213,7 +216,9 @@ confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, margin = 2
 ## Cell markers
 ### From microarray
 ```{r, message = FALSE}
+DefaultAssay(seurat) <- "RNA"
 plot_module(seurat, jcb_markers)
+DefaultAssay(seurat) <- assay
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
