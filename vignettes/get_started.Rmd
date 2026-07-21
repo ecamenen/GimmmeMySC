@@ -115,6 +115,7 @@ comp_genes <- list.map(
         rownames()
 ) %>% set_names(dims)
 
+if (assay == "RNA")
 list.map(
   lapply(cc.genes, func_format),
   f(i) ~lapply(comp_genes, function(x) x[x %in% func_format(i)]) %>% compact()
@@ -189,7 +190,6 @@ if (assay == "ATAC") {
     dims.to.integrate = dims,
     verbose = TRUE
   )
-  seurat@assays$ATAC_v5 <- NULL
 } else {
     seurat <- IntegrateLayers(
         object = seurat,
@@ -316,6 +316,11 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3)
 
 ## Save data
 ```{r}
+if (assay == "ATAC") {
+  DefaultAssay(seurat) <- "ATAC" 
+   seurat@assays$ATAC_v5 <- NULL
+}
+
 Idents(seurat) <- seurat[[]][, snn_cluster]
 if (split.by == "Patient") {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))

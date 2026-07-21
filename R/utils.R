@@ -855,14 +855,21 @@ remove_low_cells <- function(x, label = "cell_subtype_formatted", n = 25) {
 }
 
 #' @export
-load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2) {
+load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, subset = TRUE) {
     load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 
+    if (subset)
     seurat_subset <- subsampling_sc(seurat) %>%
         subset(subset = Type == target_type)
+    else
+        seurat_subset <- seurat
 
     if (split.by != "Type") {
+        if (subset) {
         load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+        } else {
+            load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+        }
         seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
         n_idents <- nlevels(Idents(seurat))
         if (n_idents > length(pal_discrete_sc))
