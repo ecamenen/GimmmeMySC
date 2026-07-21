@@ -51,14 +51,14 @@ seurat <- subset(
     idents = c("8", "9"),
     invert = TRUE
 )
-seurat$modality <- "RNA"
-DefaultAssay(seurat) <- "RNA"
 rna <- RunUMAP(
   seurat,
   dims = dims,
   reduction = integration_method,
   return.model = TRUE
 )
+seurat$modality <- "RNA"
+DefaultAssay(seurat) <- "RNA"
 ```
 
 ```{r}
@@ -144,7 +144,12 @@ rna@assays$SCT@scale.data <- matrix()
 # atac@assays$SCT@scale.data <- matrix()
 
 load("/shared/projects/immunaid/data/dobino_1124/rna_bcell_integrated7abcd_clustering_markers.rda")
-l_deg_top <- l_deg %>%
+l_deg_markers <- l_deg %>%
+  list.map(filter(., log2FoldChange > 0))
+load("/shared/projects/immunaid/data/dobino_1124/rna_bcell_integrated7abcd_clustering_markers.rda")
+l_deg_top <- list.map(
+  list(l_deg, l_deg_markers),
+  f(i) ~i %>%
   .[!names(.) %in% c("8", "9")] %>%
   list.map(
   f(x) ~ top_genes(
@@ -154,10 +159,19 @@ l_deg_top <- l_deg %>%
     n = Inf,
     return_rank  = TRUE
   ) %>%
-    filter(log2FoldChange > 0)
+    pull("gene_name") %>%
+    head(100) %>%
+    sort()
+) %>%
+  unlist(.) %>% unique()
 )
-features <- list.map(l_deg_top, pull(., "gene_name") %>% head(500) %>% sort()) %>% unlist() %>% unique()
+# features <- list.map(
+#   names(l_deg_top),
+#   f(x) ~ setdiff(l_deg_top[[x]], l_deg_top_old[[x]])
+# ) %>%
+#   unlist() %>% unique() %>% sort()
 
+features <- setdiff(l_deg_top[[1]], l_deg_top[[2]])
 # features <- SelectIntegrationFeatures(
 #   object.list = list(rna, atac),
 #   nfeatures = 3000,
@@ -177,7 +191,7 @@ anchors <- FindTransferAnchors(
   features = features,
   dims = dims,
   # k.filter = NA,
-  k.anchor = 50
+  k.anchor = 200
 )
 ```
 
@@ -198,6 +212,12 @@ ggplot(anchor_df, aes(x = score)) +
 anchor_df <- filter(anchor_df, score > 0.5)
 nrow(anchor_df)
 nrow(anchor_df) / n_anchors * 100
+100 * length(
+    unique(anchor_df[, 1])
+) / ncol(rna)
+100 * length(
+    unique(anchor_df[, 2])
+) / ncol(atac)
 ```
 
 ```{r, eval = FALSE}
@@ -239,7 +259,7 @@ anchors2 <- FindTransferAnchors(
   features = features_filtered,
   dims = dims,
   # k.filter = NA,
-  k.anchor = 50
+  k.anchor = 200
 )
 
 anchor_df <- slot(anchors2, "anchors") %>% as.data.frame()
@@ -364,7 +384,7 @@ confusing_table(atac, new_ident = new_ident, old_ident = old_ident, margin = 2)
 ```
 
 ### Correlation
-```{r}
+```{r, eval = FALSE}
 rna.pb <- AggregateExpression(
     subset(seurat_rna, Type == "WT"),
     group.by = "labels"
@@ -391,7 +411,7 @@ plot_cor(
 ```
 
 ### Entropy
-```{r}
+```{r, eval = FALSE}
 score_cols <- grep(
     "^prediction.score.",
     colnames(seurat_atac@meta.data),
