@@ -855,7 +855,7 @@ remove_low_cells <- function(x, label = "cell_subtype_formatted", n = 25) {
 }
 
 #' @export
-load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, subset = TRUE) {
+load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated = TRUE) {
     load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 
     if (subset)

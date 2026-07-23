@@ -36,7 +36,7 @@ cell_label <- "cell_subtype_formatted"
 
 ## Load data
 ```{r data}
-list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, FALSE) 
+list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated) 
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
 pal_discrete_sc <- list_param$pal_discrete_sc

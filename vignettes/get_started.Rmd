@@ -51,7 +51,7 @@ if (assay == "ATAC") {
 ```{r}
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 # seurat@assays$SCT@scale.data <- matrix()
-if (split.by == "Patient")
+if (integrated & split.by == "Patient")
   seurat <- subset(seurat, subset = Type == target_type)
 DefaultAssay(seurat) <- assay
 ```
@@ -325,10 +325,10 @@ if (assay == "ATAC") {
 }
 
 Idents(seurat) <- seurat[[]][, snn_cluster]
-if (split.by == "Patient") {
+if (integrated) {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
 } else {
-  save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
+  save(seurat, file = file.path(path_data, paste0(seurat_dataset, "c.rda")))
 }
 ```
 

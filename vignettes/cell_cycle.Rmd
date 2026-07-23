@@ -53,10 +53,14 @@ if (isFALSE(SCT)) {
 }
 seurat <- RunPCA(seurat, features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% func_format())
 
-plot_dim_cycle(seurat)
-seurat_subset <- subsampling_sc(seurat)
-plot_dim_cycle0(seurat_subset, split.by = "Type")
-plot_dim_cycle0(seurat_subset, split.by = "Patient")
+plot_dim_cycle(seurat, reduction = "pca")
+if (integrated) {
+  seurat_subset <- subsampling_sc(seurat)
+} else {
+  seurat_subset <- seurat
+}
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Type")
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Patient")
 ```
 
 ## Cell cycle regression
@@ -82,10 +86,14 @@ seurat2 <- RunPCA(
   features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>%
     func_format()
 )
-plot_dim_cycle(seurat2)
-seurat_subset <- subsampling_sc(seurat2)
-plot_dim_cycle0(seurat_subset, split.by = "Type")
-plot_dim_cycle0(seurat_subset, split.by = "Patient")
+plot_dim_cycle(seurat2, reduction = "pca")
+if (integrated) {
+  seurat_subset <- subsampling_sc(seurat2)
+} else {
+  seurat_subset <- seurat2
+}
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Type")
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Patient")
 ```
 
 ```{r}
