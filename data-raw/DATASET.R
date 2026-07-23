@@ -98,6 +98,21 @@ l_bcell_markers2 <- list(
 
 usethis::use_data(l_bcell_markers2, overwrite = TRUE)
 
+cell_markers <- list(
+    Bcells <- c("Ptprc", "Cd19", "Cd79a", "Cd79b", "H2-Ab1", "Cd24a", "Ighm", "Ighd", "Fcer2a", "Cr2"),
+
+    Tcells = c("Cd3e", "Cd4", "Cd8a", "Trbc2", "Thy1", "Cd5", "Il2ra", "Cd44", "Sell", "Il7r"),
+
+    Neutrophils = c("Ly6g", "Itgam", "Ly6c1", "Cxcr2", "Fcgr3", "Ly6c2", "Cd177", "Mpo", "Sell", "Cd101"),
+
+    Monocytes = c("Itgam", "Ly6c2", "Csf1r", "Adgre1", "Cx3cr1", "Ccr2", "H2-Ab1", "Spn", "Itgax", "Ly6g"),
+
+    Eosinophils = c("Siglecf", "Itgam", "Ccr3", "Il5ra", "Ly6g", "Adgre1", "Itgax", "Ly6c1", "Ptprc"),
+
+    DCs = c("Itgax", "H2-Ab1", "Cd8a", "Itgam", "Itgae", "Cd86", "Cd80", "Flt3", "Xcr1", "Siglech")
+)
+
+usethis::use_data(cell_markers, overwrite = TRUE)
 
 ##### Microarray markers
 path <- file.path(
@@ -125,21 +140,24 @@ assay <- "RNA"
 id <- 8
 path_data <- file.path("C:", "Users", "etien", "DATA", "dobino", assay)
 
-seurat <- list.map(
-    c("WT", "KO"),
-    f(x) ~{
-        gc()
-        load(file.path(path_data, paste0(str_to_lower(assay), "_allcell", id, "b_", x, ".rda")))
-        # if (!is.null(seurat@assays$SCT)) {
-            # seurat@assays$SCT@scale.data <- matrix()
-        # }
-        subset(
-            seurat,
-            subset = cell_type_formatted %in% "B cell" &
-                !str_detect(cell_subtype_formatted, "FRA|CLP")
-        )
-    }
-) %>% Reduce(function(x, y) merge(x, y), .)
+load_seurat <- function(x) {
+    gc()
+    load(file.path(path_data, paste0(str_to_lower(assay), "_allcell", id, "b_", x, ".rda")))
+    # if (!is.null(seurat@assays$SCT)) {
+    # seurat@assays$SCT@scale.data <- matrix()
+    # }
+    subset(
+        seurat,
+        subset = cell_type_formatted %in% "B cell" &
+            !str_detect(cell_subtype_formatted, "FRA|CLP")
+    )
+}
+
+# seurat <- list.map(
+#     c("WT", "KO"),
+#     load_seurat(.)
+# ) %>% Reduce(function(x, y) merge(x, y), .)
+seurat <- load_seurat("WT")
 seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
 seurat$cell_subtype_formatted <- keep_parenthesis(seurat$cell_subtype) %>% factor(levels = reorder_celltype(.))

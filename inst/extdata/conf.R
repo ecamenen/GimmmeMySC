@@ -12,7 +12,6 @@ if (assay == "ATAC") {
     SCT <- FALSE
     reduction <- "lsi"
     path <- "ATAC"
-    dims <- dims[-c(1)]
 } else {
     if (SCT) {
         assay <- "SCT"
