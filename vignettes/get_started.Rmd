@@ -115,11 +115,14 @@ comp_genes <- list.map(
         rownames()
 ) %>% set_names(dims)
 
-if (assay == "RNA")
-list.map(
-  lapply(cc.genes, func_format),
-  f(i) ~lapply(comp_genes, function(x) x[x %in% func_format(i)]) %>% compact()
-) %>% set_names(c("G2/M", "S"))
+if (assay == "ATAC") {
+  dims <- filter_depth_cor(seurat) %>% head(n_dim)
+} else {
+  list.map(
+    lapply(cc.genes, func_format),
+    f(i) ~lapply(comp_genes, function(x) x[x %in% func_format(i)]) %>% compact()
+  ) %>% set_names(c("G2/M", "S"))
+}
 ```
 
 ### Component markers

@@ -940,3 +940,11 @@ format_gene <- function(x) {
 inverser_vs <- function(texte) {
     str_replace(texte, "(.*) vs (.*)", "\\2 vs \\1")
 }
+
+#' @export
+filter_depth_cor <- function(object, cor.cutoff = 0.5) {
+    embeddings <- Embeddings(object, reduction = "lsi")
+    cor.values <- apply(embeddings, 2, function(x) cor(x, object$nCount_ATAC, method = "spearman"))
+    keep.mask <- abs(cor.values) <= cor.cutoff
+    as.numeric(gsub("[^0-9]", "", names(cor.values)[keep.mask]))
+}
