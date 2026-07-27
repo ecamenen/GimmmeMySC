@@ -29,6 +29,7 @@ library("scales")
 library("GenomicRanges")
 library("scDblFinder")
 library("AnnotationHub")
+library("GenomeInfoDb")
 # BiocManager::install("ensembldb")
 # biovizBase
 
@@ -316,7 +317,7 @@ sce <- scDblFinder(
 )
 table(sce$scDblFinder.class)
 
-seurat$doublets <- sce[, row.names(seurat[[]])]$scDblFinder.class
+seurat$scDblFinder <- sce[, row.names(seurat[[]])]$scDblFinder.class
 seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
 
 plot_bar_doublet(seurat)
