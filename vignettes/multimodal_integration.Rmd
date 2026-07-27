@@ -34,11 +34,8 @@ source(
   "extdata"
 ), "conf.R"))
 
-SCT <- FALSE
-if (isTRUE(integrated))
-  integration_method <- "RPCA"
-else
-  integration_method <- "Harmony"
+SCT <- TRUE
+integration_method <- "RPCA"
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 ```
@@ -49,9 +46,9 @@ p_threshold <- .05
 # load(file.path(path_root, "rna_bcell_integrated5.rda"))
 load(file.path(path_data0, "RNA", "rna_bcell_WT6abc.rda"))
 seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"] -> Idents(seurat)
-seurat <- subset(
+rna <- subset(
     seurat,
-    idents = c("8", "9"),
+    idents = c("8"),#, "9"),
     invert = TRUE
 )
 rna <- RunUMAP(
@@ -87,6 +84,8 @@ gc()
 
 ```{r, eval = FALSE}
 options(future.globals.maxSize = 5 * 1024^3)
+vars.to.regress <- NULL
+# vars.to.regress = c("S.Score", "G2M.Score")
 # seurat <- subset(seurat, subset = Type == target_type)
 
 DefaultAssay(seurat) <- "RNA"
@@ -95,11 +94,14 @@ seurat[["RNA"]] <- split(
   f = seurat[[]][, split.by],
   layers = c("counts", "data")
 )
-# seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
-seurat <- NormalizeData(seurat) %>%
-  FindVariableFeatures() %>%
-  ScaleData()
-seurat <- RunPCA(seurat, npcs = max_dim)#, features = VariableFeatures(seurat))
+if (SCT) {
+  seurat <- SCTransform(seurat, vars.to.regress = vars.to.regress)
+} else {
+  seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures() %>%
+    ScaleData(vars.to.regress = vars.to.regress)
+  seurat <- RunPCA(seurat, npcs = max_dim)#, features = VariableFeatures(seurat))
+}
 
 seurat <- IntegrateLayers(
     object = seurat,
@@ -131,16 +133,12 @@ seurat <- FindClusters(
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction = integration_method
+  reduction = integration_method,
+  return.model = TRUE
 )
 
-# DefaultAssay(seurat) <- "RNA"
-# seurat <- NormalizeData(seurat) %>%
-#     FindVariableFeatures() %>%
-#     ScaleData()
-
-# save(seurat, file = file.path(path_root, "atac_bcell_integrated5.rda"))
-save(seurat, file = file.path(path_data0, "ATAC", "atac_bcell_WTd.rda"))
+save(seurat, file = file.path(path_data0, "ATAC", "atac_bcell_WTe.rda"))
+# save(seurat, file = file.path(path_data0, "RNA", "rna_bcell_WT6e.rda"))
 ```
 
 ## Learning
@@ -148,13 +146,13 @@ save(seurat, file = file.path(path_data0, "ATAC", "atac_bcell_WTd.rda"))
 rna@assays$SCT@scale.data <- matrix()
 # atac@assays$SCT@scale.data <- matrix()
 
-load(file.path(path_data0, "RNA", seurat_dataset, "_clustering_markers.rda"))
+load(file.path(path_data0, "RNA", paste0(seurat_dataset, "_clustering_markers.rda")))
 l_deg_markers <- l_deg %>%
-  list.map(filter(., log2FoldChange > 0))
-load(file.path(path_data0, "RNA", seurat_dataset, "_clustering_markers.rda"))
-l_deg_top <- list.map(
-  list(l_deg, l_deg_markers),
-  f(i) ~i %>%
+  list.map(dplyr::filter(., log2FoldChange > 0))
+# load(file.path(path_data0, "RNA", paste0(seurat_dataset,  "_clustering_markers.rda")))
+
+func <- function(i, n) {
+  i %>%
   .[!names(.) %in% c("8", "9")] %>%
   list.map(
   f(x) ~ top_genes(
@@ -165,23 +163,28 @@ l_deg_top <- list.map(
     return_rank  = TRUE
   ) %>%
     pull("gene_name") %>%
-    head(100) %>%
+    head(n) %>%
     sort()
 ) %>%
   unlist(.) %>% unique()
-)
+}
+# l_deg_top <- list.map(
+#   list(l_deg, l_deg_markers),
+#   f(i) ~ func(i, 100)
+# )
 # features <- list.map(
 #   names(l_deg_top),
 #   f(x) ~ setdiff(l_deg_top[[x]], l_deg_top_old[[x]])
 # ) %>%
 #   unlist() %>% unique() %>% sort()
 
-features <- setdiff(l_deg_top[[1]], l_deg_top[[2]])
+# features <- setdiff(l_deg_top[[1]], l_deg_top[[2]])
 # features <- SelectIntegrationFeatures(
 #   object.list = list(rna, atac),
 #   nfeatures = 3000,
 #   assay = c("RNA", "RNA")
 # )
+features <- func(l_deg_markers, 100)
 ```
 
 ## Anchors
@@ -203,26 +206,26 @@ anchors <- FindTransferAnchors(
 ```{r}
 anchor_df <- slot(anchors, "anchors") %>% as.data.frame()
 (n_anchors <- nrow(anchor_df))
-100 * length(
-    unique(anchor_df[, 1])
-) / ncol(rna)
-100 * length(
-    unique(anchor_df[, 2])
-) / ncol(atac)
+print_anchors(
+  anchor_df,
+  n_anchors,
+  rna,
+  atac,
+  file = file.path(path_fig, "anchors_after.png")
+)
 
 ggplot(anchor_df, aes(x = score)) +
   geom_histogram(bins = 50) +
   geom_vline(xintercept = 0.5, linetype = "dashed")
 
 anchor_df <- filter(anchor_df, score > 0.5)
-nrow(anchor_df)
-nrow(anchor_df) / n_anchors * 100
-100 * length(
-    unique(anchor_df[, 1])
-) / ncol(rna)
-100 * length(
-    unique(anchor_df[, 2])
-) / ncol(atac)
+print_anchors(
+  anchor_df,
+  n_anchors,
+  rna,
+  atac,
+  file = file.path(path_fig, "anchors_after.png")
+)
 ```
 
 ```{r, eval = FALSE}
@@ -349,8 +352,10 @@ median_score <- map_dbl(
     atac@meta.data[, .x],
     na.rm = TRUE
   )
-)
-median_score
+) %>% set_names(scores) %>%
+  t() %>% 
+  as.data.frame()
+  kable_sc(median_score, file = file.path(path_fig, "scores.png"))
 
 p1 <- list.map(scores, f(x, y) ~plot_sc_violin(atac, features = x, ncol = 1, nrow = 1) + geom_hline(yintercept = median_score[[y]], linetype = "dashed", color = "black", lwd = 1) + ggtitle(NULL))
 p2 <- plot_feature(
@@ -444,6 +449,6 @@ plot_feature(
 
 ## Session information
 ```{r end, echo = FALSE}
-save(seurat, file = file.path(path_root, "integrated_bcell_wt2.rda"))
+save(seurat, file = file.path(path_data0, "RNA", "integrated_bcell_wt11.rda"))
 sessionInfo()
 ```
