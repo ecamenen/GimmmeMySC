@@ -41,6 +41,11 @@ seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
 pal_discrete_sc <- list_param$pal_discrete_sc
 pal_discrete_sc2 <- list_param$pal_discrete_sc2
+
+levels(seurat) <- reorder_ident
+seurat[[]][, "reorder_ident"] <- Idents(seurat)
+# levels(seurat_subset) <- reorder_ident
+seurat_subset[[]][, "reorder_ident"] <- Idents(seurat_subset)
 ```
 
 ## Clustering
