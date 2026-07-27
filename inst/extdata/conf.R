@@ -7,6 +7,7 @@ dims <- seq(n_dim)
 species <- "mouse"
 assay <- "RNA"
 SCT <- TRUE
+integrated <- FALSE
 if (assay == "ATAC") {
     assay2 <- "RNA"
     SCT <- FALSE
@@ -40,7 +41,8 @@ snn_cluster <- paste0(
 
 path_root <- file.path("C:", "Users", "etien")
 path_root_data <- file.path(path_root, "DATA")
-path_data <- file.path(path_root_data, "dobino", path)
+path_data0 <- file.path(path_root_data, "dobino")
+path_data <- file.path(path_data0, path)
 path_project <- file.path(path_data, "cellranger")
 path_fig <- file.path(path_root, "bin", "GimmmeMySC", "vignettes",  knitr::opts_chunk$get("fig.path"))
 seurat_dataset <- "rna_allcell4"

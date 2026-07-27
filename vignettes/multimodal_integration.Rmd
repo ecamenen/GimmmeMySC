@@ -35,7 +35,10 @@ source(
 ), "conf.R"))
 
 SCT <- FALSE
-integration_method <- "RPCA"
+if (isTRUE(integrated))
+  integration_method <- "RPCA"
+else
+  integration_method <- "Harmony"
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
 ```
@@ -43,8 +46,8 @@ p_threshold <- .05
 ## Data
 ```{r}
 # load(file.path(path_root, "rna_bcell_integrated7abcde.rda"))
-load(file.path(path_root, "rna_bcell_integrated5.rda"))
-# load(file.path(path_root, "rna_bcell_wt.rda"))
+# load(file.path(path_root, "rna_bcell_integrated5.rda"))
+load(file.path(path_data0, "RNA", "rna_bcell_WT6abc.rda"))
 seurat$labels <- seurat@meta.data[, "SCT_snn_res.0.35"] -> Idents(seurat)
 seurat <- subset(
     seurat,
@@ -57,21 +60,22 @@ rna <- RunUMAP(
   reduction = integration_method,
   return.model = TRUE
 )
-seurat$modality <- "RNA"
-DefaultAssay(seurat) <- "RNA"
+rna$modality <- "RNA"
+DefaultAssay(rna) <- "RNA"
 ```
 
 ```{r}
-load(file.path(path_root, "atac_bcell_integrated3.rda"))
+load(file.path(path_data0,"ATAC", "atac_bcell_WTc.rda"))
+# load(file.path(path_root, "atac_bcell_integrated3.rda"))
 atac1 <- seurat
-load(file.path(path_root, "atac_bcell_integrated5.rda"))
-seurat@assays$ATAC_v5 <- NULL
-Idents(seurat) <- seurat@meta.data[, "ATAC_snn_res.0.35"] -> seurat$labels
-seurat <- subset(
-    seurat,
-    idents = c("6", "7"),
-    invert = TRUE
-)
+load(file.path(path_data0, "ATAC", "atac_bcell_WTd.rda"))
+# load(file.path(path_root, "atac_bcell_integrated5.rda"))
+Idents(seurat) <- seurat@meta.data[, "ATAC_snn_res.0.25"] -> seurat$labels
+# seurat <- subset(
+#     seurat,
+#     idents = c("6", "7"),
+#     invert = TRUE
+# )
 # load(file.path(path_root, "atac_bcell_wt2.rda"))
 # seurat$labels <- seurat@meta.data[, "RNA_snn_res.0.15"]
 seurat <- reorder_idents(seurat, "labels")
@@ -88,7 +92,7 @@ options(future.globals.maxSize = 5 * 1024^3)
 DefaultAssay(seurat) <- "RNA"
 seurat[["RNA"]] <- split(
   seurat[["RNA"]],
-  f = seurat[[]][, "Type"],
+  f = seurat[[]][, split.by],
   layers = c("counts", "data")
 )
 # seurat <- SCTransform(seurat)#, vars.to.regress = c("S.Score", "G2M.Score"))
@@ -135,7 +139,8 @@ seurat <- RunUMAP(
 #     FindVariableFeatures() %>%
 #     ScaleData()
 
-save(seurat, file = file.path(path_root, "atac_bcell_integrated5.rda"))
+# save(seurat, file = file.path(path_root, "atac_bcell_integrated5.rda"))
+save(seurat, file = file.path(path_data0, "ATAC", "atac_bcell_WTd.rda"))
 ```
 
 ## Learning
@@ -143,10 +148,10 @@ save(seurat, file = file.path(path_root, "atac_bcell_integrated5.rda"))
 rna@assays$SCT@scale.data <- matrix()
 # atac@assays$SCT@scale.data <- matrix()
 
-load("/shared/projects/immunaid/data/dobino_1124/rna_bcell_integrated7abcd_clustering_markers.rda")
+load(file.path(path_data0, "RNA", seurat_dataset, "_clustering_markers.rda"))
 l_deg_markers <- l_deg %>%
   list.map(filter(., log2FoldChange > 0))
-load("/shared/projects/immunaid/data/dobino_1124/rna_bcell_integrated7abcd_clustering_markers.rda")
+load(file.path(path_data0, "RNA", seurat_dataset, "_clustering_markers.rda"))
 l_deg_top <- list.map(
   list(l_deg, l_deg_markers),
   f(i) ~i %>%
