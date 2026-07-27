@@ -52,6 +52,8 @@ pseudo <- TRUE
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
 assay <- "RNA" -> assay2
+levels(seurat) <- reorder_ident
+seurat[[]][, snn_cluster] <- Idents(seurat)
 ```
 
 ```{r}
@@ -61,7 +63,7 @@ ids <- data.frame(
 )
 # ids <- NULL
 seurat_all <- seurat
-if (isFALSE(pseudo)) {
+if (isFALSE(pseudo) & integrated) {
   seurat <- subset(seurat, subset = Type == target_type)
 }
 ```

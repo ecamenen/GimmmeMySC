@@ -288,10 +288,10 @@ calc_other_cluster_avg <- function(avg_matrix) {
 pct_by_ident_type <- function(
         x,
         clusters = Idents(x),
-        group.by = x$Type
+        group.by = "Type"
 ) {
     expr_bin <- GetAssayData(x, layer = "data") > 0
-    group <- interaction(clusters, group.by, drop = TRUE)
+    group <- interaction(clusters, x[[]][, group.by], drop = TRUE)
     sapply(
         levels(group),
         function(g) {
