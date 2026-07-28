@@ -855,20 +855,24 @@ remove_low_cells <- function(x, label = "cell_subtype_formatted", n = 25) {
 }
 
 #' @export
-load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated = TRUE) {
-    load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 
-    if (subset)
-    seurat_subset <- subsampling_sc(seurat) %>%
-        subset(subset = Type == target_type)
-    else
+load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated = TRUE, snn_cluster) {
+    load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+    Idents(seurat) <- snn_cluster
+    if (integrated) {
+        seurat_subset <- subsampling_sc(seurat) %>%
+            subset(subset = Type == target_type)
+    } else {
         seurat_subset <- seurat
+    }
 
     if (split.by != "Type") {
-        if (subset) {
-        load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+        if (integrated) {
+            load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
+            Idents(seurat) <- snn_cluster
         } else {
             load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+            Idents(seurat) <- snn_cluster
         }
         seurat_subset <- subset(seurat, cells = Cells(seurat_subset))
         n_idents <- nlevels(Idents(seurat))
@@ -947,4 +951,15 @@ filter_depth_cor <- function(object, cor.cutoff = 0.5) {
     cor.values <- apply(embeddings, 2, function(x) cor(x, object$nCount_ATAC, method = "spearman"))
     keep.mask <- abs(cor.values) <= cor.cutoff
     as.numeric(gsub("[^0-9]", "", names(cor.values)[keep.mask]))
+}
+
+#' @export
+print_anchors <- function(x, n_anchors, rna, atac, ...) {
+    data.frame(
+        n_anchors = nrow(x),
+        pct_anchors = nrow(anchor_df) / n_anchors * 100,
+        pct_rna = 100 * length(unique(x[, 1])) / ncol(rna),
+        pct_atac = 100 * length(unique(x[, 2])) / ncol(atac)
+    ) %>%
+        kable_sc(...)
 }

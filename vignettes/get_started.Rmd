@@ -309,12 +309,12 @@ seurat <- NormalizeData(seurat) %>%
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
-plot_mfeature(seurat, jcb_markers, nrow = 3)
+plot_mfeature(seurat, jcb_markers, nrow = 3, cluster = TRUE)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
-plot_mfeature(seurat, l_bcell_markers, nrow = 3)
+plot_mfeature(seurat, l_bcell_markers, nrow = 3, cluster = TRUE)
 ```
 
 ## Save data

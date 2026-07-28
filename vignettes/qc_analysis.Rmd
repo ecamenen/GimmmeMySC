@@ -54,7 +54,7 @@ if (assay != "ATAC") {
 ```
 
 ```{r}
-list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated)
+list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated, snn_cluster)
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
 pal_discrete_sc <- list_param$pal_discrete_sc
