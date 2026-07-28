@@ -254,14 +254,16 @@ Idents(seurat) <- cell_label
 plot_sc_violin(
     seurat,
     nrow = 2,
-    normalize = c(10, 10, 10, 10, 10),
+    normalize = c(rep(10), lenght(features)),
     breaks = list(
       c(0, 1e3, 2.5e3, 5e3, 1e4),
       c(0, 1e3, 2.5e3, 5e3, 1e4),
       c(0.1, 0.5, 1, 2.5, 5, 10),
       c(0.1, 1, 5, 10, 25, 50, 1e3),
-      c(0, 1, 10, 50)
+      c(0, 1, 10, 50),
+      c(5e-3, 1e-2, 5e-2)
     ),
+    features = features,
     col = pal_discrete_sc2
 )
 ```
