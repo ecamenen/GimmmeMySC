@@ -34,7 +34,7 @@ source(
   "extdata"
 ), "conf.R"))
 
-SCT <- TRUE
+SCT <- FALSE
 integration_method <- "RPCA"
 fc_threshold  <- log2(1.5)
 p_threshold <- .05
@@ -94,13 +94,19 @@ seurat[["RNA"]] <- split(
   f = seurat[[]][, split.by],
   layers = c("counts", "data")
 )
+
 if (SCT) {
   seurat <- SCTransform(seurat, vars.to.regress = vars.to.regress)
 } else {
   seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
     ScaleData(vars.to.regress = vars.to.regress)
-  seurat <- RunPCA(seurat, npcs = max_dim)#, features = VariableFeatures(seurat))
+  
+  VariableFeatures(seurat) <- setdiff(
+    VariableFeatures(seurat),
+    "Pcdh9"
+  )
+  seurat <- RunPCA(seurat, npcs = max_dim, features = VariableFeatures(seurat))
 }
 
 seurat <- IntegrateLayers(
@@ -318,12 +324,12 @@ rna[["umap"]] <- CreateDimReducObject(
     assay = "RNA"
 )
 
-DefaultDimReduc(rna) <- "umap"
+# DefaultDimReduc(rna) <- "umap"
 
 seurat <- merge(rna, y = atac, merge.dr = TRUE)
 seurat <- JoinLayers(seurat, assay = "RNA")
 seurat$modality <- fct_relevel(seurat$modality, "RNA")
-DefaultDimReduc(seurat) <- "umap"
+# DefaultDimReduc(seurat) <- "umap"
 ```
 
 ## Plot
@@ -352,9 +358,10 @@ median_score <- map_dbl(
     atac@meta.data[, .x],
     na.rm = TRUE
   )
-) %>% set_names(scores) %>%
+)
+set_names(median_score, scores) %>%
   t() %>% 
-  as.data.frame()
+  as.data.frame() %>%
   kable_sc(median_score, file = file.path(path_fig, "scores.png"))
 
 p1 <- list.map(scores, f(x, y) ~plot_sc_violin(atac, features = x, ncol = 1, nrow = 1) + geom_hline(yintercept = median_score[[y]], linetype = "dashed", color = "black", lwd = 1) + ggtitle(NULL))
