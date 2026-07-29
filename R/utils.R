@@ -507,8 +507,8 @@ plot_mqc <- function(
 }
 
 #' @export
-plot_mqc_atac <- function(x, cols = palette_discrete(), nrow = 2, digits = 3, file = NULL, ...) {
-    kable_stats(x, features = c(features_atac, "passed_filters", features_supp), probs = c(0, 0.1, 0.5, 0.9, 1), digits = digits, file = file)
+plot_mqc_atac <- function(x, colour = palette_discrete(), nrow = 2, digits = 3, file = NULL, ...) {
+    kable_stats(x, features = c(features_atac, features_supp), probs = c(0, 0.1, 0.5, 0.9, 1), digits = digits, file = file)
 
     p <- list.map(
         c("nCount_ATAC", "percent_mitochondrial"),
@@ -528,22 +528,23 @@ plot_mqc_atac <- function(x, cols = palette_discrete(), nrow = 2, digits = 3, fi
     Idents(x) <- "Patient"
     p <- plot_sc_violin(
         x,
-        features = c(features_atac[-6], "passed_filters"),
+        features = features_atac,
         assay = "ATAC",
-        cols = cols,
+        cols = colour,
         nrow = nrow,
-        normalize = c(10, 10, 2, 10, 0, 10),
+        normalize = c(10, 10, 2, 10, 0, 0),
         ...
     )
     print(p)
 
     plot_sc_violin(
         x,
-        features = c(features_supp, features_atac[6]),
+        features = features_supp,
         assay = "ATAC",
-        cols = cols,
+        cols = colour,
         nrow = nrow,
-        normalize = c(2, 10, 2, 10, 10, 0),
+        ncol = 2,
+        normalize = c(2, 10, 2, 10),
         ...
     )
 }
@@ -807,7 +808,7 @@ pct_peak_per_chr <- function(x, chr) {
     y_peaks <- peaks[seqnames(peaks) == chr]
     y_peak_names <- paste0(seqnames(y_peaks), "-", start(y_peaks), "-", end(y_peaks))
 
-    atac_counts <- GetAssayData(x, assay = "ATAC", slot = "counts")
+    atac_counts <- GetAssayData(x, assay = "ATAC", layer = "counts")
     atac_y <- atac_counts[y_peak_names, ]
 
     total_fragments <- Matrix::colSums(atac_counts)
