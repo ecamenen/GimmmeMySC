@@ -51,7 +51,19 @@ doublet_method <- "doubletFinder"
 ## Load data
 ```{r data}
 dr <- "umap"
-if (!isTRUE(soupex))
+if (isTRUE(multiome)) {
+  load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+  DefaultAssay(seurat) <- "RNA"
+  list_seurat <-  SplitObject(seurat, split.by = "Patient") %>%
+    list.map(
+      f(x) ~{
+        x$percent_mitochondrial_atac <- x$percent_mitochondrial
+        set_percent(x) %>%
+               RenameCells(new.names = sub("^([^_]+)_([^_]+)_", "", colnames(.)))
+      }
+      )
+  seurat <- integrate_multisamples(list_seurat, cell_id)
+} else if (!isTRUE(soupex))
 list_seurat <- list.map(
     l_samples,
     f(x) ~{
@@ -108,15 +120,17 @@ list_seurat <- list.map(
 ```
 
 ```{r}
-cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
-
-if (isTRUE(soupex)) {
-  sc <- list.map(list_seurat, .$sc)
-  list_seurat <- list.map(list_seurat, .$seurat)
+if (isFALSE(multiome)) {
+  cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
+  
+  if (isTRUE(soupex)) {
+    sc <- list.map(list_seurat, .$sc)
+    list_seurat <- list.map(list_seurat, .$seurat)
+  }
+  
+  seurat <- integrate_multisamples(list_seurat, cell_id)
+  seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 }
-
-seurat <- integrate_multisamples(list_seurat, cell_id)
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 ```
 
 ### QC
@@ -257,7 +271,7 @@ if (isTRUE(soupex)) {
 
 ## Filter cells with low or too high genes
 ```{r qc_plot, fig.height = 5, fig.width = 10}
-plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
+plot_mqc(seurat, cols = col_inds, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ```{r}
@@ -278,7 +292,8 @@ list_seurat <- list_seurat %>%
       subset = 
         nFeature_RNA > stats_qc["10%", "nFeature_RNA"] &
         nFeature_RNA < stats_qc["90%", "nFeature_RNA"] & 
-        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"] & 
+        percent_mitochondrial < stats_qc["90%", "percent_mitochondrial"] &
+        nCount_RNA > stats_qc["10%", "nCount_RNA"] &
         nCount_RNA < stats_qc["90%", "nCount_RNA"]
   )
   }
@@ -388,11 +403,11 @@ plot_bar_doublet(seurat)
 ```
 
 ```{r}
-plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
+plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1, ...)
 Idents(seurat) <- "scDblFinder"
-plot_violin_doublet(seurat)
+p1 <- plot_violin_doublet(seurat)
 Idents(seurat) <- "Patient"
-plot_violin_doublet(seurat)
+p1 | plot_violin_doublet(seurat, cols = col_inds)
 ```
 
 ```{r, fig.height = 8}
@@ -402,12 +417,12 @@ plot_bar_doublet(seurat, label = "doubletFinder")
 ```
 
 ```{r}
-plot_violin_doublet <- function(x) plot_sc_violin(x, features = "pANN", ncol = 1, nrow = 1)
+plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "pANN", ncol = 1, nrow = 1, ...)
 
 Idents(seurat) <- "doubletFinder"
-plot_violin_doublet(seurat)
+p1 <- plot_violin_doublet(seurat)
 Idents(seurat) <- "Patient"
-plot_violin_doublet(seurat)
+p1 | plot_violin_doublet(seurat, cols = col_inds)
 ```
 
 ```{r}
@@ -443,7 +458,11 @@ list.map(
     cells <- WhichCells(seurat, expression = Patient == x)
 intersect(selected, cells) %>%
   plot_dim_selected(seurat, selected = ., cells = cells) +
-      ggtitle(x)
+      ggtitle(x) + 
+      scale_color_manual(
+          labels = c("Singlets", "Doublets"),
+          values = c("grey80", "red")
+      ) 
   }) %>% 
   plot_grid(plotlist = ., ncol = 2)
 }
@@ -491,11 +510,12 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 (ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
 
 plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
+plot_mqc(seurat, file = file.path(path_fig, "table_stats_after.png"))
 ```
 
 ## Save data
 ```{r}
-save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
+save(seurat, file = file.path(path_data, paste0(seurat_dataset, "b.rda")))
 ```
 
 ## Session information
