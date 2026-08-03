@@ -1,6 +1,7 @@
 set.seed(1234)
 options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
+multiome <- TRUE
 max_dim <- 100
 n_dim <- 30
 dims <- seq(n_dim)
@@ -34,8 +35,8 @@ pal_discrete_sc <- palette_discrete()[-7] -> pal_discrete_sc2
 
 best_resolution <- 0.35
 snn_cluster <- paste0(
-    assay,
-    "_snn_res.",
+    ifelse(multiome, "w", paste0(assay, "_")),
+    "snn_res.",
     best_resolution
 )
 
@@ -49,3 +50,24 @@ seurat_dataset <- "rna_allcell4"
 # seurat_dataset <- "rna_bcell_integrated2abc"
 # seurat_dataset <- paste0(seurat_dataset, "_", target_type)
 reorder_ident <- c("2", "5", "0", "1", "3", "4", "6", "7")
+
+# l_samples <- list.dirs(path_project, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
+l_samples <- c("WT1", "WT11")
+l_samples <- str_remove_all(l_samples, "cellranger_onlyATAC_count_")
+types  <- str_remove_all(l_samples, "_?\\d+")
+
+col_inds <- list(
+    # c("#FB9A99", "#E31A1C" ),
+    c("#B2DF8A", "#33A02C")
+)
+color_types <- sapply(col_inds, last)
+
+library("rlist")
+col_inds <- list.mapv(unique(types), f(i, j) ~colorRampPalette(col_inds[[j]])(length(types[types == i]))) %>% as.character()
+
+cell_id <- paste0(
+    types,
+    "_",
+    str_remove_all(l_samples, types) %>%
+        str_remove_all("_")
+)
