@@ -46,6 +46,7 @@ if (multiome) {
 } else {
   techno <- ""
 }
+dr <- "umap"
 
 filter <- dplyr::filter
 select <- dplyr::select
@@ -100,47 +101,32 @@ genome(annotation_tot) <- genome_consortium
 
 # Load data
 ```{r}
-l_peaks <- list.map(
-  l_samples,
-  f(i) ~ {
-  path_sample <- file.path(path_project, i)
-  bed_filename <- file.path(path_sample, "outs", paste0(techno, "peaks.bed"))
-  
-  peaks <- read.table(
-    file = bed_filename,
-    col.names = c("chr", "start", "end")
-  )
-  makeGRangesFromDataFrame(peaks)
-})
-
-combined.peaks <- GenomicRanges::reduce(x = Reduce(c, l_peaks))
-peakwidths <- width(combined.peaks)
-print_sc_stats(list(peakwidths = peakwidths), features = "peakwidths")
-hist(peakwidths)
-combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
-```
-
-```{r}
 # metadata_filename <- "singlecell.csv"
 metadata_filename <- "per_barcode_metrics.csv"
 seurat <- list.map(
   l_samples,
   f(i) ~ {
-  sample_path <- file.path(path_project, i)
-  fragment_filename <- file.path(sample_path, "outs", paste0(techno, "fragments.tsv.gz"))
-  metadata_filename <- file.path(sample_path, "outs", metadata_filename)
+  sample_path <- file.path(path_project, i, "outs")
+  fragment_filename <- file.path(sample_path, paste0(techno, "fragments.tsv.gz"))
+  metadata_filename <- file.path(sample_path, metadata_filename)
   
   metadata <- read_csv(
     file = metadata_filename,
   ) %>% column_to_rownames("barcode")
   
-  metadata_filtered <- metadata %>% filter(is_cell == 1)
-  frags <- CreateFragmentObject(fragment_filename, cells = rownames(metadata_filtered))
-  counts <- FeatureMatrix(frags, features = combined.peaks, cells = rownames(metadata_filtered))
+  counts <- list.files(sample_path) %>% 
+    .[str_detect(., "filtered.*_bc_matrix.h5")] %>% file.path(sample_path, .)  %>%
+    Read10X_h5()
+  
+  if (multiome) {
+    atac_counts <- counts$Peaks
+  } else {
+    atac_counts <- counts
+  }
   
   seurat_i <- CreateChromatinAssay(
-      counts, 
-      fragments = frags,
+      atac_counts, 
+      fragments = fragment_filename,
       sep = c(":", "-"),
       genome = unique(annotation_tot@seqinfo@genome), # genome_consortium
       annotation = annotation_tot
@@ -152,11 +138,32 @@ seurat <- list.map(
     )
   
   if (multiome) {
-    rna_counts <- Read10X_h5(file.path(sample_path, "outs", "filtered_feature_bc_matrix.h5")) %>% 
-        pluck("Gene Expression")
-    common_cells <- intersect(colnames(seurat_i), colnames(rna_counts))
-    seurat_i <- seurat_i[, common_cells]
-    seurat_i[["RNA"]] <- CreateAssayObject(counts = rna_counts[, common_cells])
+    seurat_i[["RNA"]] <- CreateAssayObject(counts = counts[["Gene Expression"]])
+    
+    cls <- file.path(sample_path, "analysis", "clustering", "atac") %>%
+    list.files(full.names = TRUE) %>%
+    .[str_detect(., "graphclust$")] %>%
+    list.files(full.names = TRUE) %>%
+        .[str_detect(., "clusters.csv$")] %>%
+        read_csv() %>%
+        rename(Cluster = "clusters")
+      meta_data <- file.path(sample_path, "analysis", "dimensionality_reduction", "atac", paste0(dr, "_projection.csv")) %>%
+        read_csv() %>% 
+        left_join(cls, by = "Barcode") %>%
+        filter(Barcode %in% Cells(seurat_i)) %>%
+        column_to_rownames("Barcode")
+      seurat_i <- AddMetaData(seurat_i, metadata = meta_data)
+      seurat_i[[dr]] <- meta_data %>% 
+          .[, paste0(toupper(dr), "-", seq(2))] %>% 
+          as.matrix() %>%
+        CreateDimReducObject(
+          embeddings = .,
+          key = paste0(toupper(dr), "_"),
+          assay = DefaultAssay(seurat_i)
+        )
+      DefaultAssay(seurat_i) <- "RNA"
+      seurat_i <- set_percent(seurat_i)
+      DefaultAssay(seurat_i) <- "ATAC"
   }
   seurat_i
 })
@@ -222,26 +229,7 @@ seurat <- list.map(
 })
 ```
 
-```{r}
-l_samples <- str_remove_all(l_samples, "cellranger_onlyATAC_count_")
-types  <- str_remove_all(l_samples, "_?\\d+")
-
-col_inds <- list(
-    c("#FB9A99", "#E31A1C" ),
-    c("#B2DF8A", "#33A02C")
-)
-color_types <- sapply(col_inds, last)
-
-col_inds <- list.mapv(unique(types), f(i, j) ~colorRampPalette(col_inds[[j]])(length(types[types == i]))) %>% as.character()
-```
-
 ```{r, fig.height = 5, fig.width = 10}
-cell_id <- paste0(
-      types,
-      "_",
-      str_remove_all(l_samples, types) %>%
-        str_remove_all("_")
-      )
 seurat_merged <- integrate_multisamples(seurat, cell_id)
 
 seurat_old <- seurat_merged
@@ -347,6 +335,23 @@ Idents(seurat) <- "scDblFinder"
 plot_violin_doublet(seurat)
 Idents(seurat) <- "Patient"
 plot_violin_doublet(seurat)
+```
+
+```{r}
+list.map(
+  unique(seurat$Patient),
+  f(x) ~ {
+    selected <- WhichCells(seurat, expression = scDblFinder == "Doublet")
+    cells <- WhichCells(seurat, expression = Patient == x)
+intersect(selected, cells) %>%
+  plot_dim_selected(seurat, selected = ., cells = cells) +
+      ggtitle(x) + 
+      scale_color_manual(
+          labels = c("Singlets", "Doublets"),
+          values = c("grey80", "red")
+      ) 
+  }) %>% 
+  plot_grid(plotlist = ., ncol = 2)
 ```
 
 ```{r}
