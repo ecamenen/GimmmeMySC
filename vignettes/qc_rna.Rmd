@@ -41,8 +41,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-l_samples <- list.files(path_project) %>%  
-  .[sapply(., function(x) dir.exists(file.path(path_project, x)))]
 n_cores <- detectCores() - 1
 soupex <- FALSE
 doublet_method <- "doubletFinder"

@@ -71,7 +71,7 @@ kable_cluster <-  function(
         names_prefix = ""
     ) %>%
         as.data.frame() %>%
-        mutate(Clusters = str_remove_all(Clusters, paste0(assay, "_snn_res.")))
+        mutate(Clusters = str_remove_all(Clusters, paste0("(", assay, "_)?w?snn_res.")))
 
     cl_size[is.na(cl_size)] <- ""
     p <- kable0(cl_size)
@@ -118,7 +118,7 @@ plot_res <- function(x, clusters, cols = palette_continuous(), ncol = 4, ...) {
                 ...
             ) +
             NoLegend() +
-            labs(title = str_remove(i, ".*_snn_res."))
+            labs(title = str_remove(i, ".*(_w)?snn_res."))
     )
     p1 <- plot_grid(plotlist = p_cl[seq(8)], align = "hv", ncol = ncol, nrow = 2)
     print(p1)
@@ -502,6 +502,13 @@ plot_mqc <- function(
         features = features,
         normalize = rep(10, length(features)),
         nrow = 2,
+        breaks = list(
+            10^seq(-1, 10, by = 1),
+            10^seq(-1, 10, by = 1),
+            10^seq(-1, 3, by = 1),
+            10^seq(-1, 3, by = 1),
+            10^seq(-1, 3, by = 1)
+        ),
         ...
     )
 }

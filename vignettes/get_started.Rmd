@@ -235,22 +235,47 @@ plot_dim(
 resolution2 <- seq(.1, .4, 0.05)
 resolution <- c(seq(.5, 1, by = 0.1), 1.2, 1.5)
 resolution_tot <- c(resolution2, resolution)
-seurat <- FindNeighbors(
-  seurat,
+```
+
+```{r}
+if (multiome) {
+  DefaultAssay(seurat) <- "RNA"
+  seurat <- FindMultiModalNeighbors(
+    object = seurat,
+    reduction.list = list("pca", "lsi"), 
+    dims.list = list(seq(n_dim), dims),
+    modality.weight.name = "RNA.weight",
+    verbose = TRUE
+  ) %>%
+  RunUMAP(
+    nn.name = "weighted.nn", 
+    reduction.name = "wnn.umap", 
+    reduction.key = "wnnUMAP_"
+  )
+  graph_name <- "wsnn"
+  prefix_cl <- "wsnn_res."
+} else {
+  seurat <- FindNeighbors(
+    seurat,
   reduction = integration_method, 
-  dims = dims
-)
+    dims = dims
+  )
+  graph_name <- tail(names(seurat@graphs), 1)
+  prefix_cl <- paste0(assay, "_snn_res.")
+}
 
 seurat <- FindClusters(
   seurat,
   verbose = FALSE,
   algorithm = 3,
   resolution = resolution_tot,
-  graph.name = tail(names(seurat@graphs), 1)
+  graph.name = graph_name
 )
+```
 
+
+```{r}
 seurat2 <- seurat
-prefix_cl <- paste0(assay, "_snn_res.")
 cols_to_remove <- paste0(prefix_cl, resolution[-1])
 seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
 
@@ -302,9 +327,11 @@ plot_res(
 # Markers
 ```{r}
 DefaultAssay(seurat) <- "RNA"
+if (isFALSE(multiome)) {
 seurat <- NormalizeData(seurat) %>%
     FindVariableFeatures() %>%
     ScaleData()
+}
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}

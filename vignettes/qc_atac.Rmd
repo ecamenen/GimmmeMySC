@@ -40,7 +40,6 @@ source(
   "inst",
   "extdata"
 ), "conf.R"))
-l_samples <- list.dirs(path_project, recursive = FALSE) %>% basename() %>% .[!str_detect(., "__")]
 
 if (multiome) {
   techno <- "atac_"
