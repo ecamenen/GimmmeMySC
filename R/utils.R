@@ -540,6 +540,14 @@ plot_mqc_atac <- function(x, colour = palette_discrete(), nrow = 2, digits = 3, 
         cols = colour,
         nrow = nrow,
         normalize = c(10, 10, 2, 10, 0, 0),
+        breaks = list(
+            10^seq(-1, 10, by = 1),
+            10^seq(-1, 10, by = 1),
+            c(.1, .5, 1, 2, 4),
+            c(1, 5, 10, 25),
+            c(0, 20, 40, 60, 80, 100),
+            NULL
+        ),
         ...
     )
     print(p)
@@ -550,7 +558,6 @@ plot_mqc_atac <- function(x, colour = palette_discrete(), nrow = 2, digits = 3, 
         assay = "ATAC",
         cols = colour,
         nrow = nrow,
-        ncol = 2,
         normalize = c(2, 10, 2, 10),
         ...
     )
@@ -688,18 +695,29 @@ format_celltype <- function(
         plot_bar_sc()
     print(p2)
 
+    if (!is.null(path_fig))
+        kable_ncell(
+            table_annotation,
+            label_type,
+            digits = 2,
+            file =  file.path(path_fig, paste0("table_", type, "_after.png"))
+        )
+
+    format_celltype0(x, table_annotation, type, label_type, lim)
+}
+
+#' @export
+format_celltype0 <- function(
+        x,
+        table_annotation = x@meta.data,
+        type = "cell_type",
+        label_type = paste0(type, "_raw"),
+        lim = 50
+) {
     to_remove <- table(pull(table_annotation, label_type)) %>%
         .[. < lim] %>%
         names()
     table_annotation[pull(table_annotation, label_type) %in% to_remove, label_type] <- NA
-
-    if (!is.null(path_fig))
-    kable_ncell(
-        table_annotation,
-        label_type,
-        digits = 2,
-        file =  file.path(path_fig, paste0("table_", type, "_after.png"))
-    )
 
     x@meta.data[, type] <-
         table_annotation[match(rownames(x[[]]), rownames(table_annotation)), label_type] %>%
