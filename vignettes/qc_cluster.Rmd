@@ -44,6 +44,7 @@ pal_discrete_sc2 <- list_param$pal_discrete_sc2
 
 levels(seurat) <- reorder_ident
 seurat[[]][, "reorder_ident"] <- Idents(seurat)
+pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
 # levels(seurat_subset) <- reorder_ident
 seurat_subset[[]][, "reorder_ident"] <- Idents(seurat_subset)
 ```
@@ -58,7 +59,7 @@ plot_bar_sc(seurat)
 ```
 
 ```{r, fig.height = 2, fig.width = 2}
-plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8, reduction = reduction2) +
     NoLegend() +
     theme(
         plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -68,23 +69,24 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ```
 
 ```{r}
-p2 <- plot_dim(seurat_subset, cols = pal_discrete_sc)
+p2 <- plot_dim(seurat_subset, cols = pal_discrete_sc, reduction = reduction2)
 p2
 
-p2 + plot_dim_cell(seurat_subset, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
+p2 + plot_dim_cell(seurat_subset, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2, reduction = reduction2)
 
 plot_dim(
     seurat_subset,
     split.by = snn_cluster,
     cols = rep("black", 100),
     label = FALSE,
-    ncol = 4
+    ncol = 4, 
+    reduction = reduction2
 ) + NoLegend()
 
-plot_ident_celltype(seurat, cell_label = cell_label, col = brewer.pal(5, "Reds") %>% rev)
+plot_ident_celltype(seurat, cell_label = cell_label, col = brewer.pal(seurat[[]][, cell_label] %>% nlevels(), "Reds") %>% rev)
 Idents(seurat) <- "cell_subtype_formatted2"
 plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
-plot_ident_celltype(seurat, cell_label = snn_cluster, col = colorRampPalette(brewer.pal(11, "RdBu"))(length(pal_discrete_sc2)))
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
 Idents(seurat) <- seurat[[]][, snn_cluster]
 
 heatmap_celltype(seurat, snn_cluster, cell_label, as_percent = FALSE)
@@ -98,7 +100,8 @@ plot_dim(
     split.by = "cell_subtype_formatted2",
     cols = pal_discrete_sc,
     ncol = 3,
-    combine = FALSE
+    combine = FALSE, 
+    reduction = reduction2
 )
 ```
 
@@ -107,13 +110,14 @@ plot_dim(
     seurat_subset,
     split.by = "cell_type_formatted",
     ncol = 3,
-    col = pal_discrete_sc
+    col = pal_discrete_sc,
+    reduction = reduction2
 )
 ```
 
 ## Condition effect
 ```{r}
-plot_dim(object = seurat_subset, group.by = "Patient")
+plot_dim(object = seurat_subset, group.by = "Patient", reduction = reduction2)
 
 bar_ident_group(
   seurat_subset,

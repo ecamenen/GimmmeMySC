@@ -2,6 +2,11 @@ set.seed(1234)
 options(future.globals.maxSize = 2000 * 1024^2)
 options(ggrepel.max.overlaps = 1000)
 multiome <- TRUE
+if (multiome) {
+    reduction2 <- "wnn.umap"
+} else {
+    reduction2 <- "umap"
+}
 max_dim <- 100
 n_dim <- 30
 dims <- seq(n_dim)

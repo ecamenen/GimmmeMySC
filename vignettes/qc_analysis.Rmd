@@ -58,7 +58,7 @@ list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
 pal_discrete_sc <- list_param$pal_discrete_sc
-pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)) + 3)
+pal_discrete_sc2 <- list_param$pal_discrete_sc
 ```
 
 ## Annotation (1)
@@ -79,7 +79,8 @@ list.map(
     tmp,
     group.by = split.by,
     label = FALSE, 
-    na.value = "grey"
+    na.value = "grey", 
+    reduction = reduction2
   ) +
     NoLegend() +
     ggtitle(i)
@@ -101,13 +102,15 @@ bar_group_ident(
 plot_dim(
     seurat_subset,
     label = FALSE,
-    cols = pal_discrete_sc
+    cols = pal_discrete_sc, 
+    reduction = reduction2
 )
 plot_dim(
     seurat_subset,
     split.by = "Patient",
     label = FALSE,
-    cols = pal_discrete_sc
+    cols = pal_discrete_sc,
+    reduction = reduction2
 ) + NoLegend()
 ```
 
@@ -120,7 +123,7 @@ plot_grid(plotlist = p, nrow = 2, align = "hv")
 
 ## Cell cycle
 ```{r, fig.width = 5}
-plot_dim_cycle(seurat_subset)
+plot_dim_cycle(seurat_subset, reduction = reduction2)
 ```
 
 ```{r, message = FALSE}
@@ -142,7 +145,7 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim(seurat_subset, col = pal_discrete_sc)
+plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -152,14 +155,15 @@ plot_dim_cell(
     split.by = cell_label,
     ncol = 3,
     label = FALSE,
-    col = rep("black", 100)
+    col = rep("black", 100),
+    reduction = reduction2
 ) + NoLegend()
 ```
 
 ### B cells
 ```{r, message = FALSE, fig.width = 5}
 cells <- WhichCells(seurat_subset, expression = cell_type_formatted == "B cell")
-plot_dim_cell(seurat_subset, cols = pal_discrete_sc, cells = cells, group.by = "cell_subtype_formatted2")
+plot_dim_cell(seurat_subset, cols = pal_discrete_sc, cells = cells, group.by = "cell_subtype_formatted2", reduction = reduction2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
@@ -175,7 +179,8 @@ plot_dim_cell(
     cells = cells,
     label = FALSE,
     ncol = 3,
-    cols = rep("black", 100)
+    cols = rep("black", 100), 
+    reduction = reduction2
 ) +
     NoLegend()
 ```
@@ -190,7 +195,7 @@ Idents(seurat) %>%
 ```
 
 ```{r, fig.width = 5}
-plot_dim(seurat_subset, cols = pal_discrete_sc2)
+plot_dim(seurat_subset, group.by = "cell_subtype_formatted", cols = pal_discrete_sc2, reduction = reduction2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
@@ -202,14 +207,15 @@ plot_dim_cell(
     seurat_subset,
     split.by = "cell_subtype_formatted3",
     label = FALSE,
-    ncol = 3, 
-    cols = rep("black", 100)
+    ncol = 3,
+    cols = rep("black", 100), 
+    reduction = reduction2
 ) +
     NoLegend()
 ```
 
 ```{r, fig.width = 5}
-plot_dim_cell(seurat_subset, cols = pal_discrete_sc2)
+plot_dim_cell(seurat_subset, cols = pal_discrete_sc2, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -225,7 +231,8 @@ list.map(
             group.by = "cell_subtype_formatted",
             cells = cells,
             cols = rep(palette_discrete(), 5),
-            pt.size = .25
+            pt.size = .25, 
+            reduction = reduction2
         ) +
         labs(title = z, x = NULL)
     }
@@ -254,7 +261,7 @@ Idents(seurat) <- cell_label
 plot_sc_violin(
     seurat,
     nrow = 2,
-    normalize = c(rep(10), length(features)),
+    normalize = rep(10, length(features)),
     breaks = list(
       c(0, 1e3, 2.5e3, 5e3, 1e4),
       c(0, 1e3, 2.5e3, 5e3, 1e4),

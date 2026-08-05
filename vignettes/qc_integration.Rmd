@@ -47,14 +47,16 @@ seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 seurat <- reorder_idents(seurat, new_ident)
 levels(seurat) <- reorder_ident
 seurat[[]][, "reorder_ident"] <- Idents(seurat)
+pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
 new_ident <- "reorder_ident" -> snn_cluster -> old_ident
 
 seurat_subset <- subsampling_sc(seurat)
 plot_dim(seurat, cols = pal_discrete_sc)
+plot_dim(seurat, cols = pal_discrete_sc, reduction = reduction2)
 ```
 
 ```{r, fig.height = 2, fig.width = 2}
-plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8, reduction = reduction2) +
   NoLegend() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -64,12 +66,12 @@ plot_dim(seurat, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ```
 
 ```{r}
-p2 <- plot_dim(seurat, cols = pal_discrete_sc)
+p2 <- plot_dim(seurat, cols = pal_discrete_sc, reduction = reduction2)
 p2
 
-p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2)
+p2 + plot_dim_cell(seurat, group.by = "cell_subtype_formatted2", cols = pal_discrete_sc2, reduction = reduction2)
 
-p2 + plot_dim_cycle0(seurat) %>% pluck(1)
+p2 + plot_dim_cycle0(seurat, reduction = reduction2) %>% pluck(1)
 ```
 
 ## UMAP per Type
@@ -77,7 +79,8 @@ p2 + plot_dim_cycle0(seurat) %>% pluck(1)
 plot_dim(
   object = seurat_subset,
   split.by = 'Type',
-  col = pal_discrete_sc
+  col = pal_discrete_sc,
+  reduction = reduction2
 ) + NoLegend()
 
 bar_ident_group(
@@ -100,7 +103,8 @@ subsampling_sc(seurat, group.by = "Patient") %>%
   plot_dim(
     split.by = 'Patient',
     col = pal_discrete_sc,
-    ncol = 2
+    ncol = 2, 
+    reduction = reduction2
   ) + NoLegend()
 
 bar_ident_group(
@@ -123,7 +127,7 @@ bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
     group.by = "Type",
-    colour = pal_discrete_sc
+    colour = pal_discrete_sc2
 )
 
 Idents(seurat) <- "cell_subtype_formatted2"
@@ -131,7 +135,7 @@ plot_bar_sc(seurat)
 Idents(seurat) <- snn_cluster
 
 Idents(seurat_subset) <- "cell_subtype_formatted2"
-plot_dim_cell(seurat_subset, split.by = "Type", col = pal_discrete_sc)
+plot_dim_cell(seurat_subset, split.by = "Type", col = pal_discrete_sc2, reduction = reduction2)
 Idents(seurat_subset) <- snn_cluster
 ```
 
@@ -165,7 +169,8 @@ plot_dim(
     col = pal_discrete_sc,
     pt.size = .25,
     ncol = 4,
-    label = FALSE
+    label = FALSE,
+    reduction = reduction2
 ) + NoLegend()
 
 Idents(seurat) <- new_ident
@@ -175,13 +180,14 @@ plot_dim(
     col = pal_discrete_sc,
     pt.size = .25,
     ncol = 4,
-    label = FALSE
+    label = FALSE, 
+    reduction = reduction2
 ) + NoLegend()
 ```
 
 ```{r, fig.height = 2, fig.width = 2}
 tmp <- reorder_idents(seurat, y = old_ident)
-plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8) + 
+plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8, reduction = reduction2) +
     NoLegend() +
     theme(
         plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -191,9 +197,9 @@ plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8) +
 ```
   
 ```{r}
-plot_dim(tmp, cols = pal_discrete_sc)
+plot_dim(tmp, cols = pal_discrete_sc, reduction = reduction2)
 seurat <- reorder_idents(seurat, new_ident)
-plot_dim(seurat_subset, cols = pal_discrete_sc)
+plot_dim(seurat_subset, cols = pal_discrete_sc, reduction = reduction2)
 ```
 
 ## Scores
@@ -238,7 +244,7 @@ l_seurat <- list.map(
 
 p <- list.map(
     l_seurat,
-    f(x, y, z) ~ plot_dim(x, pt.size = 1) +
+    f(x, y, z) ~ plot_dim(x, pt.size = 1, reduction = reduction2) +
       ggtitle(z)
 )
 
