@@ -135,50 +135,14 @@ seurat <- list.map(
   
   if (multiome) {
     seurat_i[["RNA"]] <- CreateAssayObject(counts = counts[["Gene Expression"]])
-    
-    cls <- file.path(sample_path, "analysis", "clustering", "atac") %>%
-    list.files(full.names = TRUE) %>%
-    .[str_detect(., "graphclust$")] %>%
-    list.files(full.names = TRUE) %>%
-        .[str_detect(., "clusters.csv$")] %>%
-        read_csv() %>%
-        rename(Cluster = "clusters")
-      meta_data <- file.path(sample_path, "analysis", "dimensionality_reduction", "atac", paste0(dr, "_projection.csv")) %>%
-        read_csv() %>% 
-        left_join(cls, by = "Barcode") %>%
-        filter(Barcode %in% Cells(seurat_i)) %>%
-        column_to_rownames("Barcode")
-      seurat_i <- AddMetaData(seurat_i, metadata = meta_data)
-      seurat_i[[dr]] <- meta_data %>% 
-          .[, paste0(toupper(dr), "-", seq(2))] %>% 
-          as.matrix() %>%
-        CreateDimReducObject(
-          embeddings = .,
-          key = paste0(toupper(dr), "_"),
-          assay = DefaultAssay(seurat_i)
-        )
-      DefaultAssay(seurat_i) <- "RNA"
-      
-      seurat_i$percent_mitochondrial_atac <- seurat_i$percent_mitochondrial
-      seurat_i <- set_percent(seurat_i)
-      DefaultAssay(seurat_i) <- "ATAC"
+    seurat_i <- add_dr(seurat_i, i, dr = dr)
+    DefaultAssay(seurat_i) <- "RNA"
+    seurat_i$percent_mitochondrial_atac <- seurat_i$percent_mitochondrial
+    seurat_i <- set_percent(seurat_i)
+    DefaultAssay(seurat_i) <- "ATAC"
   }
   seurat_i
 })
-```
-
-```{r}
-seurat <- list.map(
-  seurat,
-  f(i) ~ {
-    subset(
-      i,
-      subset =
-        nFeature_ATAC > 100 &
-      	nCount_ATAC > 100
-  )
-  }
-)
 ```
 
 ## Quality control
@@ -298,48 +262,9 @@ seqlevels(seurat[['ATAC']]@ranges) <- intersect(
 
 ## Doublets
 ```{r, fig.height = 8}
-sce <- scDblFinder(
-  GetAssayData(seurat[["ATAC"]], slot = "counts"),
-  artificialDoublets = 1,
-  samples = seurat$Patient,
-  aggregateFeatures = TRUE,
-  nfeatures = 30,
-  k = 20,
-  processing = "normFeatures",
-  dims = 20
-)
-table(sce$scDblFinder.class)
-
-seurat$scDblFinder <- sce[, row.names(seurat[[]])]$scDblFinder.class
-seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
-
-kable_doublet(seurat, file = file.path(path_fig, "table_doublets_atac.png"))
-plot_bar_doublet(seurat)
-```
-
-```{r}
-plot_violin_doublet <- function(x) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1)
-Idents(seurat) <- "scDblFinder"
-plot_violin_doublet(seurat)
-Idents(seurat) <- "Patient"
-plot_violin_doublet(seurat)
-```
-
-```{r}
-list.map(
-  unique(seurat$Patient),
-  f(x) ~ {
-    selected <- WhichCells(seurat, expression = scDblFinder == "Doublet")
-    cells <- WhichCells(seurat, expression = Patient == x)
-intersect(selected, cells) %>%
-  plot_dim_selected(seurat, selected = ., cells = cells) +
-      ggtitle(x) + 
-      scale_color_manual(
-          labels = c("Singlets", "Doublets"),
-          values = c("grey80", "red")
-      ) 
-  }) %>% 
-  plot_grid(plotlist = ., ncol = 2)
+seurat <- find_doublets(seurat, assay = assay)
+plot_qc_doublet(seurat)
+plot_dim_doublet(seurat)
 ```
 
 ```{r}
@@ -378,34 +303,9 @@ plot_mqc_atac(seurat, colour = col_inds, file = file.path(path_fig, "table_stats
 plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 ```
 
-```{r, eval = FALSE}
-p <- map(
-  features_atac,
-  ~FeaturePlot(
-    object = seurat,
-    features = .,
-    alpha = 0.5,
-    cols = c("yellow", "blue"),
-    ) %>% 
-    theme_sc_dim() +
-    ggtitle(str_clean(., "ATAC"))
-)
-
-plot_grid(plotlist = p, nrow = 1, ncol = 2, align = "hv")
-plot_grid(plotlist = p[3:6], nrow = 2, ncol = 2, align = "hv")
-
-p2 <- map(
-  features_supp,
-  ~FeaturePlot(
-    object = seurat,
-    features = .,
-    alpha = 0.5,
-    cols = c("yellow", "blue"),
-    ) %>% 
-    theme_sc_dim()+
-    ggtitle(str_clean(., "ATAC"))
-)
-plot_grid(plotlist = p2, nrow = 2, ncol = 2, align = "hv")
+```{r}
+plot_feature_qc2(seurat, features_atac, "ATAC")
+plot_feature_qc2(seurat, features_supp, "ATAC")
 ```
 
 ## Sex effect
@@ -471,7 +371,6 @@ if (isFALSE(multiome)) {
 ```
 
 ```{r}
-seurat[["umap_before"]] <- seurat[["umap"]]
 save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 

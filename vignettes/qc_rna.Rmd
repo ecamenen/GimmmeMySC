@@ -54,10 +54,10 @@ if (isTRUE(multiome)) {
   DefaultAssay(seurat) <- "RNA"
   list_seurat <-  SplitObject(seurat, split.by = "Patient") %>%
     list.map(
-      f(x) ~{
-        x$percent_mitochondrial_atac <- x$percent_mitochondrial
-        set_percent(x) %>%
-               RenameCells(new.names = sub("^([^_]+)_([^_]+)_", "", colnames(.)))
+      f(x, i, j) ~{
+        x %>%
+               RenameCells(new.names = sub("^([^_]+)_([^_]+)_", "", colnames(.))) %>%
+         add_dr(j, assay = "gex", dr = dr) 
       }
       )
   seurat <- integrate_multisamples(list_seurat, cell_id)
@@ -365,47 +365,18 @@ list_seurat <- list.map(
         return(i)
     }
 )
-seurat <- integrate_multisamples(list_seurat, cell_id)
 ```
 
 ### scDblFinder
 ```{r}
-seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-
-if (.Platform$OS.type == "windows") {
-  bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
-} else {
-  bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
-}
-
-sce <- scDblFinder(
-  GetAssayData(seurat[["RNA"]], layer = "counts"),
-  samples = seurat$Patient,
-  aggregateFeatures = FALSE,
-  k = NULL,
-  processing = "normFeatures",
-  dims = n_dim,
-  cluster = as.factor(seurat$clusters),
-  BPPARAM = bp_param
-)
-
-seurat$scDblFinder <- sce[, row.names(seurat[[]])]$scDblFinder.class %>% str_to_sentence()
-seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
+seurat <- integrate_multisamples(list_seurat, cell_id)
+# seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+seurat <- find_doublets(seurat, assay = "RNA")
 ```
 
 ### QC
 ```{r, fig.height = 8}
-kable_doublet(seurat, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
-
-plot_bar_doublet(seurat)
-```
-
-```{r}
-plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1, ...)
-Idents(seurat) <- "scDblFinder"
-p1 <- plot_violin_doublet(seurat)
-Idents(seurat) <- "Patient"
-p1 | plot_violin_doublet(seurat, cols = col_inds)
+plot_qc_doublet(seurat)
 ```
 
 ```{r, fig.height = 8}
@@ -448,27 +419,12 @@ table(seurat$scDblFinder, seurat$doubletFinder) %>%
 ```
 
 ```{r}
-if (isTRUE(soupex)) {
-list.map(
-  unique(seurat$Patient),
-  f(x) ~ {
-    selected <- WhichCells(seurat, expression = scDblFinder == "Doublet" & doubletFinder == "Doublet")
-    cells <- WhichCells(seurat, expression = Patient == x)
-intersect(selected, cells) %>%
-  plot_dim_selected(seurat, selected = ., cells = cells) +
-      ggtitle(x) + 
-      scale_color_manual(
-          labels = c("Singlets", "Doublets"),
-          values = c("grey80", "red")
-      ) 
-  }) %>% 
-  plot_grid(plotlist = ., ncol = 2)
-}
+plot_dim_doublet(seurat)
 ```
 
 ```{r}
 if (!isFALSE(doublet_method))
-  seurat <- seurat[, seurat[[doublet_method]][,1] == "Singlet"]
+  seurat <- seurat[, seurat[[doublet_method]][,1] == "singlet"]
 ```
 
 ## Gene filtering
@@ -509,6 +465,8 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 
 plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
 plot_mqc(seurat, file = file.path(path_fig, "table_stats_after.png"))
+plot_mqc_atac(seurat, colour = col_inds, file = file.path(path_fig, "table_stats_after_atac.png"))
+plot_feature_qc2(seurat, features)
 ```
 
 ## Save data

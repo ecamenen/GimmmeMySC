@@ -989,3 +989,119 @@ print_anchors <- function(x, n_anchors, rna, atac, ...) {
     ) %>%
         kable_sc(...)
 }
+
+#' @export
+add_dr <- function(x, sample, assay = "atac", dr = "umap") {
+    cls <- file.path(path_project, sample, "outs", "analysis", "clustering", assay) %>%
+        list.files(full.names = TRUE) %>%
+        .[str_detect(., "graphclust$")] %>%
+        list.files(full.names = TRUE) %>%
+        .[str_detect(., "clusters.csv$")] %>%
+        read_csv() %>%
+        rename_with(~ paste0("cluster_", assay), .cols = "Cluster")
+    meta_data <- file.path(path_project, sample, "outs", "analysis", "dimensionality_reduction", assay, paste0(dr, "_projection.csv")) %>%
+        read_csv() %>%
+        left_join(cls, by = "Barcode") %>%
+        filter(Barcode %in% Cells(x)) %>%
+        column_to_rownames("Barcode")
+    x <- AddMetaData(x, metadata = meta_data)
+    x[[paste0(dr, "_before_", assay)]] <- meta_data %>%
+        .[, paste0(toupper(dr), "-", seq(2))] %>%
+        as.matrix() %>%
+        CreateDimReducObject(
+            embeddings = .,
+            key = paste0(toupper(dr), "_before_", assay, "_"),
+            assay = DefaultAssay(x)
+        )
+    return(x)
+}
+
+#' @export
+find_doublets <- function(seurat, assay = assay) {
+    if (.Platform$OS.type == "windows") {
+        bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
+    } else {
+        bp_param <- MulticoreParam(workers = n_cores, progressbar = TRUE)
+    }
+
+    sce <- scDblFinder(
+        GetAssayData(seurat[[assay]], layer = "counts"),
+        samples = seurat$Patient,
+        aggregateFeatures = assay == "ATAC",
+        nfeatures = ifelse(assay == "ATAC", 30, 1352),
+        k = if (assay == "ATAC") 20 else NULL,
+        processing = "normFeatures",
+        dims = n_dim,
+        cluster = as.factor(seurat[[]][, paste0("cluster_", str_to_lower(ifelse(assay == "ATAC", assay, "gex")))]),
+        BPPARAM = bp_param,
+        artificialDoublets = if (assay == "ATAC") 1 else NULL
+    )
+
+    seurat$scDblFinder <- sce[, row.names(seurat[[]])]$scDblFinder.class
+    seurat$doublet_score <- sce[, row.names(seurat[[]])]$scDblFinder.score
+
+    return(seurat)
+}
+
+#' @export
+plot_qc_doublet <- function(seurat, cols = col_inds) {
+    kable_doublet(seurat, file = file.path(path_fig, "table_doublets_scDblFinder.png"))
+
+    plot_bar_doublet(seurat) %>% plot()
+
+    plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "doublet_score", ncol = 1, nrow = 1, ...)
+    Idents(seurat) <- "scDblFinder"
+    p1 <- plot_violin_doublet(seurat)
+    Idents(seurat) <- "Patient"
+    p1 | plot_violin_doublet(seurat, cols = cols)
+}
+
+#' @export
+plot_dim_doublet <- function(seurat) {
+    selected <- WhichCells(seurat, expression = scDblFinder == "doublet")
+    list.map(
+        unique(seurat$Patient),
+        f(x) ~ {
+            cells <- WhichCells(seurat, expression = Patient == x)
+            intersect(selected, cells) %>%
+                plot_dim_selected(seurat, selected = ., cells = cells) +
+                ggtitle(x) +
+                scale_color_manual(
+                    labels = c("Singlets", "Doublets"),
+                    values = c("grey80", "red")
+                )
+        }) %>%
+        plot_grid(plotlist = ., ncol = 2)
+}
+
+#' @export
+plot_feature_qc2 <- function(x, features, assay = "RNA") {
+    list.map(
+        unique(seurat$Patient),
+        f(x) ~ {
+            plot_feature_qc(
+                seurat,
+                features,
+                assay,
+                cells = WhichCells(seurat, expression = Patient == x)
+                ) %>%
+                plot_grid(plotlist = p, nrow = 2, align = "hv")
+        }
+    )
+}
+
+#' @export
+plot_feature_qc <- function(x, features, assay = "RNA", ...) {
+    map(
+        features,
+        ~FeaturePlot(
+            object = seurat,
+            features = .,
+            alpha = 0.5,
+            cols = c("yellow", "blue"),
+            ...
+        ) %>%
+            theme_sc_dim() +
+            ggtitle(str_clean(., assay))
+    )
+}
