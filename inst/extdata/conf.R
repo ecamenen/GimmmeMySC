@@ -76,3 +76,22 @@ cell_id <- paste0(
     str_remove_all(l_samples, types) %>%
         str_remove_all("_")
 )
+
+
+if (multiome) {
+    techno <- "atac_"
+} else {
+    techno <- ""
+}
+
+features_supp0 <- c("unmapped", ifelse(techno == "atac_", "dup", "duplicate"), paste0("mitochondrial", ifelse(multiome, "_atac", "")))
+features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
+
+features_atac <- c(
+    paste0("nCount", "_", assay),
+    paste0("nFeature", "_", assay),
+    "nucleosome_signal",
+    "TSS.enrichment",
+    "percent_reads_in_peaks",
+    "blacklist_ratio"
+)

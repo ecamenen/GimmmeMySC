@@ -31,6 +31,7 @@ library("scDblFinder")
 library("AnnotationHub")
 library("GenomeInfoDb")
 library("gridExtra")
+library("cowplot")
 # BiocManager::install("ensembldb")
 # biovizBase
 
@@ -41,11 +42,6 @@ source(
   "extdata"
 ), "conf.R"))
 
-if (multiome) {
-  techno <- "atac_"
-} else {
-  techno <- ""
-}
 dr <- "umap"
 
 filter <- dplyr::filter
@@ -162,6 +158,8 @@ seurat <- list.map(
           assay = DefaultAssay(seurat_i)
         )
       DefaultAssay(seurat_i) <- "RNA"
+      
+      seurat_i$percent_mitochondrial_atac <- seurat_i$percent_mitochondrial
       seurat_i <- set_percent(seurat_i)
       DefaultAssay(seurat_i) <- "ATAC"
   }
@@ -185,8 +183,6 @@ seurat <- list.map(
 
 ## Quality control
 ```{r}
-features_supp0 <- c("unmapped", ifelse(techno == "atac_", "dup", "duplicate"), "mitochondrial")
-
 if (techno == "atac_") {
   metadata_reads <- "atac_raw_reads"
   metadata_fragments <- "atac_fragments"
@@ -196,17 +192,6 @@ if (techno == "atac_") {
   metadata_fragments <- "passed_filters"
   techno2 <- ""
 }
-
-features_atac <- c(
-  paste0("nCount", "_", assay),
-  paste0("nFeature", "_", assay),
-  "nucleosome_signal",
-  "TSS.enrichment",
-  "percent_reads_in_peaks",
-  "blacklist_ratio"
-)
-
-features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
 ```
 
 ```{r}
@@ -233,7 +218,10 @@ seurat <- list.map(
 seurat_merged <- integrate_multisamples(seurat, cell_id)
 
 seurat_old <- seurat_merged
-plot_mqc_atac(seurat_merged, cols = col_inds, file = file.path(path_fig, "table_stats_before.png"))
+plot_mqc_atac(seurat_merged, colour = col_inds, file = file.path(path_fig, "table_stats_before.png"))
+if (multiome) {
+  plot_mqc(seurat_merged, cols = col_inds, file = file.path(path_fig, "table_stats__rna_before.png"))
+}
 ```
 
 ```{r}
@@ -383,7 +371,7 @@ if (isFALSE(multiome)) {
 
 ## QC after
 ```{r, fig.height = 5, fig.width = 10}
-plot_mqc_atac(seurat, cols = col_inds, file = file.path(path_fig, "table_stats.png"))
+plot_mqc_atac(seurat, colour = col_inds, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ```{r, fig.height = 8}
@@ -483,6 +471,7 @@ if (isFALSE(multiome)) {
 ```
 
 ```{r}
+seurat[["umap_before"]] <- seurat[["umap"]]
 save(seurat, file = file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```
 
