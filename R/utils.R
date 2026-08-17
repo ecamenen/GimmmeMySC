@@ -1076,16 +1076,17 @@ plot_dim_doublet <- function(seurat) {
 
 #' @export
 plot_feature_qc2 <- function(x, features, assay = "RNA") {
-    list.map(
-        unique(seurat$Patient),
-        f(x) ~ {
+    DefaultAssay(x) <- assay
+    map(
+        unique(x$Patient),
+        function(i) {
             plot_feature_qc(
-                seurat,
+                x,
                 features,
                 assay,
-                cells = WhichCells(seurat, expression = Patient == x)
+                cells = WhichCells(x, expression = Patient == i)
                 ) %>%
-                plot_grid(plotlist = p, nrow = 2, align = "hv")
+                plot_grid(plotlist = ., nrow = 2, align = "hv")
         }
     )
 }
@@ -1094,14 +1095,16 @@ plot_feature_qc2 <- function(x, features, assay = "RNA") {
 plot_feature_qc <- function(x, features, assay = "RNA", ...) {
     map(
         features,
-        ~FeaturePlot(
-            object = seurat,
-            features = .,
-            alpha = 0.5,
-            cols = c("yellow", "blue"),
-            ...
-        ) %>%
-            theme_sc_dim() +
-            ggtitle(str_clean(., assay))
+        function(.x) {
+            FeaturePlot(
+                object = x,
+                features = .x,
+                alpha = 0.5,
+                cols = c("yellow", "blue"),
+                ...
+            ) %>%
+                theme_sc_dim() +
+                ggtitle(str_clean(.x, assay))
+        }
     )
 }
