@@ -44,6 +44,7 @@ source(
 n_cores <- detectCores() - 1
 soupex <- FALSE
 doublet_method <- "doubletFinder"
+doubletFinder <- FALSE
 ```
 
 ## Load data
@@ -119,20 +120,18 @@ list_seurat <- list.map(
 
 ```{r}
 if (isFALSE(multiome)) {
-  cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
-  
   if (isTRUE(soupex)) {
+  cell_id <- paste0(str_extract(l_samples, "(WT)|(KO)"), "_", str_remove_all(l_samples, "(WT)|(KO)"))
     sc <- list.map(list_seurat, .$sc)
     list_seurat <- list.map(list_seurat, .$seurat)
-  }
-  
   seurat <- integrate_multisamples(list_seurat, cell_id)
   seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+  }
 }
 ```
 
 ### QC
-```{r, fig.height = 7}
+```{r}
 if (isTRUE(soupex)) {
   (sum(seurat[["RNA"]]@layers$counts) / sum(seurat[["raw"]]$counts)) %>% as.data.frame() %>%
   kable0() %>%
@@ -231,7 +230,7 @@ intersect(cell2, cells) %>%
 }
 ```
 
-```{r, fig.width = 8, fig.height = 3.7}
+```{r}
 if (isTRUE(soupex)) {
   list.map(
     names(markers)[seq(10)],
@@ -268,13 +267,13 @@ if (isTRUE(soupex)) {
 
 
 ## Filter cells with low or too high genes
-```{r qc_plot, fig.height = 5, fig.width = 10}
+```{r}
 plot_mqc(seurat, cols = col_inds, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ```{r}
 seurat_old <- seurat
-features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial")
+features <- c("nFeature_RNA", "nCount_RNA", "percent_mitochondrial", "percent_ribosomal", "percent_hemoglobin")
 list_seurat <- list_seurat %>%
   list.map(
     f(i) ~{
@@ -301,6 +300,7 @@ list_seurat <- list_seurat %>%
 ## Doublets
 ### DoubletFinder
 ```{r}
+if (doubletFinder) {
 multiplet_rates_10x <- data.frame(
   multiplet_rate = c(0.004, 0.008, 0.0160, 0.023, 0.031, 0.039, 0.046, 0.054, 0.061, 0.069, 0.076),
   recovered_cells = c(500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
@@ -365,6 +365,7 @@ list_seurat <- list.map(
         return(i)
     }
 )
+}
 ```
 
 ### scDblFinder
@@ -375,49 +376,54 @@ seurat <- find_doublets(seurat, assay = "RNA")
 ```
 
 ### QC
-```{r, fig.height = 8}
+```{r}
 plot_qc_doublet(seurat)
 ```
 
-```{r, fig.height = 8}
-kable_doublet(seurat, label = "doubletFinder", file = file.path(path_fig, "table_doublets_doubletFinder.png"))
-
-plot_bar_doublet(seurat, label = "doubletFinder")
-```
-
+#### DoubletFinder
 ```{r}
-plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "pANN", ncol = 1, nrow = 1, ...)
-
-Idents(seurat) <- "doubletFinder"
-p1 <- plot_violin_doublet(seurat)
-Idents(seurat) <- "Patient"
-p1 | plot_violin_doublet(seurat, cols = col_inds)
+if (doubletFinder) {
+  kable_doublet(seurat, label = "doubletFinder", file = file.path(path_fig, "table_doublets_doubletFinder.png"))
+  
+  plot_bar_doublet(seurat, label = "doubletFinder")
+  
+  plot_violin_doublet <- function(x, ...) plot_sc_violin(x, features = "pANN", ncol = 1, nrow = 1, ...)
+  
+  Idents(seurat) <- "doubletFinder"
+  p1 <- plot_violin_doublet(seurat)
+  Idents(seurat) <- "Patient"
+  p1 | plot_violin_doublet(seurat, cols = col_inds)
+}
 ```
 
+#### Both
 ```{r}
-df <- select(seurat[[]], scDblFinder, doubletFinder)
-pivot_longer(
-      df,
-      cols = everything(),
-      names_to = "groupe",
-      values_to = "Group"
-    ) %>% 
-    relocate(Group) %>%
-    plot_bar_2cat(stats = FALSE, legend = c("Singlet", "Doublet"))
-plot_alluvial(df)
-
-table(seurat$scDblFinder, seurat$doubletFinder) %>%
-    as.data.frame.matrix() %>%
-    kable() %>%
-    pack_rows("scDblFinder", 1, 2) %>%
-    add_header_above(c(" " = 1, "DoubletFinder" = 2)) %>%
-    kable_styling(full_width = FALSE) %>%
-    save_kable(
-        file = file.path(path_fig, "table_scdblFinder_doubletFinder.png"),
-        zoom = 2
-    )
+if (doubletFinder) {
+  df <- select(seurat[[]], scDblFinder, doubletFinder)
+  pivot_longer(
+        df,
+        cols = everything(),
+        names_to = "groupe",
+        values_to = "Group"
+      ) %>% 
+      relocate(Group) %>%
+      plot_bar_2cat(stats = FALSE, legend = c("Singlet", "Doublet"))
+  plot_alluvial(df)
+  
+  table(seurat$scDblFinder, seurat$doubletFinder) %>%
+      as.data.frame.matrix() %>%
+      kable() %>%
+      pack_rows("scDblFinder", 1, 2) %>%
+      add_header_above(c(" " = 1, "DoubletFinder" = 2)) %>%
+      kable_styling(full_width = FALSE) %>%
+      save_kable(
+          file = file.path(path_fig, "table_scdblFinder_doubletFinder.png"),
+          zoom = 2
+      )
+}
 ```
 
+#### Dimension plot
 ```{r}
 plot_dim_doublet(seurat)
 ```
@@ -428,7 +434,7 @@ if (!isFALSE(doublet_method))
 ```
 
 ## Gene filtering
-```{r filter_mark}
+```{r}
 if (isFALSE(SCT)) {
       seurat <- NormalizeData(seurat) %>%
       FindVariableFeatures()
@@ -460,13 +466,17 @@ seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
 ```
 
 ## QC after
-```{r qc_sub, fig.height = 8}
+```{r}
 (ncol(seurat) / ncol(seurat_old) * 100 - 100) %>% `*`(-1) %>% round(1) %>% paste("%")
 
 plot_bar_kept(seurat_old, seurat, unique(seurat$Patient))
-plot_mqc(seurat, file = file.path(path_fig, "table_stats_after.png"))
-plot_mqc_atac(seurat, colour = col_inds, file = file.path(path_fig, "table_stats_after_atac.png"))
+plot_mqc(seurat, cols = col_inds, file = file.path(path_fig, "table_stats_after.png"))
 plot_feature_qc2(seurat, features)
+
+if (multiome) {
+  plot_mqc_atac(seurat, colour = col_inds, file = file.path(path_fig, "table_stats_after_atac.png"))
+  plot_feature_qc2(seurat, features_atac, assay = "ATAC")
+}
 ```
 
 ## Save data
