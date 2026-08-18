@@ -211,10 +211,16 @@ Idents(seurat) <- split.by
 
 ## UMAP
 ```{r}
+if (multiome){
+  reduction.name <- "atac.umap"
+} else {
+  reduction.name <- "umap"
+}
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction = integration_method
+  reduction = integration_method,
+  reduction.name = reduction.name
 )
 ```
 
@@ -329,8 +335,14 @@ plot_res(
 DefaultAssay(seurat) <- "RNA"
 if (isFALSE(multiome)) {
 seurat <- NormalizeData(seurat) %>%
-    FindVariableFeatures() %>%
-    ScaleData()
+      FindVariableFeatures() %>%
+      ScaleData()
+} else {
+  seurat <- RunUMAP(
+      seurat, 
+      dims = dims,
+      reduction.name = "rna.umap"
+    )
 }
 ```
 
