@@ -53,7 +53,7 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 # seurat@assays$SCT@scale.data <- matrix()
 if (integrated & split.by == "Patient")
   seurat <- subset(seurat, subset = Type == target_type)
-DefaultAssay(seurat) <- assay
+DefaultAssay(seurat) <- assay2
 ```
 
 ## PCA
@@ -69,22 +69,29 @@ if (assay == "ATAC") {
     theme_custom() + 
     ggtitle("Correlation between sequencing depth and components") +
     labs(subtitle = NULL)
-} else {
+}
+if(multiome || assay2 == "RNA"){
+  # VariableFeatures(seurat) <- setdiff(
+  #   VariableFeatures(seurat),
+  #   "Pcdh9"
+  # )
   # if (split.by == "Type") {
-  #     DefaultAssay(seurat) <- "RNA"
-  #     if (isFALSE(SCT)) {
-  #     seurat <- NormalizeData(seurat) %>%
-  #       FindVariableFeatures() %>%
-  #       ScaleData()
-  #     } else {
-  #       seurat <- SCTransform(seurat)
-  #     }
-  #     seurat <- RunPCA(
-  #       seurat,
-  #       reduction_key = "Dim. ",
-  #       npcs = max_dim
-  #     )
+      DefaultAssay(seurat) <- "RNA"
+      if (isFALSE(SCT)) {
+      seurat <- NormalizeData(seurat) %>%
+        FindVariableFeatures() %>%
+        ScaleData()
+      } else {
+        seurat <- SCTransform(seurat)
+      }
+      seurat <- RunPCA(
+        seurat,
+        # features = VariableFeatures(seurat),
+        reduction_key = "Dim. ",
+        npcs = max_dim
+      )
   # }
+  DefaultAssay(seurat) <- assay
 }
 ```
 
@@ -171,7 +178,7 @@ if (assay == "ATAC") {
     f = seurat[[]][, split.by],
     layers = c("counts","data")
   )
-} else {
+} else if (assay2 == "RNA") {
     seurat[[assay]] <- split(
         seurat[[assay]],
         f = seurat[[]][, split.by],
@@ -184,7 +191,7 @@ gc()
 ```{r}
 if (assay == "ATAC") {
   seurat <- IntegrateLayers(
-    object = seurat, 
+    object = seurat,
     method = get(paste0(integration_method, "Integration")),
     new.reduction = integration_method,
     features = Features(seurat@assays[["ATAC_v5"]]),
@@ -203,6 +210,7 @@ if (assay == "ATAC") {
         normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
         verbose = TRUE
     )
+    seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
     seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 }
 
@@ -212,7 +220,7 @@ Idents(seurat) <- split.by
 ## UMAP
 ```{r}
 if (multiome){
-  reduction.name <- "atac.umap"
+  reduction.name <- paste(str_to_lower(assay), "umap", sep = ".")
 } else {
   reduction.name <- "umap"
 }
@@ -250,7 +258,7 @@ if (multiome) {
     object = seurat,
     reduction.list = list("pca", "lsi"), 
     dims.list = list(seq(n_dim), dims),
-    modality.weight.name = "RNA.weight",
+    modality.weight.name = "wnn.weight",
     verbose = TRUE
   ) %>%
   RunUMAP(
@@ -263,7 +271,7 @@ if (multiome) {
 } else {
   seurat <- FindNeighbors(
     seurat,
-  reduction = integration_method, 
+    reduction = integration_method, 
     dims = dims
   )
   graph_name <- tail(names(seurat@graphs), 1)
@@ -333,11 +341,7 @@ plot_res(
 # Markers
 ```{r}
 DefaultAssay(seurat) <- "RNA"
-if (isFALSE(multiome)) {
-seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures() %>%
-      ScaleData()
-} else {
+if (multiome && assay == "ATAC") {
   seurat <- RunUMAP(
       seurat, 
       dims = dims,
