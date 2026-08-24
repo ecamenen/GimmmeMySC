@@ -46,12 +46,6 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 ```{r}
 DefaultAssay(seurat) <- assay2
 seurat$Type <- factor(seurat$Type, levels = c("WT", "KO"))
-seurat <- set_percent(seurat)
-```
-
-## QC
-```{r, fig.height = 5, fig.width = 10}
-plot_mqc(seurat, file = file.path(path_fig, "table_stats.png"))
 ```
 
 ### Negative / positive control genes

@@ -39,6 +39,7 @@ cell_label <- "cell_subtype_formatted"
 list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated, snn_cluster) 
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
+pal_discrete_sc2 <- pal_discrete_sc[seurat[[]][, "reorder_ident"] %>% nlevels() %>% seq()]
 pal_discrete_sc <- list_param$pal_discrete_sc
 pal_discrete_sc2 <- list_param$pal_discrete_sc2
 
@@ -133,9 +134,10 @@ bar_group_ident(
 
 ## QC
 ```{r, fig.height = 5, fig.width = 10}
-plot_sc_violin(
-    seurat,
-    nrow = 2,
+if (multiome | assay != "ATAC") {
+  plot_sc_violin(
+      seurat,
+      nrow = 2,
     normalize = c(10, 10, 10, 10, 10, 10),
     breaks = list(
       c(0, 1e3, 2.5e3, 5e3, 1e4),
@@ -143,9 +145,27 @@ plot_sc_violin(
       c(0.1, 0.5, 1, 2.5, 5, 10),
       c(0.1, 1, 5, 10, 25, 50, 1e3),
       c(0, 1, 10, 50)
-    ),
-    col = pal_discrete_sc
-)
+      ),
+      col = pal_discrete_sc
+  )
+}
+if (multiome | assay == "ATAC") {
+  plot_sc_violin(
+      seurat,
+      nrow = 2,
+      features = features_atac,
+        normalize = c(10, 10, 2, 10, 0, 0),
+        breaks = list(
+            10^seq(-1, 10, by = 1),
+            10^seq(-1, 10, by = 1),
+            c(.1, .5, 1, 2, 4),
+            c(1, 5, 10, 25),
+            c(0, 20, 40, 60, 80, 100),
+            NULL
+        ),
+      col = pal_discrete_sc
+  )
+}
 ```
 
 ## Annotation

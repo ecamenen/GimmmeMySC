@@ -145,13 +145,13 @@ DefaultAssay(seurat) <- "RNA"
 data("l_bcell_markers2")
 plot_marker_split(seurat, l_bcell_markers2)
 DefaultAssay(seurat_subset) <- "RNA"
-plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE)
+plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
 plot_marker_split(seurat, jcb_markers)
-plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE)
+plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE, reduction = reduction2)
 ```
 
 ## Cell per cluster
