@@ -116,7 +116,7 @@ plot_dim(
 
 ## QC
 ```{r, message = FALSE}
-p <- plot_feature(seurat, pt.size = .25, features) %>%
+p <- plot_feature(seurat, pt.size = .25, features, reduction = reduction2) %>%
         list.map(f(x, y, z) ~x + ggtitle(str_clean(z)))
 plot_grid(plotlist = p, nrow = 2, align = "hv")
 ```

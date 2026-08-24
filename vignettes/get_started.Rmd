@@ -70,7 +70,7 @@ if (assay == "ATAC") {
     ggtitle("Correlation between sequencing depth and components") +
     labs(subtitle = NULL)
 }
-if(multiome || assay2 == "RNA"){
+if (multiome || assay2 == "RNA"){
   # VariableFeatures(seurat) <- setdiff(
   #   VariableFeatures(seurat),
   #   "Pcdh9"
@@ -90,6 +90,32 @@ if(multiome || assay2 == "RNA"){
         reduction_key = "Dim. ",
         npcs = max_dim
       )
+      if (multiome && assay == "ATAC") {
+    seurat[["RNA"]] <- split(
+        seurat[["RNA"]],
+        f = seurat[[]][, split.by],
+        layers = c("counts", "data")
+    )
+    
+    seurat <- IntegrateLayers(
+        object = seurat,
+        method = get(paste0(integration_method, "Integration")),
+        new.reduction = paste0(integration_method, ".rna"),
+        orig.reduction = reduction,
+        dims.to.integrate = dims,
+        normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
+        verbose = TRUE
+    )
+    seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
+    seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+    
+      seurat <- RunUMAP(
+          seurat, 
+          dims = dims,
+          reduction = paste0(integration_method, ".rna"),
+          reduction.name = "rna.umap"
+      )
+    }
   # }
   DefaultAssay(seurat) <- assay
 }
@@ -226,7 +252,7 @@ if (multiome){
 }
 seurat <- RunUMAP(
   seurat, 
-  dims = dims,
+  dims = seq(n_dim),
   reduction = integration_method,
   reduction.name = reduction.name
 )
@@ -253,17 +279,18 @@ resolution_tot <- c(resolution2, resolution)
 
 ```{r}
 if (multiome) {
-  DefaultAssay(seurat) <- "RNA"
+  reduction <- "wnn.umap"
   seurat <- FindMultiModalNeighbors(
     object = seurat,
-    reduction.list = list("pca", "lsi"), 
-    dims.list = list(seq(n_dim), dims),
+    # reduction.list = list("pca", "lsi"),
+    reduction.list = list("Harmony.rna", "Harmony"),
+    dims.list = list(seq(n_dim), seq(n_dim)),
     modality.weight.name = "wnn.weight",
     verbose = TRUE
   ) %>%
   RunUMAP(
     nn.name = "weighted.nn", 
-    reduction.name = "wnn.umap", 
+    reduction.name = reduction2, 
     reduction.key = "wnnUMAP_"
   )
   graph_name <- "wsnn"
@@ -325,39 +352,31 @@ clustree_sc(seurat2, prefix_cl, clusters)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
-plot_res(seurat, clusters)
+plot_res(seurat, clusters, reduction = reduction2)
 plot_res(
   seurat, 
   clusters[c(3, 5, 6, 8)],
-  ncol = 2
+  ncol = 2, 
+  reduction = reduction2
   )
 plot_res(
   seurat,
   clusters,
-  cols = scales::hue_pal()
+  cols = scales::hue_pal(), 
+  reduction = reduction2
 )
 ```
 
 # Markers
-```{r}
-DefaultAssay(seurat) <- "RNA"
-if (multiome && assay == "ATAC") {
-  seurat <- RunUMAP(
-      seurat, 
-      dims = dims,
-      reduction.name = "rna.umap"
-    )
-}
-```
-
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
+DefaultAssay(seurat) <- "RNA"
 data("jcb_markers")
-plot_mfeature(seurat, jcb_markers, nrow = 3, cluster = TRUE)
+plot_mfeature(seurat, jcb_markers, nrow = 3, cluster = FALSE, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("l_bcell_markers")
-plot_mfeature(seurat, l_bcell_markers, nrow = 3, cluster = TRUE)
+plot_mfeature(seurat, l_bcell_markers, nrow = 3, cluster = FALSE, reduction = reduction2)
 ```
 
 ## Save data
