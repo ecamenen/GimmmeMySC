@@ -387,7 +387,7 @@ if (assay == "ATAC") {
 }
 
 Idents(seurat) <- seurat[[]][, snn_cluster]
-if (integrated) {
+if (integrated && split.by == "Patient") {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
 } else {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "c.rda")))

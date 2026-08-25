@@ -39,14 +39,13 @@ cell_label <- "cell_subtype_formatted"
 list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated, snn_cluster) 
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
-pal_discrete_sc2 <- pal_discrete_sc[seurat[[]][, "reorder_ident"] %>% nlevels() %>% seq()]
 pal_discrete_sc <- list_param$pal_discrete_sc
-pal_discrete_sc2 <- list_param$pal_discrete_sc2
 
 levels(seurat) <- reorder_ident
 seurat[[]][, "reorder_ident"] <- Idents(seurat)
-pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
-# levels(seurat_subset) <- reorder_ident
+pal_discrete_sc2 <- pal_discrete_sc[seurat[[]][, "reorder_ident"] %>% nlevels() %>% seq()]
+# pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
+levels(seurat_subset) <- reorder_ident
 seurat_subset[[]][, "reorder_ident"] <- Idents(seurat_subset)
 ```
 

@@ -886,13 +886,13 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
     load(file.path(path_data, paste0(seurat_dataset, ".rda")))
     Idents(seurat) <- snn_cluster
     if (integrated) {
-        seurat_subset <- subsampling_sc(seurat) %>%
+        seurat_subset <- subsampling_sc(seurat, group.by = split.by) %>%
             subset(subset = Type == target_type)
     } else {
         seurat_subset <- seurat
     }
 
-    if (split.by != "Type") {
+    if (split.by == "Patient") {
         if (integrated) {
             load(file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
             Idents(seurat) <- snn_cluster
@@ -915,7 +915,7 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
     seurat <- remove_low_cells(seurat) %>%
         remove_low_cells("cell_subtype_formatted2")
 
-    if (split.by != "Type") {
+    if (split.by == "Patient") {
         pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
     }
     list(seurat = seurat, seurat_subset = seurat_subset, pal_discrete_sc = pal_discrete_sc, pal_discrete_sc2 = pal_discrete_sc2)

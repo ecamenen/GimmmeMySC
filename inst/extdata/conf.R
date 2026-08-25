@@ -12,10 +12,10 @@ n_dim <- 30
 dims <- seq(n_dim)
 species <- "mouse"
 assay <- "RNA"
+assay2 <- assay
 SCT <- TRUE
 integrated <- FALSE
 if (assay == "ATAC") {
-    assay2 <- "RNA"
     SCT <- FALSE
     reduction <- "lsi"
     path <- "ATAC"
@@ -23,7 +23,6 @@ if (assay == "ATAC") {
     if (SCT) {
         assay <- "SCT"
     }
-    assay2 <- assay
     reduction <- "pca"
     path <- "RNA"
 }

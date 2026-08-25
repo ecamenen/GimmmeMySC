@@ -33,7 +33,7 @@ source(
   "extdata"
 ), "conf.R"))
 
-if (split.by == "Type") {
+if (split.by != "Patient") {
   cell_label <- "cell_subtype_formatted"
 } else {
   cell_label <- "cell_type_formatted"
@@ -66,7 +66,9 @@ pal_discrete_sc2 <- list_param$pal_discrete_sc
 bar_group_ident(
     seurat,
     idents = "cell_subtype_formatted2",
-    group.by = "Type",
+    group.by = split.by,
+    colour = pal_discrete_sc2
+)
     colour = pal_discrete_sc2
 )
 
