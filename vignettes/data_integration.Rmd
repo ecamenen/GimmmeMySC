@@ -96,7 +96,6 @@ plot_dim_cycle(seurat, reduction = "pca")
 seurat <- RunPCA(
   seurat,
   features = VariableFeatures(seurat),
-  reduction_key = "Dim. ",
   npcs = max_dim
 )
 ```

@@ -69,6 +69,10 @@ bar_group_ident(
     group.by = split.by,
     colour = pal_discrete_sc2
 )
+bar_group_ident(
+    seurat,
+    idents = snn_cluster,
+    group.by = split.by,
     colour = pal_discrete_sc2
 )
 
@@ -88,6 +92,14 @@ list.map(
     ggtitle(i)
   }
 )
+
+plot_dim(
+    seurat_subset,
+    split.by = split.by,
+    label = FALSE,
+    cols = pal_discrete_sc,
+    reduction = reduction2
+) + NoLegend()
 ```
 
 ```{r}

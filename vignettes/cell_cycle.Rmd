@@ -100,7 +100,6 @@ plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Patient")
 seurat <- RunPCA(
   seurat,
   features = VariableFeatures(seurat),
-  reduction_key = "Dim. ",
   npcs = max_dim
 )
 ```

@@ -462,7 +462,7 @@ if (!SCT) {
     DefaultAssay(seurat) <- "sketch"
   }
 }
-seurat <- RunPCA(seurat, reduction_key = "Dim. ", npcs = max_dim)
+seurat <- RunPCA(seurat, npcs = max_dim)
 ```
 
 ## QC after

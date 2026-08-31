@@ -152,7 +152,6 @@ gc()
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction.key = "Dim. ",
   reduction = reduction
   )
 qc_integration(seurat, split.by = split.by)
