@@ -1169,3 +1169,10 @@ qc_integration <- function(seurat, reduction = "umap", split.by = "Type") {
         label = FALSE
     ) + NoLegend()
 }
+
+#' @export
+calculate_pct_var <- function(x, reduction = "pca") {
+    emb <- Embeddings(x, reduction = reduction)
+    var_per_dim <- apply(emb, 2, var) %>% sqrt()
+    100 * var_per_dim / sum(var_per_dim)
+}

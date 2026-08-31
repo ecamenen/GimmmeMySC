@@ -67,7 +67,8 @@ if (assay == "ATAC") {
   
   plot_cor_depth(seurat)
 }
-if (!cell_cycle && (multiome || assay2 == "RNA")){
+if (!cell_cycle) {
+  if ((multiome || assay2 == "RNA")) {
   # VariableFeatures(seurat) <- setdiff(
   #   VariableFeatures(seurat),
   #   "Pcdh9"
@@ -95,6 +96,9 @@ if (!cell_cycle && (multiome || assay2 == "RNA")){
       )
   # }
   DefaultAssay(seurat) <- assay
+  }
+} else if (assay == "SCT") {
+  DefaultAssay(seurat) <- assay
 }
 ```
 
@@ -109,7 +113,7 @@ cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
 ```{r, fig.height = 6, fig.width = 12}
 list.map(
   list(seq(15), 16:30, 31:45),
-  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = reduction, assays = assay, slot = slot)
+  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = reduction, slot = slot)
 )
 ```
 
@@ -151,112 +155,73 @@ seurat <- RunUMAP(
   reduction.key = "Dim. ",
   reduction = reduction
   )
-```
-
-```{r}
-Idents(seurat) <- split.by
-plot_dim(
-  seurat,
-  label = FALSE
-)
-plot_dim(
-  seurat,
-  split.by = split.by,
-  label = FALSE
-) + NoLegend()
+qc_integration(seurat, split.by = split.by)
 ```
 
 ## Integration
 ```{r}
+if (multiome) {
+  assay_inv <- ifelse(assay2 == "ATAC", "RNA", "ATAC")
+  orig.reduction <- ifelse(assay2 == "ATAC", "pca", "lsi")
+  new.reduction <- paste(integration_method, str_to_lower(assay_inv), sep = ".")
+  old_assay <- DefaultAssay(seurat)
+  DefaultAssay(seurat) <- assay_inv
+  
+  seurat <- RunUMAP(
+    seurat, 
+    dims = dims,
+    reduction = orig.reduction
+  )
+  qc_integration(seurat, split.by = split.by)
+  
+  seurat <- integrate_layers(
+    seurat,
+      integration_method = new.reduction,
+    assay = assay_inv,
+    split.by,
+    reduction = orig.reduction,
+    dims = seq(n_dim),
+    integration_method2 = get(paste0(integration_method, "Integration"))
+  )
+  
+  if (assay_inv == "ATAC") {
+    dims_inv <- filter_depth_cor(seurat) %>% head(n_dim)
+  } else {
+    dims_inv <- seq(n_dim)
+  }
+
+reduction.umap <- paste0(str_to_lower(assay_inv), ".umap")
+  
+seurat <- RunUMAP(
+    seurat, 
+    dims = dims_inv,
+    reduction = new.reduction,
+    reduction.name = reduction.umap
+)
+qc_integration(seurat, reduction = reduction.umap, split.by = split.by)
+DefaultAssay(seurat) <- old_assay
+}
+```
+
+
+```{r}
 seurat <- integrate_layers(seurat, integration_method, assay, split.by, reduction, dims)
 
-eig <- seurat[[integration_method]]@stdev / sum(seurat[[integration_method]]@stdev) * 100
+eig <- calculate_pct_var(seurat, reduction = integration_method)
 plot_pca_qc(eig)
 
 cumsum(eig) %>% .[n_dim] %>% round(1)
 cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
-```
-
-```{r, fig.height = 6, fig.width = 12}
-list.map(
-  list(seq(15), 16:30, 31:45),
-  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = integration_method, assays = assay, slot = slot)
-)
 
 if (assay == "ATAC") {
   dims <- filter_depth_cor(seurat) %>% head(n_dim)
 }
 ```
 
-```{r}
-if (multiome) {
-  assay_inv <- ifelse(assay2 == "ATAC", "RNA", "ATAC")
-  orig.reduction <- ifelse(assay2 == "ATAC", "pca", "lsi")
-  new.reduction <- paste0(integration_method, str_to_lower(assay_inv), sep = ".")
-  DefaultAssay(seurat) <- assay_inv
-  # seurat[["RNA"]] <- split(
-  #     seurat[["RNA"]],
-  #     f = seurat[[]][, split.by],
-  #     layers = c("counts", "data")
-  # )
-  if (assay_inv == "ATAC") {
-  seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
-    counts = seurat@assays$ATAC$counts, 
-    data = seurat@assays$ATAC$data
-  )
-  seurat@assays[["ATAC_v5"]]@key <- "atacv5_"
-  
-  DefaultAssay(seurat) <- "ATAC_v5"
-  seurat <- ScaleData(seurat)
-  seurat[["ATAC_v5"]] <- split(
-    seurat[["ATAC_v5"]], 
-    f = seurat[[]][, split.by],
-    layers = c("counts","data")
-  )
-  seurat <- IntegrateLayers(
-    object = seurat,
-    method = integration_method2,
-    new.reduction = new.reduction,
-    orig.reduction = orig.reduction,
-    dims.to.integrate = seq(n_dim),
-    verbose = TRUE,
-    assay = "ATAC_v5",
-    features = Features(seurat@assays[["ATAC_v5"]])
-  )
-} else {
-  seurat <- IntegrateLayers(
-      object = seurat,
-      method = integration_method2,
-      new.reduction = new.reduction,
-      orig.reduction = orig.reduction,
-      dims.to.integrate = seq(n_dim),
-      verbose = TRUE,
-      normalization.method = ifelse(SCT, "SCT", "LogNormalize")
-  )
-    seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
-    seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-}
-  
-  if (assay == "ATAC") {
-    dims_inv <- filter_depth_cor(seurat) %>% head(n_dim)
-  } else {
-    dims_inv <- seq(n_dim)
-  }
-  
-  seurat <- RunUMAP(
-      seurat, 
-      dims = dims_inv,
-      reduction = paste(integration_method, str_to_lower(assay_inv), sep = "."),
-      reduction.name = paste0(str_to_lower(assay_inv), ".umap")
-  )
-  DefaultAssay(seurat) <- assay2
-}
-```
-
 ## UMAP
 ```{r}
 if (multiome){
-  reduction.name <- paste(str_to_lower(assay), "umap", sep = ".")
+  reduction.name <- paste(str_to_lower(assay2), "umap", sep = ".")
 } else {
   reduction.name <- "umap"
 }
@@ -266,18 +231,8 @@ seurat <- RunUMAP(
   reduction = integration_method,
   reduction.name = reduction.name
 )
-```
 
-```{r}
-plot_dim(
-    seurat,
-    label = FALSE
-)
-plot_dim(
-    seurat,
-    split.by = split.by,
-    label = FALSE
-) + NoLegend()
+qc_integration(seurat, reduction = reduction.name, split.by = split.by)
 ```
 
 ## Clustering
