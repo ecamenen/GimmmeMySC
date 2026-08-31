@@ -14,7 +14,10 @@ species <- "mouse"
 assay <- "RNA"
 assay2 <- assay
 SCT <- TRUE
-integrated <- FALSE
+integrated <- TRUE
+cell_cycle <- TRUE
+multiome <- FALSE
+target_type <- "WT"
 if (assay == "ATAC") {
     SCT <- FALSE
     reduction <- "lsi"

@@ -715,3 +715,11 @@ plot_dim_selected <- function(x, selected, ...) {
             values = c("grey80", "red")
         )
 }
+
+#' @export
+plot_cor_depth <- function(x) {
+    DepthCor(x, n = n_dim) +
+        theme_custom() +
+        ggtitle("Correlation between sequencing depth and components") +
+        labs(subtitle = NULL)
+}

@@ -35,7 +35,7 @@ source(
   "extdata"
 ), "conf.R"))
 
-if (split.by == "Type") {
+if (split.by != "Patient") {
   integration_method <- "RPCA"
 } else {
   integration_method <- "Harmony"
@@ -65,18 +65,22 @@ if (assay == "ATAC") {
   seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
   seurat <- RunSVD(seurat, n = max_dim)
   
-  DepthCor(seurat, n = 20) + 
-    theme_custom() + 
-    ggtitle("Correlation between sequencing depth and components") +
-    labs(subtitle = NULL)
+  plot_cor_depth(seurat)
 }
-if (multiome || assay2 == "RNA"){
+if (!cell_cycle && (multiome || assay2 == "RNA")){
   # VariableFeatures(seurat) <- setdiff(
   #   VariableFeatures(seurat),
   #   "Pcdh9"
   # )
   # if (split.by == "Type") {
       DefaultAssay(seurat) <- "RNA"
+      seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
+      seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+      seurat[["RNA"]] <- split(
+        seurat[["RNA"]],
+        f = seurat[[]][, split.by],
+        layers = c("counts", "data")
+    )
       if (isFALSE(SCT)) {
       seurat <- NormalizeData(seurat) %>%
         FindVariableFeatures() %>%
@@ -87,35 +91,8 @@ if (multiome || assay2 == "RNA"){
       seurat <- RunPCA(
         seurat,
         # features = VariableFeatures(seurat),
-        reduction_key = "Dim. ",
         npcs = max_dim
       )
-      if (multiome && assay == "ATAC") {
-    seurat[["RNA"]] <- split(
-        seurat[["RNA"]],
-        f = seurat[[]][, split.by],
-        layers = c("counts", "data")
-    )
-    
-    seurat <- IntegrateLayers(
-        object = seurat,
-        method = get(paste0(integration_method, "Integration")),
-        new.reduction = paste0(integration_method, ".rna"),
-        orig.reduction = reduction,
-        dims.to.integrate = dims,
-        normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
-        verbose = TRUE
-    )
-    seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
-    seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-    
-      seurat <- RunUMAP(
-          seurat, 
-          dims = dims,
-          reduction = paste0(integration_method, ".rna"),
-          reduction.name = "rna.umap"
-      )
-    }
   # }
   DefaultAssay(seurat) <- assay
 }
@@ -149,6 +126,7 @@ comp_genes <- list.map(
 ) %>% set_names(dims)
 
 if (assay == "ATAC") {
+  plot_cor_depth(seurat)
   dims <- filter_depth_cor(seurat) %>% head(n_dim)
 } else {
   list.map(
@@ -190,7 +168,38 @@ plot_dim(
 
 ## Integration
 ```{r}
+seurat <- integrate_layers(seurat, integration_method, assay, split.by, reduction, dims)
+
+eig <- seurat[[integration_method]]@stdev / sum(seurat[[integration_method]]@stdev) * 100
+plot_pca_qc(eig)
+
+cumsum(eig) %>% .[n_dim] %>% round(1)
+cumsum(eig) %>% .[. < 80] %>% last() %>% round(1)
+```
+
+```{r, fig.height = 6, fig.width = 12}
+list.map(
+  list(seq(15), 16:30, 31:45),
+  ~DimHeatmap(seurat, dims = ., cells = 500, balanced = TRUE, reduction = integration_method, assays = assay, slot = slot)
+)
+
 if (assay == "ATAC") {
+  dims <- filter_depth_cor(seurat) %>% head(n_dim)
+}
+```
+
+```{r}
+if (multiome) {
+  assay_inv <- ifelse(assay2 == "ATAC", "RNA", "ATAC")
+  orig.reduction <- ifelse(assay2 == "ATAC", "pca", "lsi")
+  new.reduction <- paste0(integration_method, str_to_lower(assay_inv), sep = ".")
+  DefaultAssay(seurat) <- assay_inv
+  # seurat[["RNA"]] <- split(
+  #     seurat[["RNA"]],
+  #     f = seurat[[]][, split.by],
+  #     layers = c("counts", "data")
+  # )
+  if (assay_inv == "ATAC") {
   seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
     counts = seurat@assays$ATAC$counts, 
     data = seurat@assays$ATAC$data
@@ -204,43 +213,44 @@ if (assay == "ATAC") {
     f = seurat[[]][, split.by],
     layers = c("counts","data")
   )
-} else if (assay2 == "RNA") {
-    seurat[[assay]] <- split(
-        seurat[[assay]],
-        f = seurat[[]][, split.by],
-        layers = c("counts", "data")
-    )
-}
-gc()
-```
-
-```{r}
-if (assay == "ATAC") {
   seurat <- IntegrateLayers(
     object = seurat,
-    method = get(paste0(integration_method, "Integration")),
-    new.reduction = integration_method,
-    features = Features(seurat@assays[["ATAC_v5"]]),
-    orig.reduction = reduction,
+    method = integration_method2,
+    new.reduction = new.reduction,
+    orig.reduction = orig.reduction,
+    dims.to.integrate = seq(n_dim),
+    verbose = TRUE,
     assay = "ATAC_v5",
-    dims.to.integrate = dims,
-    verbose = TRUE
+    features = Features(seurat@assays[["ATAC_v5"]])
   )
 } else {
-    seurat <- IntegrateLayers(
-        object = seurat,
-        method = get(paste0(integration_method, "Integration")),
-        new.reduction = integration_method,
-        orig.reduction = reduction,
-        dims.to.integrate = dims,
-        normalization.method = ifelse(SCT, "SCT", "LogNormalize"),
-        verbose = TRUE
-    )
+  seurat <- IntegrateLayers(
+      object = seurat,
+      method = integration_method2,
+      new.reduction = new.reduction,
+      orig.reduction = orig.reduction,
+      dims.to.integrate = seq(n_dim),
+      verbose = TRUE,
+      normalization.method = ifelse(SCT, "SCT", "LogNormalize")
+  )
     seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
     seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 }
-
-Idents(seurat) <- split.by
+  
+  if (assay == "ATAC") {
+    dims_inv <- filter_depth_cor(seurat) %>% head(n_dim)
+  } else {
+    dims_inv <- seq(n_dim)
+  }
+  
+  seurat <- RunUMAP(
+      seurat, 
+      dims = dims_inv,
+      reduction = paste(integration_method, str_to_lower(assay_inv), sep = "."),
+      reduction.name = paste0(str_to_lower(assay_inv), ".umap")
+  )
+  DefaultAssay(seurat) <- assay2
+}
 ```
 
 ## UMAP
@@ -252,7 +262,7 @@ if (multiome){
 }
 seurat <- RunUMAP(
   seurat, 
-  dims = seq(n_dim),
+  dims = dims,
   reduction = integration_method,
   reduction.name = reduction.name
 )
@@ -382,7 +392,7 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3, cluster = FALSE, reduction = re
 ## Save data
 ```{r}
 if (assay == "ATAC") {
-  DefaultAssay(seurat) <- "ATAC" 
+  DefaultAssay(seurat) <- "ATAC"
    seurat@assays$ATAC_v5 <- NULL
 }
 

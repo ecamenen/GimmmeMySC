@@ -1108,3 +1108,64 @@ plot_feature_qc <- function(x, features, assay = "RNA", ...) {
         }
     )
 }
+
+#' @export
+integrate_layers <- function(seurat, integration_method = "Harmony", assay = "RNA", split.by = "Patient", reduction = "pca", dims = seq(30), integration_method2 = get(paste0(integration_method, "Integration"))) {
+
+    if (assay == "ATAC") {
+        seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
+            counts = seurat@assays$ATAC$counts,
+            data = seurat@assays$ATAC$data
+        )
+        seurat@assays[["ATAC_v5"]]@key <- "atacv5_"
+
+        DefaultAssay(seurat) <- "ATAC_v5"
+        seurat <- ScaleData(seurat)
+        seurat[["ATAC_v5"]] <- split(
+            seurat[["ATAC_v5"]],
+            f = seurat[[]][, split.by],
+            layers = c("counts","data")
+        )
+        seurat <- IntegrateLayers(
+            object = seurat,
+            method = integration_method2,
+            new.reduction = integration_method,
+            orig.reduction = reduction,
+            dims.to.integrate = dims,
+            verbose = TRUE,
+            assay = "ATAC_v5",
+            features = Features(seurat@assays[["ATAC_v5"]])
+        )
+    } else {
+        seurat <- IntegrateLayers(
+            object = seurat,
+            method = integration_method2,
+            new.reduction = integration_method,
+            orig.reduction = reduction,
+            dims.to.integrate = dims,
+            verbose = TRUE,
+            normalization.method = ifelse(SCT, "SCT", "LogNormalize")
+        )
+        seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
+        seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+    }
+
+    Idents(seurat) <- split.by
+    return(seurat)
+}
+
+#' @export
+qc_integration <- function(seurat, reduction = "umap", split.by = "Type") {
+    Idents(seurat) <- split.by
+    plot_dim(
+        seurat,
+        label = FALSE,
+        reduction = reduction
+    ) %>% plot()
+    plot_dim(
+        seurat,
+        split.by = split.by,
+        reduction = reduction,
+        label = FALSE
+    ) + NoLegend()
+}
