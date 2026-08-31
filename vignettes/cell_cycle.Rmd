@@ -55,11 +55,11 @@ seurat <- RunPCA(seurat, features = c(cc.genes$s.genes, cc.genes$g2m.genes) %>% 
 
 plot_dim_cycle(seurat, reduction = "pca")
 if (integrated) {
-  seurat_subset <- subsampling_sc(seurat)
+  seurat_subset <- subsampling_sc(seurat, group.by = split.by)
 } else {
   seurat_subset <- seurat
 }
-plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Type")
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = split.by)
 plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Patient")
 ```
 
@@ -88,11 +88,11 @@ seurat2 <- RunPCA(
 )
 plot_dim_cycle(seurat2, reduction = "pca")
 if (integrated) {
-  seurat_subset <- subsampling_sc(seurat2)
+  seurat_subset <- subsampling_sc(seurat2, group.by = split.by)
 } else {
   seurat_subset <- seurat2
 }
-plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Type")
+plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = split.by)
 plot_dim_cycle0(seurat_subset, reduction = "pca", split.by = "Patient")
 ```
 

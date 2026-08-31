@@ -212,10 +212,12 @@ plot_feature <- function(
         ...
     )
 
+    if (cluster || label) {
     umap_coords <- Embeddings(object, reduction = "umap") %>%
         set_colnames(str_to_lower(colnames(.))) %>%
         as.data.frame() %>%
         mutate(cluster = Idents(object))
+    }
 
     if (cluster) {
 
