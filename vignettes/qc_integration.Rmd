@@ -50,7 +50,7 @@ seurat[[]][, "reorder_ident"] <- Idents(seurat)
 pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
 new_ident <- "reorder_ident" -> snn_cluster -> old_ident
 
-seurat_subset <- subsampling_sc(seurat)
+seurat_subset <- subsampling_sc(seurat, group.by = split.by)
 plot_dim(seurat, cols = pal_discrete_sc)
 plot_dim(seurat, cols = pal_discrete_sc, reduction = reduction2)
 ```
@@ -78,20 +78,20 @@ p2 + plot_dim_cycle0(seurat, reduction = reduction2) %>% pluck(1)
 ```{r}
 plot_dim(
   object = seurat_subset,
-  split.by = 'Type',
+  split.by = split.by,
   col = pal_discrete_sc,
   reduction = reduction2
 ) + NoLegend()
 
 bar_ident_group(
   seurat_subset, 
-  group.by = "Type", 
+  group.by = split.by, 
   idents = snn_cluster
 )
 
 bar_group_ident(
   seurat,
-  group.by = "Type",
+  group.by = split.by,
   idents = snn_cluster,
   colour = pal_discrete_sc
 )
@@ -99,16 +99,17 @@ bar_group_ident(
 
 ## UMAP per Patient
 ```{r}
-subsampling_sc(seurat, group.by = "Patient") %>%
-  plot_dim(
-    split.by = 'Patient',
-    col = pal_discrete_sc,
-    ncol = 2, 
-    reduction = reduction2
-  ) + NoLegend()
+seurat_subset2 <- subsampling_sc(seurat, group.by = "Patient")
+plot_dim(
+  seurat_subset2,
+  split.by = 'Patient',
+  col = pal_discrete_sc,
+  ncol = 2, 
+  reduction = reduction2
+) + NoLegend()
 
 bar_ident_group(
-  seurat, 
+  seurat_subset2, 
   group.by = "Patient", 
   idents = snn_cluster
 )
@@ -135,7 +136,7 @@ plot_bar_sc(seurat)
 Idents(seurat) <- snn_cluster
 
 Idents(seurat_subset) <- "cell_subtype_formatted2"
-plot_dim_cell(seurat_subset, split.by = "Type", col = pal_discrete_sc2, reduction = reduction2)
+plot_dim_cell(seurat_subset, split.by = split.by, col = pal_discrete_sc2, reduction = reduction2)
 Idents(seurat_subset) <- snn_cluster
 ```
 
