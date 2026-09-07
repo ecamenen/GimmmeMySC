@@ -916,7 +916,7 @@ load_dataset <- function(path_data, seurat_dataset, split.by, target_type, pal_d
         remove_low_cells("cell_subtype_formatted2")
 
     if (split.by == "Patient") {
-        pal_discrete_sc2 <- palette_continuous()(length(unique(seurat$cell_subtype_formatted)))
+        pal_discrete_sc2 <- choose_palette(seurat, "cell_subtype_formatted")
     }
     list(seurat = seurat, seurat_subset = seurat_subset, pal_discrete_sc = pal_discrete_sc, pal_discrete_sc2 = pal_discrete_sc2)
 }
@@ -1017,7 +1017,7 @@ add_dr <- function(x, sample, assay = "atac", dr = "umap") {
 }
 
 #' @export
-find_doublets <- function(seurat, assay = assay) {
+find_doublets <- function(seurat, assay = assay, n_cores = parallel::detectCores() - 1) {
     if (.Platform$OS.type == "windows") {
         bp_param <- SnowParam(workers = n_cores, type = "SOCK",  exportglobals = TRUE, progressbar = TRUE)
     } else {

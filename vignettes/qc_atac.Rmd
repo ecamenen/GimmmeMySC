@@ -32,6 +32,7 @@ library("AnnotationHub")
 library("GenomeInfoDb")
 library("gridExtra")
 library("cowplot")
+library("BiocParallel")
 # BiocManager::install("ensembldb")
 # biovizBase
 
@@ -46,6 +47,9 @@ dr <- "umap"
 
 filter <- dplyr::filter
 select <- dplyr::select
+
+features_supp0 <- str_remove_all(features_supp0, "_atac")
+features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
 ```
 
 ## Annotation
@@ -137,7 +141,6 @@ seurat <- list.map(
     seurat_i[["RNA"]] <- CreateAssayObject(counts = counts[["Gene Expression"]])
     seurat_i <- add_dr(seurat_i, i, dr = dr)
     DefaultAssay(seurat_i) <- "RNA"
-    seurat_i$percent_mitochondrial_atac <- seurat_i$percent_mitochondrial
     seurat_i <- set_percent(seurat_i)
     DefaultAssay(seurat_i) <- "ATAC"
   }
@@ -173,9 +176,13 @@ seurat <- list.map(
     for (x in features_supp0)
       i[[]][, paste0("percent_", x)] <- i[[]][, paste0(techno2, x, ifelse(techno == "atac_", "_reads", ""))] / i[[]][, metadata_reads] * 100
     i[[]][, "percent_low_map_qc"] <- i[[]][, paste0(techno2, "lowmapq")] / i[[]][, metadata_reads] * 100
-
+    if (multiome)
+      i$percent_mitochondrial_atac <- i$percent_mitochondrial
     return(i)
 })
+
+features_supp0 <- c("unmapped", ifelse(techno == "atac_", "dup", "duplicate"), paste0("mitochondrial", ifelse(multiome, "_atac", "")))
+features_supp <- c("percent_low_map_qc", paste0("percent_", features_supp0))
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
@@ -263,6 +270,9 @@ seqlevels(seurat[['ATAC']]@ranges) <- intersect(
 ## Doublets
 ```{r, fig.height = 8}
 seurat <- find_doublets(seurat, assay = assay)
+```
+
+```{r}
 plot_qc_doublet(seurat)
 plot_dim_doublet(seurat)
 ```
