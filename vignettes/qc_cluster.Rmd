@@ -41,11 +41,13 @@ seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
 pal_discrete_sc <- list_param$pal_discrete_sc
 
-levels(seurat) <- reorder_ident
+if (!is.null(reorder_ident))
+  levels(seurat) <- reorder_ident
 seurat[[]][, "reorder_ident"] <- Idents(seurat)
-pal_discrete_sc2 <- pal_discrete_sc[seurat[[]][, "reorder_ident"] %>% nlevels() %>% seq()]
+pal_discrete_sc2 <- choose_palette(seurat, "reorder_ident")
 # pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
-levels(seurat_subset) <- reorder_ident
+if (!is.null(reorder_ident))
+  levels(seurat_subset) <- reorder_ident
 seurat_subset[[]][, "reorder_ident"] <- Idents(seurat_subset)
 ```
 

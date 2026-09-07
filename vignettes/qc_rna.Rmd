@@ -58,7 +58,7 @@ if (isTRUE(multiome)) {
       f(x, i, j) ~{
         x %>%
                RenameCells(new.names = sub("^([^_]+)_([^_]+)_", "", colnames(.))) %>%
-         add_dr(j, assay = "gex", dr = dr) 
+         add_dr(sample = str_replace(j, "(\\d+)", "_\\1"), assay = "gex", dr = dr) 
       }
       )
   seurat <- integrate_multisamples(list_seurat, cell_id)

@@ -1176,3 +1176,13 @@ calculate_pct_var <- function(x, reduction = "pca") {
     var_per_dim <- apply(emb, 2, var) %>% sqrt()
     100 * var_per_dim / sum(var_per_dim)
 }
+
+#' @export
+choose_palette <- function(seurat, x) {
+    n <- seurat[[]][, x] %>% nlevels()
+    if (n > 12) {
+        palette_continuous()(n)
+    } else {
+        pal_discrete_sc[seq(n)]
+    }
+}

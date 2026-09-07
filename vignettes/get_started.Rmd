@@ -59,13 +59,16 @@ DefaultAssay(seurat) <- assay2
 ## PCA
 ### Dimension selection
 ```{r message=FALSE, warning=FALSE}
-if (assay == "ATAC") {
+if (multiome || assay == "ATAC") {
+  DefaultAssay(seurat) <- "ATAC"
   library("Signac")
   seurat <- RunTFIDF(seurat)
   seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
   seurat <- RunSVD(seurat, n = max_dim)
   
   plot_cor_depth(seurat)
+  if (multiome)
+    DefaultAssay(seurat) <- "RNA"
 }
 if (!cell_cycle) {
   if ((multiome || assay2 == "RNA")) {
@@ -278,7 +281,6 @@ seurat <- FindClusters(
 )
 ```
 
-
 ```{r}
 seurat2 <- seurat
 cols_to_remove <- paste0(prefix_cl, resolution[-1])
@@ -345,9 +347,9 @@ plot_mfeature(seurat, l_bcell_markers, nrow = 3, cluster = FALSE, reduction = re
 
 ## Save data
 ```{r}
+seurat@assays$ATAC_v5 <- NULL
 if (assay == "ATAC") {
   DefaultAssay(seurat) <- "ATAC"
-   seurat@assays$ATAC_v5 <- NULL
 }
 
 Idents(seurat) <- seurat[[]][, snn_cluster]
