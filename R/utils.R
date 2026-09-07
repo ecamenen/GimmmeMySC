@@ -166,16 +166,17 @@ plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
 }
 
 #' @export
-plot_markers <- function(x, markers, cols = pal_discrete_sc) {
-    p1 <- plot_mviolin(x, markers, cols = cols)
+plot_markers <- function(x, markers, cols = pal_discrete_sc, labels = NULL) {
+    p1 <- plot_mviolin(x, markers, cols = cols, labels = labels)
     print(p1)
     list.map(
         markers,
         f(i, j, k) ~ plot_dot(
             x,
-            features = func_format(i) %>% head(50) %>% unique()
-        ) +
-            labs(title = k)
+            features = func_format(i) %>% head(50) %>% unique(),
+            labels = labels[[k]]
+            ) +
+                labs(title = k)
     )
 }
 
@@ -607,35 +608,44 @@ organise_plots <- function(x, i = 2) {
 
 
 #' @export
-plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), ...) {
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), labels = NULL, ...) {
     p1 <- list.map(
         markers,
         f(i, j, k) ~ {
-            plot_dot(x, head(i, 50) %>% unique(), split.by = split.by, cols = cols) +
+            plot_dot(x, head(i, 50) %>% unique(), split.by = split.by, cols = cols, labels = labels[[k]]) +
             geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5) +
             ggtitle(k)
         }
     )
     print(p1)
 
-    plot_mviolin(x, markers, split.by = split.by, cols = cols, ...)
+    plot_mviolin(x, markers, split.by = split.by, cols = cols, labels = labels, ...)
 }
 
 #' @export
-plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), ...) {
+plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), labels = labels, assay = "RNA", ...) {
     list.map(
         markers,
         f(i, j, k) ~ {
-            head(i, 12) %>% unique() %>%
-                split(ceiling(seq_along(.)/4)) %>%
+            it_markers <- head(i, 12) %>%
+                unique() %>%
+                split(ceiling(seq_along(.)/4))
+            if(assay == "ATAC") {
+                it_atac <- head(labels[[k]], 12) %>%
+                    split(ceiling(seq_along(.)/4))
+            } else {
+                it_atac <- it_markers
+            }
                 list.map(
-                    f(it) ~ {
+                    it_markers,
+                    f(it, it2, it3) ~ {
                         plot_feature(
                             x,
                             features = it,
                             split.by = split.by,
                             cols = brewer.pal(9, "Reds"),
                             pt.size = .5,
+                            labels = it_atac[[it3]],
                             ...
                         ) %>%
                             organise_plots() %>%
@@ -1175,6 +1185,17 @@ calculate_pct_var <- function(x, reduction = "pca") {
     emb <- Embeddings(x, reduction = reduction)
     var_per_dim <- apply(emb, 2, var) %>% sqrt()
     100 * var_per_dim / sum(var_per_dim)
+}
+
+#' @export
+atac2gene <- function(seurat, x) {
+    if (nrow(x) > 0 && assay == "ATAC") {
+        library("Signac")
+        closest <- ClosestFeature(seurat, regions = x$gene_name)
+        mutate(x, gene_name = closest$gene_name, distance = closest$distance)
+    } else {
+        x
+    }
 }
 
 #' @export

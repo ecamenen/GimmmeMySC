@@ -184,11 +184,12 @@ plot_feature <- function(
      cluster = FALSE,
      label = FALSE,
      prob = 0.95,
+     labels = NULL,
      ...
     ) {
     features <- features %>% .[features %in% Features(object) | features %in% colnames(object[[]])]
     if (isTRUE(normalize)) {
-        cts <- GetAssayData(object = object, assay = DefaultAssay(object))
+        cts <- GetAssayData(object = object, assay = DefaultAssay(object), layer = "data")
         limits <- map(features, ~cts[., ] %>% quantile(c(0, 1)))
     } else {
         limits <- replicate(length(features), NULL, simplify = FALSE)
@@ -211,6 +212,10 @@ plot_feature <- function(
         split.by = split.by,
         ...
     )
+
+    if (!is.null(labels)) {
+        p <- list.map(p, f(x, y) ~ x + ggtitle(label = c(as.list(labels), rep(list(NULL), length(labels) * (n_groups - 1)))[[y]]))
+    }
 
     if (cluster || label) {
     umap_coords <- Embeddings(object, reduction = "umap") %>%
@@ -278,12 +283,13 @@ plot_feature <- function(
 #' @export
 plot_mfeature <- function(
         x = x,
-        features =  features,
+        features = features,
         pt.size = .5,
         ncol = 4,
         nrow = NULL,
         func = function(i) func_format(i) %>% .[. %in% Features(x)] %>% head(12),
         cols = brewer.pal(9, "Reds"),
+        labels = NULL,
         ...
     ) {
     list.map(
@@ -297,6 +303,7 @@ plot_mfeature <- function(
                     features = i,
                     pt.size = pt.size,
                     cols = cols,
+                    labels = labels[[k]],
                     ...
                 ) %>%
                 theme_multiple(ncol = ncol, nrow = nrow, title = k)
@@ -311,6 +318,7 @@ plot_dot <- function(
         features = features,
         cols = NULL,
         split.by = NULL,
+        labels = NULL,
         ...
     ) {
     if (is.null(cols)) {
@@ -336,14 +344,17 @@ plot_dot <- function(
         labs(x = NULL, y = NULL, size = "Percentage Expressed") +
         guides(size = guide_legend(order = 1))
     if (is.null(split.by)) {
-        p + scale_color_gradientn(colors = cols)
+        p <- p + scale_color_gradientn(colors = cols)
+    }
+    if (!is.null(labels)) {
+        p + scale_x_discrete(labels = labels)
     } else {
         p
     }
 }
 
 #' @export
-plot_dot2 <- function(x, markers, ...) {
+plot_dot2 <- function(x, markers, labels = NULL, ...) {
     last_row_numbers <- markers %>%
         filter(!duplicated(gene)) %>%
         mutate(row_num = row_number()) %>%
@@ -355,6 +366,7 @@ plot_dot2 <- function(x, markers, ...) {
     plot_dot(
         x,
         features = unique(pull(markers, "gene")),
+        labels = labels,
         ...
     ) +
         geom_vline(xintercept = last_row_numbers + 0.5)
@@ -367,9 +379,10 @@ plot_violin_sc <- function(
         features =  features,
         pt.size = 0,
         cols = palette_discrete(),
+        labels = NULL,
         ...
     ) {
-    VlnPlot(
+    p <- VlnPlot(
         object = object,
         features =  features,
         pt.size = pt.size,
@@ -378,6 +391,12 @@ plot_violin_sc <- function(
         ...
     ) %>%
         map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend())
+
+    if (!is.null(labels)) {
+        p <- list.map(p, f(x, y) ~ x + ggtitle(label = labels[[y]]))
+    } else {
+        p
+    }
 }
 
 #' @export
@@ -387,6 +406,7 @@ plot_mviolin <- function(
         func = function(x) func_format(x) %>% .[. %in% Features(object)] %>% head(12),
         ncol = 4,
         nrow = 3,
+        labels = NULL,
         ...
 ) {
     list.map(
@@ -395,6 +415,7 @@ plot_mviolin <- function(
         plot_violin_sc(
             object = object,
             features = func(x),
+            labels = labels[[z]],
             ...
         ) %>%
         theme_multiple(ncol = ncol, nrow = nrow, title = z)

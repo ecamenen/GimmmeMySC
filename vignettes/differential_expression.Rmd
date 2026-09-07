@@ -54,6 +54,10 @@ Idents(seurat) <- snn_cluster
 assay <- "RNA" -> assay2
 levels(seurat) <- reorder_ident
 seurat[[]][, snn_cluster] <- Idents(seurat)
+
+if (assay == "ATAC") {
+  func_format <- identity
+}
 ```
 
 ```{r}
@@ -196,28 +200,52 @@ l_deg_top <- list.map(
     x,
     fc_threshold = fc_threshold,
     p_threshold = p_threshold,
-    n = Inf,
-    return_rank  = TRUE
-  )
-)
+      n = Inf,
+      return_rank  = TRUE
+    ) %>% atac2gene(seurat, .)
+) %>% 
+  compact()
 
-p <- volcano_sc(
-  l_deg,
-  top_genes = l_deg_top,
-  fc_threshold = fc_threshold,
-  p_threshold = p_threshold
-)
+volcano_plot_custom <- function(l_deg_top) {
+  
+  l_deg_top <- list.map(l_deg_top, head(., 15))
 
-n <- length(p)
-plot_grid(plotlist = p[seq(ceiling(n/2))], align = "hv", nrow = 2)
-plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2)
+  p <- list.map(
+    l_deg_top,
+    f(i, j, k) ~ {
+        volcano_plot(
+          l_deg[[k]], 
+          title = k,
+          top_genes = i, 
+          fc_threshold = fc_threshold,
+          cex = 0.75, 
+          cex_genes = 4,
+          p_threshold = p_threshold,
+          max.overlaps = 1e3,
+          force = 1e2
+        ) + 
+        labs(x = NULL, y = NULL, title = k) +
+        theme(legend.position = "none")
+    })
+  
+  n <- length(p)
+  if (n < 6) {
+    seq_n <- seq(n)
+  } else {
+    seq_n <- seq(ceiling(n/2))
+    plot_grid(plotlist = p[(ceiling(n/2) + 1):n], align = "hv", nrow = 2) %>% plot()
+  }
+  plot_grid(plotlist = p[seq_n], align = "hv", nrow = 2)
+}
 
 volcano_plot_custom(l_deg_top)
 
-list.map(l_deg_top, filter(., log2FoldChange > 0)) %>%
+list.map(l_deg_top, filter(., log2FoldChange > 0)) %>% 
+  discard(~ nrow(.x) == 0) %>%
   volcano_plot_custom()
 
 list.map(l_deg_top, ~ filter(., log2FoldChange < 0)) %>%
+  discard(~ nrow(.x) == 0) %>%
   volcano_plot_custom()
 ```
 
@@ -229,13 +257,20 @@ l_deg2 <- list.map(
       if (!pseudo) {
         x <- mutate(x, description = "")
       }
-      x %>%
-        print_dea(metadata = TRUE, f = desc, rank_by = "rank_fc", return_rank = TRUE) %>%
-        mutate(Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
+      res <- print_dea(x, metadata = TRUE, f = desc, rank_by = "rank_fc", return_rank = TRUE)
+      if (nrow(res) == 0) return(NULL)
+      if (assay == "ATAC") {
+        res <- rename(res, gene_name = Gene) %>%
+          atac2gene(seurat, .) %>%
+          mutate(Position = gene) %>%
+          rename(Gene = gene_name)
+      }
+        mutate(res, Expression = if_else(`Fold-change` > 0, "up", "down")) %>%
         split(.$Expression)
     }
 ) %>%
-    set_names(names(l_deg)) %>%
+  compact() %>%
+    # set_names(names(l_deg)) %>%
     list_flatten(name_spec = "{outer}_{inner}")
 
 omics2excel(
@@ -299,18 +334,8 @@ if (isFALSE(pseudo)) {
 ```
 
 ```{r}
-l_deg_top <- list.map(
-  l_deg,
-  f(x) ~ top_genes(
-    x,
-    fc_threshold = fc_threshold,
-    p_threshold = p_threshold,
-    n = Inf,
-    return_rank  = TRUE
-  ) %>%
-    filter(log2FoldChange > 0)
-)
-gene_lists <- list.map(l_deg_top, pull(., "gene_name") %>% head(15) %>% sort())
+l_deg_top <- list.map(l_deg_top, filter(., log2FoldChange > 0))
+gene_lists <- list.map(l_deg_top, pull(., "gene_name")  %>% unique() %>%  head(15) %>% sort())
 custom_upset_barplot(gene_lists, ratio = 1)
 custom_upset_barplot(gene_lists, ratio = 1, only_intersect = "inverse")
 
@@ -321,12 +346,13 @@ l_deg_top_all <- list.map(
     fc_threshold = fc_threshold,
     p_threshold = p_threshold,
     return_rank = TRUE
-  )
-)
+  ) %>% atac2gene(seurat, .)
+) %>% 
+  compact()
 
 list.map(
     l_deg_top_all,
-    ~pull(., "gene_name") %>% 
+    ~pull(., "gene_name") %>% unique() %>%
     sort()
   ) %>%
   custom_upset_barplot(ratio = 1, top_n  = 20)
@@ -334,6 +360,19 @@ list.map(
 
 ## Dotplots
 ```{r}
+l_deg_top_all <- list.map(
+  l_deg_top_all,
+  f(x)~ {
+  if (assay == "ATAC") {
+    mutate(
+      x,
+      gene_name2 = gene_name,
+      gene_name = gene,
+      gene = gene_name2
+    )
+  } else  x
+})
+
 top50 <- list.map(
     l_deg_top_all,  
     f(x, xx, xxx) ~head(x, 50) %>%
@@ -341,7 +380,7 @@ top50 <- list.map(
     list.rbind()
 
 top5_filtered <- top50 %>%
-    filter(!duplicated(gene_name)) %>%
+    filter(!duplicated(gene)) %>%
     group_by(cluster) %>%
     slice_head(n = 5) %>%
     ungroup()
@@ -376,36 +415,40 @@ if (!pseudo) {
 
 ```{r}
 if (!pseudo) {
-  plot_dot2(seurat, top5_filtered)
+  plot_dot2(seurat, top5_filtered, labels = pull(top5_filtered, gene_name))
 }
 ```
 
 ```{r}
-markers <- top50 %>%
-    split(.$cluster) %>%
-    list.map(~pull(., gene_name) %>% unique())
+markers0 <- top50 %>%
+    # filter(!duplicated(gene_name)) %>%
+    split(.$cluster) 
+markers <- markers0 %>%
+    list.map(~pull(., gene) %>% unique())
+
+markers_atac <- list.map(markers0, pull(., gene_name))
 
 if (!pseudo) {
-  plot_mfeature(seurat, markers, nrow = 3, cluster = TRUE)
+  plot_mfeature(seurat, markers, nrow = 3, cluster = TRUE, labels = markers_atac)
 }
 ```
 
 ```{r}
 if (!pseudo) {
-  plot_markers(seurat, markers)
+  plot_markers(seurat, markers, labels = markers_atac)
 }
 ```
 
 ```{r}
 n_line <- nlevels(Idents(seurat_all))
 
-plot_dot2(seurat_all, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
+plot_dot2(seurat_all, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)]), labels = pull(top5_filtered, gene_name)) +
     geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
 ```
 
 ```{r}
-plot_marker_split(seurat_all, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
-plot_feature_split(seurat_all, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
+plot_marker_split(seurat_all, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]), split.by = split.by, labels = markers_atac)
+plot_feature_split(seurat_all, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE, split.by = split.by, labels = markers_atac, assay = assay)
 ```
 
 ## Session information
