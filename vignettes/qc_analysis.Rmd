@@ -55,10 +55,11 @@ if (assay != "ATAC") {
 
 ```{r}
 list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated, snn_cluster)
-seurat <- list_param$seurat
-seurat_subset <- list_param$seurat_subset
+seurat <- format_celltype0(list_param$seurat, lim = 30)
+seurat_subset <- format_celltype0(list_param$seurat_subset, lim = 30)
 pal_discrete_sc <- list_param$pal_discrete_sc
-pal_discrete_sc2 <- list_param$pal_discrete_sc
+pal_discrete_sc2 <- choose_palette(seurat, "cell_subtype_formatted2")
+pal_discrete_sc3 <- choose_palette(seurat, "cell_type")
 ```
 
 ## Annotation (1)
@@ -73,7 +74,7 @@ bar_group_ident(
     seurat,
     idents = snn_cluster,
     group.by = split.by,
-    colour = pal_discrete_sc2
+    colour = pal_discrete_sc
 )
 
 list.map(
@@ -159,7 +160,7 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc, reduction = reduction2)
+plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc3, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -285,7 +286,7 @@ plot_sc_violin(
       c(5e-3, 1e-2, 5e-2)
     ),
     features = features,
-    col = pal_discrete_sc2
+    col = pal_discrete_sc3
 )
 ```
 
