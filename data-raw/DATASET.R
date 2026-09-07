@@ -177,3 +177,22 @@ enframe(name = "term", value = "name") %>%
     unnest(cols = c(name))
 
 usethis::use_data(term2gene_microarray, overwrite = TRUE)
+
+load("C:/Users/etien/DATA/dobino/RNA/multiome_wt3b2c.rda")
+seurat[["ATAC_v5"]] <- NULL
+seurat$old_idents <- seurat[[]][,  "SCT_snn_res.0.35"] %>%
+    factor(levels = c("7", "6", "4", "5", "2", "0", "3", "1")) -> Idents(seurat)
+seurat <- subset(seurat, idents = 7, invert = TRUE)
+seurat$old_idents <- fct_drop(seurat$old_idents)
+seurat$modality <- "multiome"
+multiome <- seurat
+load("C:/Users/etien/DATA/dobino/RNA/rna_bcell_WT6abc.rda")
+seurat <- subset(seurat, idents = 8, invert = TRUE)
+seurat$old_idents <- Idents(seurat) %>%
+    factor(levels = c(8, 6, 7, 2, 5, 0, 3, 1, 4))
+seurat$modality <- "rna"
+multiome[["SCT"]] <- NULL
+seurat[["SCT"]] <- NULL
+seurat <- merge(multiome, seurat)
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+save(seurat, file = file.path(path_data, "multiome_integration4.rda"))
