@@ -382,8 +382,7 @@ seurat[[]] %>%
 ```{r}
 if (isFALSE(multiome)) {
   DefaultAssay(seurat) <- "RNA"
-  seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures() %>%
+  seurat <- FindVariableFeatures(seurat) %>%
       ScaleData()
 }
 ```

@@ -44,10 +44,10 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 
 seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 
-seurat <- reorder_idents(seurat, new_ident)
-levels(seurat) <- reorder_ident
-seurat[[]][, "reorder_ident"] <- Idents(seurat)
-pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
+Idents(seurat) <- seurat[[]][, new_ident]
+if (!is.null(reorder_ident))
+  Idents(seurat) <- factor(Idents(seurat), levels = reorder_ident)
+pal_discrete_sc2 <- choose_palette(seurat, new_ident)
 new_ident <- "reorder_ident" -> snn_cluster -> old_ident
 
 seurat_subset <- subsampling_sc(seurat, group.by = split.by)
@@ -144,22 +144,22 @@ Idents(seurat_subset) <- snn_cluster
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 DefaultAssay(seurat) <- "RNA"
 data("l_bcell_markers2")
-plot_marker_split(seurat, l_bcell_markers2)
+plot_marker_split(seurat, l_bcell_markers2, split.by = split.by)
 DefaultAssay(seurat_subset) <- "RNA"
-plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE, reduction = reduction2)
+plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE, reduction = reduction2, split.by = split.by)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
-plot_marker_split(seurat, jcb_markers)
-plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE, reduction = reduction2)
+plot_marker_split(seurat, jcb_markers, split.by = split.by)
+plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE, reduction = reduction2, split.by = split.by)
 ```
 
 ## Cell per cluster
 ```{r}
 DefaultAssay(seurat) <- assay
 DefaultAssay(seurat_subset) <- assay
-seurat_subset <- subsampling_sc(seurat) %>%
+seurat_subset <- subsampling_sc(seurat, group.by = split.by) %>%
   subset(subset = Type == target_type)
 seurat <- subset(seurat, subset = Type == target_type)
 
@@ -216,7 +216,7 @@ plot_sc_violin(
 ## Confusing table
 ```{r, fig.width = 4.5}
 confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, as_percent = FALSE)
-confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, )
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident)
 confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, margin = 2)
 ```
 
