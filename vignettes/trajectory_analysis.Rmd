@@ -26,8 +26,8 @@ library("rlist")
 library("monocle3")
 library("slingshot")
 library("SeuratWrappers")
-
 library("Seurat")
+library("magrittr")
 
 source(
   file.path(file.path(
@@ -43,6 +43,23 @@ Idents(seurat) <- snn_cluster
 
 seurat <- subset(seurat, subset = Type == target_type)
 start_cluster <- 6
+end <- FALSE
+```
+
+```{r}
+DefaultAssay(seurat) <- "RNA"
+for (a in names(seurat@assays)) {
+  if (a != "RNA") {
+    seurat@assays[[a]] <- NULL
+  }
+}
+
+seurat@reductions$umap <- seurat[[reduction2]]
+for (red in names(seurat@reductions)) {
+  if (red != "umap") {
+    seurat@reductions[[red]] <- NULL
+  }
+}
 ```
 
 # Trajectory analysis
@@ -50,7 +67,7 @@ start_cluster <- 6
 ```{r}
 cds <- as.cell_data_set(seurat)
 
-cds@clusters$UMAP$clusters <- factor(seurat$seurat_clusters)
+cds@clusters$UMAP$clusters <- seurat[[]][, snn_cluster]
 cds@clusters$UMAP$partitions <- factor(rep(1, ncol(cds)))
 names(cds@clusters$UMAP$clusters) <- colnames(cds) -> names(cds@clusters$UMAP$partitions)
 
@@ -59,7 +76,12 @@ root_cells <- colnames(cds)[cds@clusters$UMAP$clusters == start_cluster]
 cds <- learn_graph(cds, use_partition = FALSE) %>%
   order_cells(root_cells = root_cells)
 
+if (end) {
 cds@principal_graph_aux@listData$UMAP$pseudotime <- max(pseudotime(cds), na.rm = TRUE) - pseudotime(cds)
+} else {
+  cds@principal_graph_aux@listData$UMAP$pseudotime <- pseudotime(cds)
+  pal_sc <- rev(pal_sc)
+}
 ```
 
 ```{r}
@@ -82,9 +104,9 @@ plot_cells(
 
 ## Slingshot
 ```{r}
-seurat@assays$SCT <- NULL
 sce <- as.SingleCellExperiment(seurat)
-reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") -> reduc_coords
+reducedDims(sce)$UMAP <- Embeddings(seurat, reduction = "umap") %>%
+  set_colnames(c("umap_1", "umap_2")) -> reduc_coords
 
 sce <- slingshot(
   sce,
@@ -101,8 +123,15 @@ lineage_probs <- list.map(curves, .$w) %>%
 pseudotime <- slingPseudotime(sce) %>%
   .[cbind(seq_len(nrow(.)), lineage_probs)]
 
-pseudotime_rev <- max(pseudotime) - pseudotime
+if (end) {
+  pseudotime_rev <- max(pseudotime) - pseudotime
+} else {
+  pseudotime_rev <- pseudotime
+  pal_sc <- rev(pal_sc)
+}
+```
 
+```{r}
 p <- as.data.frame(reduc_coords) %>%
   mutate(pseudotime = pseudotime) %>%
   ggplot(aes(x = umap_1, y = umap_2, colour = pseudotime_rev)) +
