@@ -36,7 +36,7 @@ source(
 if (split.by != "Patient") {
   cell_label <- "cell_subtype_formatted"
 } else {
-  cell_label <- "cell_type_formatted"
+  cell_label <- "cell_type"
 }
 
 if (assay != "ATAC") {
@@ -164,7 +164,7 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc3, reduction = reduction2)
+plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc2, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -290,7 +290,7 @@ plot_sc_violin(
       c(5e-3, 1e-2, 5e-2)
     ),
     features = features,
-    col = pal_discrete_sc3
+    col = pal_discrete_sc2
 )
 ```
 
