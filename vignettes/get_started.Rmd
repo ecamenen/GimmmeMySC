@@ -286,14 +286,14 @@ seurat2 <- seurat
 cols_to_remove <- paste0(prefix_cl, resolution[-1])
 seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
 
-select(seurat@meta.data, contains(prefix_cl)) %>%
+select(seurat@meta.data, contains(paste0("^", prefix_cl))) %>%
      list.mapv(f(x) ~ levels(x) %>% length()) %>% 
     set_names(names(.) %>% str_remove(prefix_cl)) %>%
   plot_bar_sc0(label_y = "value", sort = "desc")
 ```
 
 ```{r}
-clusters <- grep(prefix_cl, colnames(seurat[[]]), value = TRUE) %>% sort()
+clusters <- grep(paste0("^", prefix_cl), colnames(seurat[[]]), value = TRUE) %>% sort()
 kable_cluster(
   seurat,
   clusters, 
@@ -321,7 +321,7 @@ clustree_sc(seurat2, prefix_cl, clusters)
 plot_res(seurat, clusters, reduction = reduction2)
 plot_res(
   seurat, 
-  clusters[c(3, 5, 6, 8)],
+  clusters[3:6],
   ncol = 2, 
   reduction = reduction2
   )
