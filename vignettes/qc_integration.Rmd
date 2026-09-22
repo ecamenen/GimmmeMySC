@@ -80,7 +80,8 @@ plot_dim(
   object = seurat_subset,
   split.by = split.by,
   col = pal_discrete_sc,
-  reduction = reduction2
+  reduction = reduction2,
+  label = FALSE
 ) + NoLegend()
 
 bar_ident_group(
@@ -105,7 +106,8 @@ plot_dim(
   split.by = 'Patient',
   col = pal_discrete_sc,
   ncol = 2, 
-  reduction = reduction2
+  reduction = reduction2,
+  label = FALSE
 ) + NoLegend()
 
 bar_ident_group(
@@ -136,7 +138,7 @@ plot_bar_sc(seurat)
 Idents(seurat) <- snn_cluster
 
 Idents(seurat_subset) <- "cell_subtype_formatted2"
-plot_dim_cell(seurat_subset, split.by = split.by, col = pal_discrete_sc2, reduction = reduction2)
+plot_dim_cell(seurat_subset, split.by = split.by, col = pal_discrete_sc2, reduction = reduction2, label = FALSE)
 Idents(seurat_subset) <- snn_cluster
 ```
 
@@ -157,6 +159,9 @@ plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE,
 
 ## Cell per cluster
 ```{r}
+if (!integrated)
+  stop()
+
 DefaultAssay(seurat) <- assay
 DefaultAssay(seurat_subset) <- assay
 seurat_subset <- subsampling_sc(seurat, group.by = split.by) %>%
@@ -187,7 +192,7 @@ plot_dim(
 ```
 
 ```{r, fig.height = 2, fig.width = 2}
-tmp <- reorder_idents(seurat, y = old_ident)
+tmp <- seurat # reorder_idents(seurat, y = old_ident)
 plot_dim(tmp, cols = pal_discrete_sc, alpha = .1, label.size = 8, reduction = reduction2) +
     NoLegend() +
     theme(
