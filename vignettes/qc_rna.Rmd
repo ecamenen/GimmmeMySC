@@ -51,14 +51,14 @@ doubletFinder <- FALSE
 ```{r data}
 dr <- "umap"
 if (isTRUE(multiome)) {
-  load(file.path(path_data, paste0(seurat_dataset, ".rda")))
+  load(file.path(path_data0, "ATAC", paste0(seurat_dataset, ".rda")))
   DefaultAssay(seurat) <- "RNA"
   list_seurat <-  SplitObject(seurat, split.by = "Patient") %>%
     list.map(
       f(x, i, j) ~{
         x %>%
                RenameCells(new.names = sub("^([^_]+)_([^_]+)_", "", colnames(.))) %>%
-         add_dr(sample = str_replace(j, "(\\d+)", "_\\1"), assay = "gex", dr = dr) 
+         add_dr(sample = str_replace(j, "(\\d+)", "_\\1"), path_project, assay = "gex", dr = dr) 
       }
       )
   seurat <- integrate_multisamples(list_seurat, cell_id)
@@ -435,22 +435,21 @@ if (!isFALSE(doublet_method))
 
 ## Gene filtering
 ```{r}
-if (isFALSE(SCT)) {
-      seurat <- NormalizeData(seurat) %>%
-      FindVariableFeatures()
-    variable_plot(seurat)
-}
+seurat <- NormalizeData(seurat) %>%
+    FindVariableFeatures()
+  variable_plot(seurat)
 ```
 
 ## PCA
 ```{r pca}
-if (!SCT) {
-  if (assay == "sketch") {
-    seurat <- SketchData(seurat, over.write = TRUE)
-    DefaultAssay(seurat) <- "sketch"
-  }
-  seurat <- ScaleData(seurat)
-} else {
+# not evaluated if DoubletFinder has already been run
+
+if (assay == "sketch") {
+  seurat <- SketchData(seurat, over.write = TRUE)
+  DefaultAssay(seurat) <- "sketch"
+}
+seurat <- ScaleData(seurat)
+if(SCT) {
   seurat[["RNA"]] <- split(
       seurat[["RNA"]],
       f = seurat[[]][, split.by],
