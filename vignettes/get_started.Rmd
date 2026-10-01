@@ -35,6 +35,7 @@ source(
   "extdata"
 ), "conf.R"))
 
+n.components <- 2
 if (split.by != "Patient") {
   integration_method <- "RPCA"
 } else {
@@ -53,7 +54,7 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 # seurat@assays$SCT@scale.data <- matrix()
 if (integrated & split.by == "Patient")
   seurat <- subset(seurat, subset = Type == target_type)
-DefaultAssay(seurat) <- assay2
+DefaultAssay(seurat) <- assay
 ```
 
 ## PCA
@@ -68,14 +69,11 @@ if (multiome || assay == "ATAC") {
   
   plot_cor_depth(seurat)
   if (multiome)
-    DefaultAssay(seurat) <- "RNA"
+    DefaultAssay(seurat) <- assay
 }
 if (!cell_cycle) {
-  if ((multiome || assay2 == "RNA")) {
-  # VariableFeatures(seurat) <- setdiff(
-  #   VariableFeatures(seurat),
-  #   "Pcdh9"
-  # )
+  if ((multiome || (assay2 == "RNA"))) {
+    if (!allcell) {
   # if (split.by == "Type") {
       DefaultAssay(seurat) <- "RNA"
       seurat[["RNA"]] <- as(seurat[["RNA"]], Class = "Assay5")
@@ -92,9 +90,9 @@ if (!cell_cycle) {
       } else {
         seurat <- SCTransform(seurat)
       }
+    }
       seurat <- RunPCA(
         seurat,
-        # features = VariableFeatures(seurat),
         npcs = max_dim
       )
   # }
@@ -155,8 +153,9 @@ gc()
 seurat <- RunUMAP(
   seurat, 
   dims = dims,
-  reduction = reduction
-  )
+  reduction = reduction,
+  n.components = n.components
+)
 qc_integration(seurat, split.by = split.by)
 ```
 
@@ -172,15 +171,16 @@ if (multiome) {
   seurat <- RunUMAP(
     seurat, 
     dims = dims,
-    reduction = orig.reduction
+    reduction = orig.reduction,
+    n.components = n.components
   )
   qc_integration(seurat, split.by = split.by)
   
   seurat <- integrate_layers(
     seurat,
-      integration_method = new.reduction,
+    integration_method = new.reduction,
     assay = assay_inv,
-    split.by,
+    split.by = split.by,
     reduction = orig.reduction,
     dims = seq(n_dim),
     integration_method2 = get(paste0(integration_method, "Integration"))
@@ -198,7 +198,8 @@ seurat <- RunUMAP(
     seurat, 
     dims = dims_inv,
     reduction = new.reduction,
-    reduction.name = reduction.umap
+    reduction.name = reduction.umap,
+    n.components = n.components
 )
 qc_integration(seurat, reduction = reduction.umap, split.by = split.by)
 DefaultAssay(seurat) <- old_assay
@@ -231,7 +232,8 @@ seurat <- RunUMAP(
   seurat, 
   dims = dims,
   reduction = integration_method,
-  reduction.name = reduction.name
+  reduction.name = reduction.name,
+  n.components = n.components
 )
 
 qc_integration(seurat, reduction = reduction.name, split.by = split.by)
@@ -286,7 +288,7 @@ seurat2 <- seurat
 cols_to_remove <- paste0(prefix_cl, resolution[-1])
 seurat2@meta.data <- seurat2@meta.data[, !colnames(seurat2@meta.data) %in% cols_to_remove]
 
-select(seurat@meta.data, contains(paste0("^", prefix_cl))) %>%
+select(seurat@meta.data, starts_with(prefix_cl)) %>%
      list.mapv(f(x) ~ levels(x) %>% length()) %>% 
     set_names(names(.) %>% str_remove(prefix_cl)) %>%
   plot_bar_sc0(label_y = "value", sort = "desc")
