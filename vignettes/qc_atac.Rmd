@@ -139,7 +139,7 @@ seurat <- list.map(
   
   if (multiome) {
     seurat_i[["RNA"]] <- CreateAssayObject(counts = counts[["Gene Expression"]])
-    seurat_i <- add_dr(seurat_i, i, dr = dr)
+    seurat_i <- add_dr(seurat_i, i, path_project, dr = dr)
     DefaultAssay(seurat_i) <- "RNA"
     seurat_i <- set_percent(seurat_i)
     DefaultAssay(seurat_i) <- "ATAC"

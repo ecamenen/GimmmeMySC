@@ -36,15 +36,15 @@ cell_label <- "cell_subtype_formatted"
 
 ## Load data
 ```{r data}
-list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated, snn_cluster) 
+list_param <- load_dataset(path_data, seurat_dataset, split.by, target_type, pal_discrete_sc, pal_discrete_sc2, integrated && isFALSE(multiome), snn_cluster)
 seurat <- list_param$seurat
 seurat_subset <- list_param$seurat_subset
-pal_discrete_sc <- list_param$pal_discrete_sc
 
 if (!is.null(reorder_ident))
   levels(seurat) <- reorder_ident
 seurat[[]][, "reorder_ident"] <- Idents(seurat)
-pal_discrete_sc2 <- choose_palette(seurat, "reorder_ident")
+pal_discrete_sc <- choose_palette(seurat, "reorder_ident")
+pal_discrete_sc2 <- choose_palette(seurat, "cell_subtype_formatted2")
 # pal_discrete_sc2 <- palette_continuous()(length(unique(seurat[[]][, "reorder_ident"])))
 if (!is.null(reorder_ident))
   levels(seurat_subset) <- reorder_ident
@@ -85,7 +85,12 @@ plot_dim(
     reduction = reduction2
 ) + NoLegend()
 
-plot_ident_celltype(seurat, cell_label = cell_label, col = brewer.pal(seurat[[]][, cell_label] %>% nlevels(), "Reds") %>% rev)
+if (allcell) {
+  col_tmp <- pal_discrete_sc2
+} else {
+  col_tmp <- brewer.pal(seurat[[]][, cell_label] %>% nlevels(), "Reds") %>% rev()
+}
+plot_ident_celltype(seurat, cell_label = cell_label, col = col_tmp)
 Idents(seurat) <- "cell_subtype_formatted2"
 plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
 plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)

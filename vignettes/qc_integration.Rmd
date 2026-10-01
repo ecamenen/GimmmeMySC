@@ -47,8 +47,8 @@ seurat$cell_subtype_formatted2 <- seurat$cell_subtype_formatted
 Idents(seurat) <- seurat[[]][, new_ident]
 if (!is.null(reorder_ident))
   Idents(seurat) <- factor(Idents(seurat), levels = reorder_ident)
-pal_discrete_sc2 <- choose_palette(seurat, new_ident)
-new_ident <- "reorder_ident" -> snn_cluster -> old_ident
+pal_discrete_sc <- choose_palette(seurat, new_ident)
+pal_discrete_sc <- choose_palette(seurat, "cell_subtype_formatted2")
 
 seurat_subset <- subsampling_sc(seurat, group.by = split.by)
 plot_dim(seurat, cols = pal_discrete_sc)
