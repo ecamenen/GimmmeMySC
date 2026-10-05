@@ -1001,7 +1001,7 @@ print_anchors <- function(x, n_anchors, rna, atac, ...) {
 }
 
 #' @export
-add_dr <- function(x, sample, assay = "atac", dr = "umap") {
+add_dr <- function(x, sample, path_project, assay = "atac", dr = "umap") {
     cls <- file.path(path_project, sample, "outs", "analysis", "clustering", assay) %>%
         list.files(full.names = TRUE) %>%
         .[str_detect(., "graphclust$")] %>%
@@ -1200,7 +1200,11 @@ atac2gene <- function(seurat, x) {
 
 #' @export
 choose_palette <- function(seurat, x) {
-    n <- seurat[[]][, x] %>% nlevels()
+    if (!is.factor(seurat[[]][, x])) {
+        n <- unique(seurat[[]][, x]) %>% length()
+    } else {
+        n <- seurat[[]][, x] %>% nlevels()
+    }
     if (n > 12) {
         palette_continuous()(n)
     } else {

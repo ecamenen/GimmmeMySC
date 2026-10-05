@@ -602,7 +602,7 @@ bar_ident_group <- function(
         sort <- TRUE
     }
     table_ident_group(x, group.by, idents) %>%
-        bar_ident_group0(sort = sort) +
+        bar_ident_group0(sort = sort, ...) +
         geom_hline(yintercept = 50, color = "gray")
 }
 
@@ -631,7 +631,8 @@ confusing_table <- function(
         as_percent = TRUE,
         margin = 1,
         cluster_rows = FALSE,
-        cluster_cols = FALSE
+        cluster_cols = FALSE,
+        ...
 ) {
     tab_raw <- table(
         x[[]][, old_ident],
@@ -673,7 +674,8 @@ confusing_table <- function(
         number_color = "white",
         fontsize_number = 10,
         cluster_rows = cluster_rows,
-        cluster_cols = cluster_cols
+        cluster_cols = cluster_cols,
+        ...
     )
 }
 
@@ -740,8 +742,8 @@ plot_dim_selected <- function(x, selected, ...) {
 }
 
 #' @export
-plot_cor_depth <- function(x) {
-    DepthCor(x, n = n_dim) +
+plot_cor_depth <- function(x, ...) {
+    DepthCor(x, n = n_dim, ...) +
         theme_custom() +
         ggtitle("Correlation between sequencing depth and components") +
         labs(subtitle = NULL)
