@@ -92,8 +92,8 @@ if (allcell) {
 }
 plot_ident_celltype(seurat, cell_label = cell_label, col = col_tmp)
 Idents(seurat) <- "cell_subtype_formatted2"
-plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
-plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc2)
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc)
+plot_ident_celltype(seurat, cell_label = snn_cluster, col = pal_discrete_sc)
 Idents(seurat) <- seurat[[]][, snn_cluster]
 
 heatmap_celltype(seurat, snn_cluster, cell_label, as_percent = FALSE)

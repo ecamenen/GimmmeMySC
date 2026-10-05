@@ -54,13 +54,17 @@ load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 # seurat@assays$SCT@scale.data <- matrix()
 if (integrated & split.by == "Patient")
   seurat <- subset(seurat, subset = Type == target_type)
-DefaultAssay(seurat) <- assay
+if (!integrated) {
+  DefaultAssay(seurat) <- assay 
+} else {
+  DefaultAssay(seurat) <- assay2
+}
 ```
 
 ## PCA
 ### Dimension selection
 ```{r message=FALSE, warning=FALSE}
-if (multiome || assay == "ATAC") {
+if ((multiome & split.by != "modality") || assay == "ATAC") {
   DefaultAssay(seurat) <- "ATAC"
   library("Signac")
   seurat <- RunTFIDF(seurat)
@@ -68,8 +72,13 @@ if (multiome || assay == "ATAC") {
   seurat <- RunSVD(seurat, n = max_dim)
   
   plot_cor_depth(seurat)
-  if (multiome)
-    DefaultAssay(seurat) <- assay
+  if (multiome) {
+    if (!integrated) {
+      DefaultAssay(seurat) <- assay 
+    } else {
+      DefaultAssay(seurat) <- assay2
+    }
+  }
 }
 if (!cell_cycle) {
   if ((multiome || (assay2 == "RNA"))) {
@@ -161,7 +170,8 @@ qc_integration(seurat, split.by = split.by)
 
 ## Integration
 ```{r}
-if (multiome) {
+gc()
+if (multiome & split.by != "modality") {
   assay_inv <- ifelse(assay2 == "ATAC", "RNA", "ATAC")
   orig.reduction <- ifelse(assay2 == "ATAC", "pca", "lsi")
   new.reduction <- paste(integration_method, str_to_lower(assay_inv), sep = ".")

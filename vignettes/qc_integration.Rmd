@@ -48,7 +48,7 @@ Idents(seurat) <- seurat[[]][, new_ident]
 if (!is.null(reorder_ident))
   Idents(seurat) <- factor(Idents(seurat), levels = reorder_ident)
 pal_discrete_sc <- choose_palette(seurat, new_ident)
-pal_discrete_sc <- choose_palette(seurat, "cell_subtype_formatted2")
+pal_discrete_sc2 <- choose_palette(seurat, "cell_subtype_formatted2")
 
 seurat_subset <- subsampling_sc(seurat, group.by = split.by)
 plot_dim(seurat, cols = pal_discrete_sc)
@@ -100,6 +100,14 @@ bar_group_ident(
 
 ## UMAP per Patient
 ```{r}
+if (split.by == "modality") {
+  seurat$Patient <- ifelse(seurat$modality == "multiome", paste0("MO_", seurat$Patient), paste0("RNA_", seurat$Patient))
+  library("RColorBrewer")
+  pal_discrete_sc4 <- brewer.pal(12, "Paired")[c(5:6, 1:2)]
+} else {
+  pal_discrete_sc4 <- NULL
+}
+
 seurat_subset2 <- subsampling_sc(seurat, group.by = "Patient")
 plot_dim(
   seurat_subset2,
@@ -113,7 +121,8 @@ plot_dim(
 bar_ident_group(
   seurat_subset2, 
   group.by = "Patient", 
-  idents = snn_cluster
+  idents = snn_cluster,
+  colour = pal_discrete_sc4
 )
 
 bar_group_ident(
@@ -159,7 +168,7 @@ plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE,
 
 ## Cell per cluster
 ```{r}
-if (!integrated)
+if (split.by != "modality")
   stop()
 
 DefaultAssay(seurat) <- assay
@@ -223,6 +232,11 @@ plot_sc_violin(
 confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, as_percent = FALSE)
 confusing_table(seurat, new_ident = new_ident, old_ident = old_ident)
 confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, margin = 2)
+
+seurat@meta.data$old_idents <- fct_drop(seurat@meta.data$old_idents)
+seurat@meta.data[, new_ident] <- fct_drop(seurat@meta.data[, new_ident])
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, cluster_rows = TRUE, cluster_cols = TRUE)
+confusing_table(seurat, new_ident = new_ident, old_ident = old_ident, margin = 2, cluster_rows = TRUE, cluster_cols = TRUE)
 ```
 
 ## Cell markers
