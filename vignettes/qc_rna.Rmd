@@ -340,7 +340,7 @@ list_seurat <- list.map(
             as.numeric()
         nExp <- round(multiplet_rate * nrow(i@meta.data))
         
-        homotypic.prop <- modelHomotypic(i$clusters)
+        homotypic.prop <- modelHomotypic(i$cluster_gex)
         nExp_adj <- round(nExp * (1 - homotypic.prop))
         
         i <- doubletFinder(
@@ -351,7 +351,7 @@ list_seurat <- list.map(
             sct = SCT
         )
         doublet_name <- paste(0.25, pK, nExp_adj, sep = "_")
-        i@meta.data <- i@meta.data %>% 
+        i@meta.data <- i@meta.data %>%
             rename_with(
                 ~"doubletFinder", 
                 all_of(paste0("DF.classifications_", doublet_name))
@@ -460,6 +460,7 @@ if(SCT) {
      seurat <- SketchData(seurat, over.write = TRUE)
     DefaultAssay(seurat) <- "sketch"
   }
+  seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
 }
 seurat <- RunPCA(seurat, npcs = max_dim)
 ```
