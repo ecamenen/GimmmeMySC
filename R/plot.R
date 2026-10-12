@@ -512,9 +512,9 @@ clustree_sc <- function(x, prefix, clusters) {
 
 
 #' @export
-plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell_subtype_formatted") {
+calculate_ident_celltype <- function(x, cell_label = "cell_subtype_formatted") {
 
-    res <- table(Idents(x), x[[]][, cell_label]) %>%
+    table(Idents(x), x[[]][, cell_label]) %>%
         as.data.frame.matrix() %>%
         filter(rowSums(.) > 0) %>%
         t() %>%
@@ -522,6 +522,12 @@ plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell
         mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
         mutate(across(everything(), ~replace_na(.x, 0))) %>%
         filter(rowSums(.) > 0)
+}
+
+#' @export
+plot_ident_celltype <- function(x, cols = palette_discrete(), cell_label = "cell_subtype_formatted") {
+
+    res <- calculate_ident_celltype(x, cell_label)
 
     if ("0" %in% levels(Idents(x))) {
         legend <- reorder_celltype(rownames(res))
