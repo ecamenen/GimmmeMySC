@@ -178,21 +178,61 @@ enframe(name = "term", value = "name") %>%
 
 usethis::use_data(term2gene_microarray, overwrite = TRUE)
 
-load("C:/Users/etien/DATA/dobino/RNA/multiome_wt3b2c.rda")
-seurat[["ATAC_v5"]] <- NULL
-seurat$old_idents <- seurat[[]][,  "SCT_snn_res.0.35"] %>%
-    factor(levels = c("7", "6", "4", "5", "2", "0", "3", "1")) -> Idents(seurat)
-seurat <- subset(seurat, idents = 7, invert = TRUE)
+
+save_clusters <- function(seurat) {
+    for (col in paste0("SCT_snn_res.", c(seq(.1, .4, 0.05), .5))) {
+        if (col %in% colnames(seurat@meta.data)) {
+            seurat@meta.data[[paste0("old_", col)]] <- seurat@meta.data[[col]]
+        }
+    }
+    return(seurat)
+}
+
+
+# load("C:/Users/etien/DATA/dobino/RNA/multiome_bcell_kobc.rda")
+# load("C:/Users/etien/DATA/dobino/RNA/multiome_bcell_wt2bc.rda")
+# load("C:/Users/etien/DATA/dobino/RNA/multiome_bcell_kox2bc.rda")
+load("C:/Users/etien/DATA/dobino/RNA/multiome_bcell_ko_cut2502bc.rda")
+# seurat[["ATAC_v5"]] <- NULL
+# seurat$Patient <- paste0("MO_", seurat$Patient)
+paste0("SCT_snn_res.", c(seq(.1, .4, 0.05), .5))
+seurat$old_idents <- seurat[[]][,  "SCT_snn_res.0.35"]  -> Idents(seurat) #%>%
+seurat <- save_clusters(seurat)
+# factor(levels = c("7", "6", "4", "5", "2", "0", "3", "1"))
+# seurat <- subset(seurat, idents = 7, invert = TRUE)
 seurat$old_idents <- fct_drop(seurat$old_idents)
 seurat$modality <- "multiome"
 multiome <- seurat
-load("C:/Users/etien/DATA/dobino/RNA/rna_bcell_WT6abc.rda")
-seurat <- subset(seurat, idents = 8, invert = TRUE)
-seurat$old_idents <- Idents(seurat) %>%
-    factor(levels = c(8, 6, 7, 2, 5, 0, 3, 1, 4))
+# load("C:/Users/etien/DATA/dobino/RNA/rna_bcell_WT6abc.rda")
+# seurat$old_idents <- seurat[[]][,  "SCT_snn_res.0.35"] -> Idents(seurat)
+load("C:/Users/etien/DATA/dobino/RNA/rna_bcell_KObc.rda")
+seurat$old_idents <- seurat[[]][,  "SCT_snn_res.0.25"] -> Idents(seurat)
+seurat <- save_clusters(seurat)
+# seurat <- subset(seurat, idents = 5, invert = TRUE)
+# seurat <- subset(seurat, idents = 8, invert = TRUE)
+# seurat$Patient <- paste0("RNA_", seurat$Patient)
 seurat$modality <- "rna"
+seurat[["rna.umap"]] <- seurat[["umap"]]
 multiome[["SCT"]] <- NULL
 seurat[["SCT"]] <- NULL
-seurat <- merge(multiome, seurat)
+seurat <- integrate_multisamples(list(multiome, seurat))
 seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
-save(seurat, file = file.path(path_data, "multiome_integration4.rda"))
+seurat$Patient <-  paste0(ifelse(seurat$modality == "multiome", "MO_", "RNA_"), seurat$Patient)
+save(seurat, file = file.path(path_data, "multiome_integration_ko_cut250.rda"))
+table(seurat$Patient)
+plot_dim(seurat, reduction = "rna.umap", group.by = "old_idents", split.by = "modality")
+
+load("C:/Users/etien/DATA/dobino/RNA/multiome_integrationc.rda")
+# seurat <- subset(seurat, Type == "WT")
+# seurat <- subset(seurat, idents = 9:10, invert = TRUE)
+seurat$old_idents -> Idents(seurat)
+seurat$Patient <- ifelse(seurat$modality == "multiome", paste0("MO_", seurat$Patient), paste0("RNA_", seurat$Patient))
+wt <- seurat
+load("C:/Users/etien/DATA/dobino/RNA/multiome_integration_ko2c.rda")
+# c(4, 1, 5, 3, 9, 7, 0, 6, 8, 2)
+seurat$old_idents -> Idents(seurat)
+wt[["SCT"]] <- NULL
+seurat[["SCT"]] <- NULL
+seurat <- integrate_multisamples(list(wt, seurat))
+seurat[["RNA"]] <- JoinLayers(seurat[["RNA"]])
+save(seurat, file = file.path(path_data, "multiome_integration_kowt2.rda"))
