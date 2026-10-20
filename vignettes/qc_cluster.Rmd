@@ -102,7 +102,7 @@ heatmap_celltype(seurat, snn_cluster, cell_label, margin = 2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
-plot_dim(
+plot_dim_cell(
     seurat_subset,
     split.by = "cell_subtype_formatted2",
     cols = pal_discrete_sc,

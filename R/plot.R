@@ -514,7 +514,7 @@ clustree_sc <- function(x, prefix, clusters) {
 #' @export
 calculate_ident_celltype <- function(x, cell_label = "cell_subtype_formatted") {
 
-    table(Idents(x), x[[]][, cell_label]) %>%
+    res <- table(Idents(x), x[[]][, cell_label]) %>%
         as.data.frame.matrix() %>%
         filter(rowSums(.) > 0) %>%
         t() %>%
@@ -522,6 +522,11 @@ calculate_ident_celltype <- function(x, cell_label = "cell_subtype_formatted") {
         mutate(across(everything(), ~ .x / sum(.x) * 100)) %>%
         mutate(across(everything(), ~replace_na(.x, 0))) %>%
         filter(rowSums(.) > 0)
+
+    if ("0" %in% colnames(res)) {
+        res <- res[reorder_celltype(rownames(res)), ]
+    }
+    return(res)
 }
 
 #' @export
@@ -645,6 +650,13 @@ confusing_table <- function(
         x[[]][, new_ident]
     )
 
+    if (str_detect(rownames(tab_raw), "B\\.") %>% any()) {
+        tab_raw <- tab_raw[reorder_celltype(rownames(tab_raw)), ]
+    }
+    if (str_detect(colnames(tab_raw), "B\\.") %>% any()) {
+        tab_raw <- tab_raw[, reorder_celltype(colnames(tab_raw))]
+    }
+
     # tab_raw <- tab_raw[
     #     as.character(0:(nrow(tab_raw) - 1)),
     #     as.character(0:(ncol(tab_raw) - 1))
@@ -704,8 +716,8 @@ heatmap_celltype <- function(
 }
 
 #' @export
-plot_dim_cell <- function(x,  ...) {
-    Idents(x) <- factor(Idents(x), levels =  reorder_celltype(Idents(x)))
+plot_dim_cell <- function(x,  group.by = "cell_subtype_formatted", ...) {
+    Idents(x) <- x[[]][, group.by] %>% factor(., levels =  reorder_celltype(.)) -> x[[]][, group.by]
     plot_dim(x, ...) #+
         # scale_color_manual(na.translate = FALSE, values = cols)
 }

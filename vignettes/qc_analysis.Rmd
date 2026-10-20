@@ -164,7 +164,7 @@ Idents(seurat) %>%
     cluster_size() %>% 
     kable_sc(file = file.path(path_fig, "table_cells.png"))
 
-plot_dim(seurat_subset, group.by = cell_label, col = pal_discrete_sc2, reduction = reduction2)
+plot_dim_cell(seurat_subset, group.by = cell_label, col = pal_discrete_sc2, reduction = reduction2)
 ```
 
 ```{r, message = FALSE, fig.height = 5, fig.width = 10}
@@ -214,7 +214,7 @@ Idents(seurat) %>%
 ```
 
 ```{r, fig.width = 5}
-plot_dim(seurat_subset, group.by = "cell_subtype_formatted", cols = pal_discrete_sc2, reduction = reduction2)
+plot_dim_cell(seurat_subset, group.by = "cell_subtype_formatted", cols = pal_discrete_sc2, reduction = reduction2)
 ```
 
 ```{r, fig.height = 5, fig.width = 10}
@@ -245,7 +245,7 @@ list.map(
     f(x, y, z) ~ {
       cells <- WhichCells(seurat_subset, expression = cell_type_formatted == x)
       if(length(cells) > 50)
-        plot_dim(
+        plot_dim_cell(
             seurat_subset,
             group.by = "cell_subtype_formatted",
             cells = cells,
