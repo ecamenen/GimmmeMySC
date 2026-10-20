@@ -71,7 +71,13 @@ if ((multiome & split.by != "modality") || assay == "ATAC") {
   seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
   seurat <- RunSVD(seurat, n = max_dim)
   
-  plot_cor_depth(seurat)
+  if (integrated & split.by == "group") {
+    atac_cells <- Cells(seurat[["ATAC"]])
+    seurat_atac <- subset(seurat, cells = atac_cells)
+    plot_cor_depth(seurat_atac)
+  } else {
+    plot_cor_depth(seurat)
+  }
   if (multiome) {
     if (!integrated) {
       DefaultAssay(seurat) <- assay 
@@ -195,9 +201,11 @@ if (multiome & split.by != "modality") {
     dims = seq(n_dim),
     integration_method2 = get(paste0(integration_method, "Integration"))
   )
-  
+  if (!(integrated & split.by == "group")) {
+      seurat_atac <- seurat
+  }
   if (assay_inv == "ATAC") {
-    dims_inv <- filter_depth_cor(seurat) %>% head(n_dim)
+    dims_inv <- filter_depth_cor(seurat_atac) %>% head(n_dim)
   } else {
     dims_inv <- seq(n_dim)
   }
