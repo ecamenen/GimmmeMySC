@@ -605,15 +605,13 @@ organise_plots <- function(x, i = 2) {
     )
 }
 
-
-
 #' @export
-plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), labels = NULL, ...) {
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), labels = NULL, nrow = unique(seurat[[]][, split.by]) %>% length(), ...) {
     p1 <- list.map(
         markers,
         f(i, j, k) ~ {
             plot_dot(x, head(i, 50) %>% unique(), split.by = split.by, cols = cols, labels = labels[[k]]) +
-            geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5) +
+            geom_hline(yintercept = seq(nrow, (n_line - 1) * nrow, by = nrow) + 0.5) +
             ggtitle(k)
         }
     )
