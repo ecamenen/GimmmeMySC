@@ -623,7 +623,7 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
 }
 
 #' @export
-plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), labels = labels, assay = "RNA", ...) {
+plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), labels = labels, assay = "RNA", nrow = unique(seurat[[]][, split.by]) %>% length(), ...) {
     list.map(
         markers,
         f(i, j, k) ~ {
@@ -648,10 +648,10 @@ plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_dis
                             labels = it_atac[[it3]],
                             ...
                         ) %>%
-                            organise_plots() %>%
+                            organise_plots(i = nrow) %>%
                             theme_multiple(
                                 ncol = NULL,
-                                nrow = 2,
+                                nrow = nrow,
                                 title = k
                             )
                     }
