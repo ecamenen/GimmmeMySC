@@ -84,10 +84,20 @@ plot_dim(
   label = FALSE
 ) + NoLegend()
 
+
+if (split.by != "Patient" & unique(seurat[[]][, split.by]) %>% length() > 2) {
+  seurat$Patient <-  str_remove_all(seurat$Patient, "(MO)|(RNA)_")
+  n_ind <- length(unique(seurat[[]][, split.by]))
+  pal_discrete_sc0 <- list.mapv(c("Reds", "Blues"), ~brewer.pal(n_ind/2 + 1, .)[-1]) %>% unname()
+} else {
+  pal_discrete_sc0 <- NULL
+}
+
 bar_ident_group(
   seurat_subset, 
-  group.by = split.by, 
-  idents = snn_cluster
+  group.by = split.by,
+  idents = snn_cluster,
+  colour = pal_discrete_sc0
 )
 
 bar_group_ident(
@@ -100,10 +110,11 @@ bar_group_ident(
 
 ## UMAP per Patient
 ```{r}
-if (split.by == "modality") {
-  seurat$Patient <- ifelse(seurat$modality == "multiome", paste0("MO_", seurat$Patient), paste0("RNA_", seurat$Patient))
-  library("RColorBrewer")
-  pal_discrete_sc4 <- brewer.pal(12, "Paired")[c(5:6, 1:2)]
+if (split.by != "Patient" & unique(seurat[[]][, split.by]) %>% length() == 2) {
+  # seurat$Patient <- ifelse(seurat$modality == "multiome", paste0("MO_", seurat$Patient), paste0("RNA_", seurat$Patient))
+  seurat$Patient <-  str_remove_all(seurat$Patient, "(MO)|(RNA)_")
+  n_ind <- length(unique(seurat$Patient))
+  pal_discrete_sc4 <- list.mapv(c("Reds", "Blues"), ~brewer.pal(n_ind/2 + 1, .)[-1])
 } else {
   pal_discrete_sc4 <- NULL
 }
@@ -168,7 +179,7 @@ plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE,
 
 ## Cell per cluster
 ```{r}
-if (split.by != "modality")
+if (split.by == "Patient")
   stop()
 
 DefaultAssay(seurat) <- assay
