@@ -41,9 +41,13 @@ source(
 load(file.path(path_data, paste0(seurat_dataset, ".rda")))
 Idents(seurat) <- snn_cluster
 
-seurat <- subset(seurat, subset = Type == target_type)
-start_cluster <- 6
+# seurat <- subset(seurat, subset = Type == target_type)
 end <- FALSE
+if (end) {
+  start_cluster <- tail(reorder_ident, 1)
+} else {
+  start_cluster <- head(reorder_ident, 1)
+}
 ```
 
 ```{r}
@@ -97,7 +101,7 @@ plot_cells(
     alpha = .15
 ) %>% theme_sc_dim() + 
     scale_color_gradientn(
-      colors = pal_sc, 
+      colors = pal_sc,
       name = "Pseudotime"
     )
 ```
@@ -152,7 +156,7 @@ p <- purrr::reduce(
 )
 theme_sc_dim(p)  + 
     scale_color_gradientn(
-      colors = pal_sc, 
+      colors = pal_sc,
       name = "Pseudotime"
     )
 ```
