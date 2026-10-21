@@ -41,7 +41,7 @@ p_threshold <- .05
 pct_threshold <- 0.25
 exp_threshold <- 0.1
 
-grouping.var <- "Type"
+grouping.var  <- split.by
 cell_label <- snn_cluster
 # cell_label <- "predicted.labels"
 
@@ -363,6 +363,8 @@ list.map(
 l_deg_top_all <- list.map(
   l_deg_top_all,
   f(x)~ {
+    if (!pseudo & is.null(ids))
+      x <- filter(x, log2FoldChange > 0)
   if (assay == "ATAC") {
     mutate(
       x,
