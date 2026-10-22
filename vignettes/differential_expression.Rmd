@@ -75,7 +75,14 @@ if (isFALSE(pseudo) & integrated) {
 ## Differentially Expressed Genes
 ```{r}
 if (isFALSE(pseudo)) {
-  cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var, assay = assay2)
+  # if (assay != "ATAC") {
+    test.use <- "wilcox"
+    latent.vars <- NULL
+  # } else {
+  #   test.use <- "LR"
+  #   latent.vars <- "nCount_ATAC"
+  # }
+  cluster_marker_genes <- dea_sc(seurat, ids, grouping.var = grouping.var, assay = assay2)#, test.use = test.use, latent.vars = latent.vars)
   
   l_dea_raw <- cluster_marker_genes %>%
     mutate(gene_name = gene) %>%
@@ -124,15 +131,17 @@ metadata_samples <- colnames(cts[[1]]) %>%
     column_to_rownames("id")
 metadata_samples$condition <- relevel(metadata_samples$condition, ref = "KO")
 
-genome_version <- 113
-if (species == "human") {
-    genome_species <- "hsapiens"
-} else {
-  genome_species <- "mmusculus"
+if (assay != "ATAC") {
+  genome_version <- 113
+  if (species == "human") {
+      genome_species <- "hsapiens"
+  } else {
+    genome_species <- "mmusculus"
+  }
+  
+  data("biomart_annotation", package = "GimmeMyOmics")
+  annotation <- biomart_annotation[[paste(genome_species, genome_version, sep = "_")]]
 }
-
-data("biomart_annotation", package = "GimmeMyOmics")
-annotation <- biomart_annotation[[paste(genome_species, genome_version, sep = "_")]]
 
 l_dea_proc <- list.map(
     names(cts),
@@ -140,9 +149,13 @@ l_dea_proc <- list.map(
         gene_count_raw  <- pluck(cts, name_cl) %>%
             rownames_to_column("gene_name")
         
+        if (assay != "ATAC") {
         metadata_genes <- filter(annotation, !duplicated(ensembl_gene_id)) %>%
             left_join(gene_count_raw, ., by = "gene_name") %>%
             select(colnames(annotation))
+        } else {
+          metadata_genes <- NULL
+        }
         
         gene_count <- pluck(cts, name_cl) %>%
             round()
@@ -197,9 +210,9 @@ kable_dea(l_deg, file = file.path(path_fig, "table_dea.png"))
 l_deg_top <- list.map(
   l_deg,
   f(x) ~ top_genes(
-    x,
-    fc_threshold = fc_threshold,
-    p_threshold = p_threshold,
+      x,
+      fc_threshold = fc_threshold,
+      p_threshold = p_threshold,
       n = Inf,
       return_rank  = TRUE
     ) %>% atac2gene(seurat, .)
@@ -361,7 +374,7 @@ list.map(
 ## Dotplots
 ```{r}
 l_deg_top_all <- list.map(
-  l_deg_top_all,
+  keep(l_deg_top_all, function(x) nrow(x) > 0),
   f(x)~ {
     if (!pseudo & is.null(ids))
       x <- filter(x, log2FoldChange > 0)
@@ -416,8 +429,13 @@ if (!pseudo) {
 ```
 
 ```{r}
+if (assay == "ATAC") {
+  top5_filtered0 <- mutate(top5_filtered, gene = gene_name)
+} else {
+  top5_filtered0 <- top5_filtered
+}
 if (!pseudo) {
-  plot_dot2(seurat, top5_filtered, labels = pull(top5_filtered, gene_name))
+  plot_dot2(seurat, top5_filtered0, labels = pull(top5_filtered, gene), assay = assay)
 }
 ```
 
@@ -426,31 +444,39 @@ markers0 <- top50 %>%
     # filter(!duplicated(gene_name)) %>%
     split(.$cluster) 
 markers <- markers0 %>%
-    list.map(~pull(., gene) %>% unique())
+    list.map(~pull(., gene))
 
 markers_atac <- list.map(markers0, pull(., gene_name))
+```
 
-if (!pseudo) {
-  plot_mfeature(seurat, markers, nrow = 3, cluster = TRUE, labels = markers_atac)
+```{r}
+if (assay == "ATAC") {
+  plot_mpeak(seurat, markers_atac)
 }
 ```
 
 ```{r}
 if (!pseudo) {
-  plot_markers(seurat, markers, labels = markers_atac)
+  plot_mfeature(seurat, markers_atac, nrow = 3, cluster = TRUE, labels = markers, reduction = reduction2)
+}
+```
+
+```{r}
+if (!pseudo) {
+  plot_markers(seurat, markers_atac, labels = markers)
 }
 ```
 
 ```{r}
 n_line <- nlevels(Idents(seurat_all))
 
-plot_dot2(seurat_all, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)]), labels = pull(top5_filtered, gene_name)) +
+plot_dot2(seurat_all, top5_filtered0, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)]), labels = pull(top5_filtered, gene)) +
     geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
 ```
 
 ```{r}
-plot_marker_split(seurat_all, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]), split.by = split.by, labels = markers_atac)
-plot_feature_split(seurat_all, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE, split.by = split.by, labels = markers_atac, assay = assay)
+plot_marker_split(seurat_all, markers_atac, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]), split.by = split.by, labels = markers)
+plot_feature_split(seurat_all, markers_atac, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE, split.by = split.by, labels = markers, assay = assay, reduction = reduction2)
 ```
 
 ## Session information
