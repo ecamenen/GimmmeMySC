@@ -166,17 +166,17 @@ plot_module <- function(x, markers, ncol = 3, cols = pal_discrete_sc, ...) {
 }
 
 #' @export
-plot_markers <- function(x, markers, cols = pal_discrete_sc, labels = NULL) {
-    p1 <- plot_mviolin(x, markers, cols = cols, labels = labels)
+plot_markers <- function(x, markers, cols = pal_discrete_sc, labels = NULL, func = func_format) {
+    p1 <- plot_mviolin(x, markers, cols = cols, labels = labels, func = function(i) func(i) %>% .[. %in% Features(x)] %>% head(12))
     print(p1)
     list.map(
         markers,
         f(i, j, k) ~ plot_dot(
             x,
-            features = func_format(i) %>% head(50) %>% unique(),
+            features = func(i) %>% head(50) %>% unique(),
             labels = labels[[k]]
-            ) +
-                labs(title = k)
+        ) +
+            labs(title = k)
     )
 }
 
@@ -310,7 +310,8 @@ dea_sc <- function(
         ids = NULL,
         group.by = "ident",
         grouping.var = "Type",
-        assay = "RNA"
+        assay = "RNA",
+        ...
     ) {
     cts <- AverageExpression(
         x,
@@ -351,7 +352,8 @@ dea_sc <- function(
                 object = x,
                 logfc.threshold = .Machine$double.xmin,
                 min.pct = .Machine$double.xmin,
-                assay = assay
+                assay = assay,
+                ...
             ) %>%
             mutate(
                 cluster = cluster,
@@ -606,7 +608,7 @@ organise_plots <- function(x, i = 2) {
 }
 
 #' @export
-plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), labels = NULL, nrow = unique(seurat[[]][, split.by]) %>% length(), ...) {
+plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type", cols = palette_discrete(), labels = NULL, nrow = unique(seurat[[]][, split.by]) %>% length(), func = func_format, ...) {
     p1 <- list.map(
         markers,
         f(i, j, k) ~ {
@@ -617,18 +619,18 @@ plot_marker_split <- function(x, markers, n_line = nlevels(x), split.by = "Type"
     )
     print(p1)
 
-    plot_mviolin(x, markers, split.by = split.by, cols = cols, labels = labels, ...)
+    plot_mviolin(x, markers, split.by = split.by, cols = cols, labels = labels, func = function(i) func(i) %>% .[. %in% Features(x)] %>% head(12), ...)
 }
 
 #' @export
-plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), labels = labels, assay = "RNA", nrow = unique(seurat[[]][, split.by]) %>% length(), ...) {
+plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_discrete(), labels = NULL, assay = "RNA", nrow = unique(seurat[[]][, split.by]) %>% length(), ...) {
     list.map(
         markers,
         f(i, j, k) ~ {
             it_markers <- head(i, 12) %>%
                 unique() %>%
                 split(ceiling(seq_along(.)/4))
-            if(assay == "ATAC") {
+            if (assay == "ATAC" & !is.null(labels)) {
                 it_atac <- head(labels[[k]], 12) %>%
                     split(ceiling(seq_along(.)/4))
             } else {
