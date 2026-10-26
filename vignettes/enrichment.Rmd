@@ -65,7 +65,7 @@ pseudo <- FALSE
 ## Load data
 ```{r}
 if (!pseudo) {
-  load(file.path(path_data,  paste0(seurat_dataset, "_clustering_markers.rda")))
+  load(file.path(path_data,  paste0(seurat_dataset, "_clustering_markers_rare.rda")))
 } else {
   load(file.path(path_data,  paste0(seurat_dataset, "_pseudo.rda")))
 }
@@ -174,7 +174,9 @@ regex <- list(
     "([Ee]rythro)|([Hh]eme)|([Rr]ed [Bb]lood)|([Mm]egakaryocyte)|([Hh]emangioblast)",
     "(eutrophil)|(acrophage)|(onocyte)|(endritic [Cc]ell)|((atural killer)|((NK)) [Cc]ell)|([Mm]yeloid)|(ranulocyte)"
     )
-l_deg_path <- l_enrich[c("8_up", "9_up")] %>%
+
+rare_clusters <- get_rare_clusters(seurat, snn_cluster)
+l_deg_path <- l_enrich[paste0(rare_clusters, "_up")] %>%
     list.map(
         f(i, j) ~ bind_gsea(i) %>%
     GimmeMyOmics:::extract_pathway_genes(method = "ora", regex = regex[[j]]) %>%
@@ -182,7 +184,7 @@ l_deg_path <- l_enrich[c("8_up", "9_up")] %>%
     )
 
 l_deg_top_all <- map2(
-    l_deg[c("8", "9")],
+    l_deg[rare_clusters],
     l_deg_path, \(x, y) filter(x, gene %in% y) %>%
         arrange(rank_pfc)
 ) %>% 
@@ -200,7 +202,7 @@ top5_filtered <- top50 %>%
     group_by(cluster) %>%
     slice_head(n = 5) %>%
     ungroup()
-markers <- top50  %>%
+markers <- top50 %>%
     split(.$cluster) %>%
     list.map(~pull(., gene_name) %>% unique())
 ```
@@ -211,7 +213,7 @@ if (pseudo) {
 } else {
   n_line <- nlevels(Idents(seurat))
 }
-levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
+# levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 
 plot_dot2(seurat, top5_filtered, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
     geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
@@ -354,7 +356,7 @@ l_deg_proc <- split(l_deg_proc, str_extract(names(l_deg_proc), "down|up")) %>%
   left_join(
     data.frame(Cluster = names(tmp$down), Down = unlist(tmp$down)),
     by = "Cluster"
-  ) %>% 
+  ) %>%
     mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
     kable_sc(
       file =  file.path(path_fig, "table_nb_pathways.png")
