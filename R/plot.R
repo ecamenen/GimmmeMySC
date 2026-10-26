@@ -765,4 +765,64 @@ plot_cor_depth <- function(x, ...) {
         theme_custom() +
         ggtitle("Correlation between sequencing depth and components") +
         labs(subtitle = NULL)
+
+#' @export
+plot_peak <- function(x, features, colors = palette_discrete(), ...) {
+    DefaultAssay(seurat) <- "ATAC"
+
+    if (!str_detect(features, "^chr"))
+        features <- LookupGeneCoords(object = x, gene = features)
+    if (is.null(features))
+        return(NULL)
+
+    cov_plot <- CoveragePlot(
+        object = x,
+        region = features,
+        annotation = FALSE,
+        peaks = FALSE,
+        ...
+    ) +
+        scale_fill_discrete(type = colors)
+
+    annot_plot <- AnnotationPlot(
+        object = x,
+        region = features
+    )
+
+    for (i in seq_along(annot_plot$layers)) {
+        if (inherits(annot_plot$layers[[i]]$geom, "GeomText") ||
+            inherits(annot_plot$layers[[i]]$geom, "GeomTextRepel")) {
+            annot_plot$layers[[i]]$aes_params$size <- 3
+            annot_plot$layers[[i]]$aes_params$fontface <- "bold"
+            annot_plot$layers[[i]]$aes_params$colour <- "red"
+        }
+    }
+
+    PeakPlot(
+        object = x,
+        region = features
+    ) %>%
+        list(cov_plot, annot_plot, .) %>%
+        CombineTracks(
+            plotlist = .,
+            heights = c(10, 2, 1),
+        )
+}
+
+#' @export
+plot_mpeak <- function(x, features, ...) {
+    list.map(
+        features,
+        f(i, j, k) ~head(i, 12) %>%
+        unique() %>%
+        split(ceiling(seq_along(.)/4)) %>%
+        list.map(
+            list.map(., plot_peak(x, ., ...)) %>%
+                theme_multiple(
+                    ncol = 2,
+                    nrow = 2,
+                    title = k
+                )
+    )
+    )
 }

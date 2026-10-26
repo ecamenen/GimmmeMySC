@@ -1229,3 +1229,32 @@ choose_palette <- function(seurat, x) {
         pal_discrete_sc[seq(n)]
     }
 }
+
+#' @export
+range_from_gene <- function(x, feature) {
+    DefaultAssay(x) <- "ATAC"
+    gene_annot <- Annotation(x) %>%
+        .[.$gene_name == feature]
+
+    if (length(gene_annot) == 0) {
+        return(NULL)
+    }
+
+    gene_range <- range(gene_annot)
+    peaks <- granges(x[["ATAC"]])
+
+    idx <- GenomicRanges::nearest(
+        gene_range,
+        peaks,
+        ignore.strand = TRUE
+    )[1]
+
+    nearest_peak <- peaks[idx]
+    paste0(
+        as.character(seqnames(nearest_peak)),
+        "-",
+        IRanges::start(nearest_peak),
+        "-",
+        IRanges::end(nearest_peak)
+    )
+}
