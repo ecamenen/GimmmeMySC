@@ -980,9 +980,14 @@ inverser_vs <- function(texte) {
 }
 
 #' @export
-filter_depth_cor <- function(object, cor.cutoff = 0.5) {
-    embeddings <- Embeddings(object, reduction = "lsi")
-    cor.values <- apply(embeddings, 2, function(x) cor(x, object$nCount_ATAC, method = "spearman"))
+filter_depth_cor <- function(object, cor.cutoff = 0.5, reduction = "lsi", depth = "nCount_ATAC") {
+    embeddings <- Embeddings(object, reduction = reduction)
+    depth.values <- object[[]][rownames(embeddings), depth]
+
+    cor.values <- apply(embeddings, 2, function(x) {
+        cor(x, depth.values, method = "spearman", use = "complete.obs")
+    })
+
     keep.mask <- abs(cor.values) <= cor.cutoff
     as.numeric(gsub("[^0-9]", "", names(cor.values)[keep.mask]))
 }
@@ -1121,19 +1126,32 @@ plot_feature_qc <- function(x, features, assay = "RNA", ...) {
 integrate_layers <- function(seurat, integration_method = "Harmony", assay = "RNA", split.by = "Patient", reduction = "pca", dims = seq(30), integration_method2 = get(paste0(integration_method, "Integration"))) {
 
     if (assay == "ATAC") {
+        seurat <- FindTopFeatures(seurat, assay = "ATAC", min.cutoff = "q5")
+        mf <- seurat[["ATAC"]]@meta.features
+        feats <- rownames(mf)[order(mf$count, decreasing = TRUE)]
+        feats <- feats[seq_len(min(20000, length(feats)))]
+
+        cells.atac <- Cells(seurat[["ATAC"]])
+
         seurat@assays[["ATAC_v5"]] <- CreateAssay5Object(
             counts = seurat@assays$ATAC$counts,
             data = seurat@assays$ATAC$data
         )
         seurat@assays[["ATAC_v5"]]@key <- "atacv5_"
-
         DefaultAssay(seurat) <- "ATAC_v5"
-        seurat <- ScaleData(seurat)
+
+        f <- seurat[[]][cells.atac, split.by]
+        names(f) <- cells.atac
+        stopifnot(nlevels(factor(f)) > 1, !anyNA(f))
+
         seurat[["ATAC_v5"]] <- split(
             seurat[["ATAC_v5"]],
-            f = seurat[[]][, split.by],
+            f = f,
             layers = c("counts","data")
         )
+
+        seurat <- ScaleData(seurat, assay = "ATAC_v5", features = feats)
+
         seurat <- IntegrateLayers(
             object = seurat,
             method = integration_method2,
@@ -1142,7 +1160,7 @@ integrate_layers <- function(seurat, integration_method = "Harmony", assay = "RN
             dims.to.integrate = dims,
             verbose = TRUE,
             assay = "ATAC_v5",
-            features = Features(seurat@assays[["ATAC_v5"]])
+            features = feats
         )
     } else {
         seurat <- IntegrateLayers(

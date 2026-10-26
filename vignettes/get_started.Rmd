@@ -205,7 +205,7 @@ if (multiome & split.by != "modality") {
       seurat_atac <- seurat
   }
   if (assay_inv == "ATAC") {
-    dims_inv <- filter_depth_cor(seurat_atac) %>% head(n_dim)
+    dims_inv <- filter_depth_cor(seurat_atac, reduction = new.reduction) %>% head(n_dim)
   } else {
     dims_inv <- seq(n_dim)
   }
@@ -320,7 +320,7 @@ kable_cluster(
   file = file.path(path_fig, "clusters.png"),
   assay = assay
 )
-grep(prefix_cl, colnames(seurat2[[]]), value = TRUE) %>% sort() %>%
+grep(paste0("^", prefix_cl), colnames(seurat2[[]]), value = TRUE) %>% sort() %>%
   kable_cluster(
     seurat,
     ., 
