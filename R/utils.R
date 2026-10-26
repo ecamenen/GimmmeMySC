@@ -1231,6 +1231,14 @@ choose_palette <- function(seurat, x) {
 }
 
 #' @export
+get_rare_clusters <- function(seurat, clusters = snn_cluster, n_lim = 100) {
+    fct_count(seurat[[]][, clusters]) %>%
+        filter(n < n_lim) %>%
+        pull(f) %>%
+        as.character()
+}
+
+#' @export
 range_from_gene <- function(x, feature) {
     DefaultAssay(x) <- "ATAC"
     gene_annot <- Annotation(x) %>%
