@@ -97,9 +97,9 @@ if (method == "ora") {
         p_threshold = p_threshold,
         return_rank = TRUE,
         n = 300
-      )
+      ) %>% atac2gene(seurat, .)
   )
-  
+  DefaultAssay(seurat) <- "RNA"
   l_enrich <- list.map(
     l_deg_proc,
     f(i) ~enricher(
@@ -120,7 +120,8 @@ if (method == "ora") {
       l_deg,
       f(x) ~ {
           metric <- "log2FoldChange"
-          de_genes_ranked <- top_genes(x, .Machine$double.xmin, 1, n = Inf, expression = TRUE) %>% #, rank = TRUE) %>%
+          de_genes_ranked <- top_genes(x, .Machine$double.xmin, 1, n = Inf, expression = TRUE) %>%
+            atac2gene(seurat, .) %>% #, rank = TRUE) %>%
               # mutate(ranked_padj = sign(log2FoldChange) * (log10(padj))) %>%
               pull(metric, name = var) %>%
               sort(decreasing = TRUE) %>%
@@ -129,6 +130,8 @@ if (method == "ora") {
               .[!duplicated(.)]
       }
   )
+  
+  DefaultAssay(seurat) <- "RNA"
   l_enrich <- list.map(
     l_deg_proc,
     f(i) ~GSEA(
@@ -175,10 +178,10 @@ if (names(cou$up) %>% str_detect("vs") %>% any()) {
 } else {
     l_deg_top_all2 <- list.map(
       cou,
-      f(i) ~ list.map(
+      f(i, j) ~ list.map(
         compact(i) %>% names(),
-      f(x) ~ filter(l_deg[[x]], gene %in% i[[x]]) %>%
-      arrange(rank_pfc)
+      f(x) ~ filter(l_deg_proc[[paste0(x, "_", ifelse(j == 1, "down", "up"))]], gene_name %in% i[[x]]) %>%
+        arrange(rank_pfc)
       ) %>% 
        discard(~ nrow(.x) == 0)
     )
@@ -200,10 +203,14 @@ top5_filtered <- list.map(
     ungroup()
   )
 
-markers <- format_markers(l_deg_top_all)  %>%
+markers0 <- format_markers(l_deg_top_all)  %>%
     split(.$cluster) %>%
-    map(~head(.x, 50)) %>%
-    list.map(~pull(., gene_name) %>% unique()) %>%
+    map(~head(.x, 50))
+labels <- markers0 %>%
+    list.map(~pull(., gene_name)) %>%
+  compact()
+markers <- markers0 %>%
+    list.map(~pull(., gene)) %>%
   compact()
 ```
 
@@ -214,15 +221,14 @@ levels(seurat) <- c("6", "1", "2", "0", "7", "3", "5", "4", "8", "9")
 
 list.map(
   top5_filtered,
-  f(x) ~
-  plot_dot2(seurat, x, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)])) +
-      geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
+  f(x) ~ plot_dot2(seurat, x, split.by = split.by, cols = rev(pal_discrete_sc[seq(2)]), labels = pull(x, gene_name), assay = assay) +
+    geom_hline(yintercept = seq(2, (n_line - 1) * 2, by = 2) + 0.5)
 )
 ```
 
 ```{r, fig.height=6, fig.width=12}
-plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]))
-plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE)
+plot_marker_split(seurat, markers, n_line = n_line, cols = rev(pal_discrete_sc[seq(2)]), labels = labels, func = ifelse(assay == "ATAC", identity, func_format))
+plot_feature_split(seurat, markers, normalize = TRUE, cols = rev(pal_discrete_sc[seq(2)]), cluster = TRUE, labels = labels, assay = assay, reduction = reduction2)
 ```
 
 ## Plot
