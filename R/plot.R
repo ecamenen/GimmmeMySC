@@ -761,10 +761,12 @@ plot_dim_selected <- function(x, selected, ...) {
 
 #' @export
 plot_cor_depth <- function(x, ...) {
-    DepthCor(x, n = n_dim, ...) +
+    p <- DepthCor(x, n = n_dim, ...) +
         theme_custom() +
         ggtitle("Correlation between sequencing depth and components") +
         labs(subtitle = NULL)
+    plot(p)
+}
 
 #' @export
 plot_peak <- function(x, features, colors = palette_discrete(), ...) {

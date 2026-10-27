@@ -1190,12 +1190,13 @@ qc_integration <- function(seurat, reduction = "umap", split.by = "Type") {
         label = FALSE,
         reduction = reduction
     ) %>% plot()
-    plot_dim(
+    p <- plot_dim(
         seurat,
         split.by = split.by,
         reduction = reduction,
         label = FALSE
     ) + NoLegend()
+    plot(p)
 }
 
 #' @export
