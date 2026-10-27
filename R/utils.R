@@ -1240,7 +1240,7 @@ get_rare_clusters <- function(seurat, clusters = snn_cluster, n_lim = 100) {
 }
 
 #' @export
-range_from_gene <- function(x, feature) {
+range_from_gene <- function(x, feature, layer = "data", fallback_nearest = FALSE) {
     DefaultAssay(x) <- "ATAC"
     gene_annot <- Annotation(x) %>%
         .[.$gene_name == feature]
@@ -1249,14 +1249,30 @@ range_from_gene <- function(x, feature) {
         return(NULL)
     }
 
-    gene_range <- range(gene_annot)
+    gene_range <- range(gene_annot, ignore.strand = TRUE)
     peaks <- granges(x[["ATAC"]])
+    peak_names <- rownames(x[["ATAC"]])
 
-    idx <- GenomicRanges::nearest(
-        gene_range,
+    hits <- GenomicRanges::findOverlaps(
         peaks,
+        gene_range,
         ignore.strand = TRUE
-    )[1]
+    )
+    idx <- unique(S4Vectors::queryHits(hits))
+
+    if (length(idx) == 0) {
+        if (!fallback_nearest) {
+            return(NULL)
+        }
+        idx <- GenomicRanges::nearest(
+            gene_range,
+            peaks,
+            ignore.strand = TRUE
+        )[1]
+    } else if (length(idx) > 1) {
+        mat <- GetAssayData(x, assay = "ATAC", layer = layer)[peak_names[idx], , drop = FALSE]
+        idx <- idx[which.max(Matrix::rowMeans(mat))]
+    }
 
     nearest_peak <- peaks[idx]
     paste0(
