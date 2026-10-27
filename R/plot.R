@@ -214,7 +214,22 @@ plot_feature <- function(
     )
 
     if (!is.null(labels)) {
-        p <- list.map(p, f(x, y) ~ x + ggtitle(label = c(as.list(labels), rep(list(NULL), length(labels) * (n_groups - 1)))[[y]]))
+        p <- list.map(
+            p,
+          f(x, y) ~ x +
+              labs(
+                title = c(as.list(labels), rep(list(NULL), length(labels) * (n_groups - 1)))[[y]],
+                subtitle = rep(features, n_groups)[y]
+          ) +
+              theme(
+                  plot.subtitle = element_text(
+                      face = "bold.italic",
+                      size = 12,
+                      color = "gray",
+                      hjust = 0.5
+                  )
+              )
+        )
     }
 
     if (cluster || label) {
