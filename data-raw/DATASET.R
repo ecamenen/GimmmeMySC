@@ -109,7 +109,16 @@ cell_markers <- list(
 
     Eosinophils = c("Siglecf", "Itgam", "Ccr3", "Il5ra", "Ly6g", "Adgre1", "Itgax", "Ly6c1", "Ptprc"),
 
-    DCs = c("Itgax", "H2-Ab1", "Cd8a", "Itgam", "Itgae", "Cd86", "Cd80", "Flt3", "Xcr1", "Siglech")
+    DCs = c("Itgax", "H2-Ab1", "Cd8a", "Itgam", "Itgae", "Cd86", "Cd80", "Flt3", "Xcr1", "Siglech"),
+
+    `Stem cells` =  c(
+        "Kit",
+        # "Ly6a", "Slamf1",
+        "Mpl" , "Gata2", "Procr", "Mecom",
+        "Mllt3", "Hlf", "Meis1"
+        ),
+
+    Erythroids = c("Hbb", "Hba1", "Gypa", "Slc4a1", "Alas2", "Epb42", "Klf1", "Gata1", "Spta1", "Ahsp")
 )
 
 usethis::use_data(cell_markers, overwrite = TRUE)
