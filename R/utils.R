@@ -634,7 +634,7 @@ plot_feature_split <- function(x, markers, split.by = "Type", cols = palette_dis
                 it_atac <- head(labels[[k]], 12) %>%
                     split(ceiling(seq_along(.)/4))
             } else {
-                it_atac <- it_markers
+                it_atac <- NULL
             }
                 list.map(
                     it_markers,
@@ -1240,7 +1240,7 @@ get_rare_clusters <- function(seurat, clusters = snn_cluster, n_lim = 100) {
 }
 
 #' @export
-range_from_gene <- function(x, feature, layer = "data", fallback_nearest = FALSE) {
+range_from_gene <- function(x, feature) {
     DefaultAssay(x) <- "ATAC"
     gene_annot <- Annotation(x) %>%
         .[.$gene_name == feature]
@@ -1249,29 +1249,27 @@ range_from_gene <- function(x, feature, layer = "data", fallback_nearest = FALSE
         return(NULL)
     }
 
-    gene_range <- range(gene_annot, ignore.strand = TRUE)
-    peaks <- granges(x[["ATAC"]])
-    peak_names <- rownames(x[["ATAC"]])
+    gene_strand <- as.character(GenomicRanges::strand(gene_annot))[1]
+    if (gene_strand == "*") gene_strand <- "+"
 
-    hits <- GenomicRanges::findOverlaps(
-        peaks,
-        gene_range,
-        ignore.strand = TRUE
+    gene_range <- range(gene_annot, ignore.strand = TRUE)[1]
+    tss_pos <- if (gene_strand == "-") {
+        IRanges::end(gene_range)
+    } else {
+        IRanges::start(gene_range)
+    }
+    tss <- GenomicRanges::GRanges(
+        seqnames = GenomicRanges::seqnames(gene_range),
+        ranges = IRanges::IRanges(start = tss_pos, width = 1),
+        strand = gene_strand
     )
-    idx <- unique(S4Vectors::queryHits(hits))
+
+    peaks <- granges(x[["ATAC"]])
+
+    idx <- GenomicRanges::nearest(tss, peaks, ignore.strand = TRUE)[1]
 
     if (length(idx) == 0) {
-        if (!fallback_nearest) {
             return(NULL)
-        }
-        idx <- GenomicRanges::nearest(
-            gene_range,
-            peaks,
-            ignore.strand = TRUE
-        )[1]
-    } else if (length(idx) > 1) {
-        mat <- GetAssayData(x, assay = "ATAC", layer = layer)[peak_names[idx], , drop = FALSE]
-        idx <- idx[which.max(Matrix::rowMeans(mat))]
     }
 
     nearest_peak <- peaks[idx]
