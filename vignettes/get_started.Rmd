@@ -373,6 +373,10 @@ if (assay == "ATAC") {
 }
 
 Idents(seurat) <- seurat[[]][, snn_cluster]
+
+calculate_ident_celltype(seurat, cell_label = "cell_subtype_formatted") -> tmp
+colSums(tmp * 5:1) %>% sort() %>% as.data.frame() %>% write_tsv(file = file.path(path_fig, "sorted_clusters.tsv"))
+
 if (integrated && split.by == "Patient") {
   save(seurat, file = file.path(path_data, paste0(seurat_dataset, "_", target_type, ".rda")))
 } else {
