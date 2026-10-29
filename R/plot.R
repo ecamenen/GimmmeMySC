@@ -633,7 +633,7 @@ bar_ident_group <- function(
 }
 
 #' @export
-bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35", colour = palette_discrete()) {
+bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35", colour = palette_discrete(), ...) {
 
     if ("0" %in% levels(x[[]][, idents])) {
         legend <- levels(x[[]][, idents])
@@ -645,7 +645,8 @@ bar_group_ident <- function(x, group.by = "Patient", idents = "RNA__snn_res.0.35
         as.data.frame() %>%
         bar_ident_group0(
             colour = colour,
-            legend = legend
+            legend = legend,
+            ...
         )
 }
 
@@ -784,27 +785,55 @@ plot_cor_depth <- function(x, ...) {
 }
 
 #' @export
-plot_peak <- function(x, features, colors = palette_discrete(), ...) {
-    DefaultAssay(seurat) <- "ATAC"
+plot_peak <- function(x, features, colors = palette_discrete(), show_range = FALSE, no_arrows = FALSE, ...) {
+    DefaultAssay(x) <- "ATAC"
+    ranges.show <- NULL
 
-    if (!str_detect(features, "^chr"))
+    if (!str_detect(features, "^chr")) {
+        ranges.show <- range_from_gene(x, features)
+        if (is.null(ranges.show))
+            return(NULL)
+        if (isTRUE(show_range)) {
+            ranges.show <- StringToGRanges(ranges.show)
+            ranges.show$color <- "orange"
+        }
         features <- LookupGeneCoords(object = x, gene = features)
+    } else {
+        features <- Signac::StringToGRanges(features, sep = c("-", "-"))
+    }
+
     if (is.null(features))
         return(NULL)
+
+    extend <- round(GenomicRanges::width(features) / 5)
 
     cov_plot <- CoveragePlot(
         object = x,
         region = features,
         annotation = FALSE,
         peaks = FALSE,
+        extend.upstream = extend,
+        extend.downstream = extend,
+        region.highlight = ranges.show,
         ...
     ) +
         scale_fill_discrete(type = colors)
 
     annot_plot <- AnnotationPlot(
         object = x,
-        region = features
+        region = features,
+        extend.upstream = extend,
+        extend.downstream = extend
     )
+
+
+    if (isTRUE(no_arrows)) {
+        for (i in seq_along(annot_plot$layers)) {
+            if (inherits(annot_plot$layers[[i]]$geom, "GeomSegment")) {
+                annot_plot$layers[[i]]$geom_params$arrow <- NULL
+            }
+        }
+    }
 
     for (i in seq_along(annot_plot$layers)) {
         if (inherits(annot_plot$layers[[i]]$geom, "GeomText") ||
@@ -815,14 +844,16 @@ plot_peak <- function(x, features, colors = palette_discrete(), ...) {
         }
     }
 
-    PeakPlot(
-        object = x,
-        region = features
-    ) %>%
-        list(cov_plot, annot_plot, .) %>%
+    # PeakPlot(
+    #     object = x,
+    #     region = features,
+        # extend.upstream = extend,
+        # extend.downstream = extend
+    # ) %>%
+        list(cov_plot, annot_plot) %>%
         CombineTracks(
             plotlist = .,
-            heights = c(10, 2, 1),
+            heights = c(10, 2),
         )
 }
 
