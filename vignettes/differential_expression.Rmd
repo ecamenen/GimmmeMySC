@@ -221,7 +221,7 @@ l_deg_top <- list.map(
 
 volcano_plot_custom <- function(l_deg_top) {
   
-  l_deg_top <- list.map(l_deg_top, head(., 15))
+  l_deg_top <- list.map(l_deg_top, filter(., gene_name != "") %>% head(., 15))
 
   p <- list.map(
     l_deg_top,
@@ -267,7 +267,7 @@ list.map(l_deg_top, ~ filter(., log2FoldChange < 0)) %>%
 l_deg2 <- list.map(
     l_deg,
     f(x) ~ {
-      if (!pseudo) {
+      if (!pseudo | assay == "ATAC") {
         x <- mutate(x, description = "")
       }
       res <- print_dea(x, metadata = TRUE, f = desc, rank_by = "rank_fc", return_rank = TRUE)
@@ -431,8 +431,10 @@ if (!pseudo) {
 ```{r}
 if (assay == "ATAC") {
   top5_filtered0 <- mutate(top5_filtered, gene = gene_name)
+  func <- identity
 } else {
   top5_filtered0 <- top5_filtered
+  func <- func_format
 }
 if (!pseudo) {
   plot_dot2(seurat, top5_filtered0, labels = pull(top5_filtered, gene), assay = assay)
@@ -450,20 +452,20 @@ markers_atac <- list.map(markers0, pull(., gene_name))
 ```
 
 ```{r}
-if (assay == "ATAC") {
+if (assay == "ATAC" && !pseudo) {
   plot_mpeak(seurat, markers_atac)
 }
 ```
 
 ```{r}
 if (!pseudo) {
-  plot_mfeature(seurat, markers_atac, nrow = 3, cluster = TRUE, labels = markers, reduction = reduction2)
+  plot_mfeature(seurat, markers_atac, nrow = 3, cluster = TRUE, labels = markers, reduction = reduction2, func = func)
 }
 ```
 
 ```{r}
 if (!pseudo) {
-  plot_markers(seurat, markers_atac, labels = markers)
+  plot_markers(seurat, markers_atac, labels = markers, func = func)
 }
 ```
 
