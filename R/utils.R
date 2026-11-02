@@ -1207,11 +1207,15 @@ calculate_pct_var <- function(x, reduction = "pca") {
 }
 
 #' @export
-atac2gene <- function(seurat, x) {
+atac2gene <- function(seurat, x, dist_min = 2e3) {
     if (nrow(x) > 0 && assay == "ATAC") {
         library("Signac")
         closest <- ClosestFeature(seurat, regions = x$gene_name)
-        mutate(x, gene_name = closest$gene_name, distance = closest$distance)
+        mutate(
+            x,
+            gene_name = ifelse(closest$distance > dist_min, "", closest$gene_name),
+            distance = closest$distance
+        )
     } else {
         x
     }
