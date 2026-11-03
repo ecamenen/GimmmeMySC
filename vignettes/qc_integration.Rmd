@@ -165,17 +165,39 @@ Idents(seurat_subset) <- snn_cluster
 
 ## Markers
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
-DefaultAssay(seurat) <- "RNA"
 data("l_bcell_markers2")
-plot_marker_split(seurat, l_bcell_markers2, split.by = split.by)
-DefaultAssay(seurat_subset) <- "RNA"
-plot_feature_split(seurat_subset, l_bcell_markers2, normalize = TRUE, cluster = TRUE, reduction = reduction2, split.by = split.by)
+markers <- l_bcell_markers2
+DefaultAssay(seurat) <- assay2
+DefaultAssay(seurat_subset) <- assay2
+
+if (assay == "ATAC") {
+    markers <- markers %>% list.map(., list.mapv(., range_from_gene(seurat, .)) %>% compact())
+    labels <- list.map(markers, ~names(.))
+    func <- identity
+} else {
+    labels <- NULL
+    func <- func_format
+}
+
+plot_marker_split(seurat, markers, split.by = split.by, func = func, labels = labels)#, cols = pal_discrete_sc0)
+plot_feature_split(seurat_subset, markers, normalize = TRUE, cluster = FALSE, reduction = reduction2, split.by = split.by, labels = labels, assay = assay)
 ```
 
 ```{r, message = FALSE, fig.height = 6, fig.width = 12}
 data("jcb_markers")
-plot_marker_split(seurat, jcb_markers, split.by = split.by)
-plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = TRUE, reduction = reduction2, split.by = split.by)
+markers <- jcb_markers
+
+if (assay == "ATAC") {
+    markers <- markers %>% list.map(., list.mapv(., range_from_gene(seurat, .)) %>% compact())
+    labels <- list.map(markers, ~names(.))
+    func <- identity
+} else {
+    labels <- NULL
+    func <- func_format
+}
+
+plot_marker_split(seurat, jcb_markers, split.by = split.by, func = func, labels = labels)#, cols = pal_discrete_sc0)
+plot_feature_split(seurat_subset, jcb_markers, normalize = TRUE, cluster = FALSE, reduction = reduction2, split.by = split.by, labels = labels, assay = assay)
 ```
 
 ## Cell per cluster
