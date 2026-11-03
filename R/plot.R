@@ -886,3 +886,29 @@ plot_mpeak <- function(x, features, ...) {
     )
     )
 }
+
+#' @export
+plot_peak_split <- function(x, features, group.by = "Type") {
+    list.map(
+        split(colnames(x), Idents(x)),
+        f(i, j, k) ~ {
+        plot_mpeak(x, features, group.by, cells = i) %>%
+            list.map(
+                list.map(., f(p) ~ {
+                    title <- ggdraw() +
+                    draw_label(
+                        k,
+                        fontface = "bold",
+                        color = "blue",
+                        x = 0.5,
+                        hjust = 0.5,
+                        size = 25
+                    )  +
+                    theme(plot.margin = margin(0, 0, 0, 7))
+                plot_grid(title, p, ncol = 1, rel_heights = c(0.1, 1))
+                }
+                )
+            )
+        }
+    )
+}
