@@ -219,7 +219,7 @@ plot_feature <- function(
           f(x, y) ~ x +
               labs(
                 title = c(as.list(labels), rep(list(NULL), length(labels) * (n_groups - 1)))[[y]],
-                subtitle = rep(features, n_groups)[y]
+                subtitle = c(as.list(features), rep(list(NULL), length(features) * (n_groups - 1)))[[y]]
           ) +
               theme(
                   plot.subtitle = element_text(
