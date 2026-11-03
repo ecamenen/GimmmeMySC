@@ -408,7 +408,19 @@ plot_violin_sc <- function(
         map(~. +theme_violin_sc() + labs(y = NULL) + NoLegend())
 
     if (!is.null(labels)) {
-        p <- list.map(p, f(x, y) ~ x + ggtitle(label = labels[[y]]))
+        p <- list.map(
+            p,
+            f(x, y) ~ x +
+                labs(subtitle = features, title = labels[[y]])  +
+                theme(
+                    plot.subtitle = element_text(
+                        face = "bold.italic",
+                        size = 12,
+                        color = "gray",
+                        hjust = 0.5
+                    )
+                )
+        )
     } else {
         p
     }
