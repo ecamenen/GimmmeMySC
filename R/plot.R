@@ -870,7 +870,8 @@ plot_peak <- function(x, features, colors = palette_discrete(), show_range = FAL
 }
 
 #' @export
-plot_mpeak <- function(x, features, ...) {
+plot_mpeak <- function(x, features, group.by = Idents(x), ...) {
+    Idents(x) <- group.by
     list.map(
         features,
         f(i, j, k) ~head(i, 12) %>%
