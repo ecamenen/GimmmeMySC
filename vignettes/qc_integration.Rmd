@@ -114,7 +114,7 @@ if (split.by != "Patient" & unique(seurat[[]][, split.by]) %>% length() == 2) {
   # seurat$Patient <- ifelse(seurat$modality == "multiome", paste0("MO_", seurat$Patient), paste0("RNA_", seurat$Patient))
   seurat$Patient <-  str_remove_all(seurat$Patient, "(MO)|(RNA)_")
   n_ind <- length(unique(seurat$Patient))
-  pal_discrete_sc4 <- list.mapv(c("Reds", "Blues"), ~brewer.pal(n_ind/2 + 1, .)[-1])
+  pal_discrete_sc4 <- list.mapv(c("Reds", "Blues"), ~brewer.pal(n_ind/2 + 1, .)[-1]) %>% unname()
 } else {
   pal_discrete_sc4 <- NULL
 }
@@ -130,10 +130,11 @@ plot_dim(
 ) + NoLegend()
 
 bar_ident_group(
-  seurat_subset2, 
+  seurat_subset2,
   group.by = "Patient", 
   idents = snn_cluster,
-  colour = pal_discrete_sc4
+  colour = pal_discrete_sc4,
+  legend = unique(seurat$Patient)
 )
 
 bar_group_ident(
