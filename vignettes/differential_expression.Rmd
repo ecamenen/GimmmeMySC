@@ -444,16 +444,24 @@ if (!pseudo) {
 ```{r}
 markers0 <- top50 %>%
     # filter(!duplicated(gene_name)) %>%
-    split(.$cluster) 
+    split(.$cluster)
+if (assay == "ATAC") {
 markers <- markers0 %>%
     list.map(~pull(., gene))
+} else {
+  markers <- NULL
+}
 
 markers_atac <- list.map(markers0, pull(., gene_name))
 ```
 
 ```{r}
-if (assay == "ATAC" && !pseudo) {
-  plot_mpeak(seurat, markers_atac)
+if (assay == "ATAC") {
+  if (!pseudo) {
+    plot_mpeak(seurat, markers_atac)
+  } else {
+    plot_mpeak(seurat, markers_atac, group.by = split.by)
+  }
 }
 ```
 
